@@ -1,0 +1,31 @@
+UTWKS61861:mystr flokstra$ psql 
+psql (12.1)
+Type "help" for help.
+
+flokstra=# create extension mystr;
+CREATE EXTENSION
+flokstra=# select mystr('Hello ');
+  mystr   
+--------
+ Hello 
+(1 row)
+
+flokstra=# select mystr('Hello ')+mystr('World!');;
+   ?column?   
+--------------
+ Hello World!
+(1 row)
+
+flokstra=# select mystr('Hello ')=mystr('World!');;
+ ?column? 
+----------
+ f
+(1 row)
+
+flokstra=# select mystr('Hello ')<>mystr('World!');;
+ ?column? 
+----------
+ t
+(1 row)
+
+flokstra=# 

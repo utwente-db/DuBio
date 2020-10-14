@@ -1,0 +1,3 @@
+#!/bin/bash
+dot -Tpng $1 > ${1/.dot/.png}
+open ${1/.dot/.png}

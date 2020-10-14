@@ -1,0 +1,16 @@
+# mystr.control
+#
+#      Postgres extension control file for mystr example
+#
+#      Copyright (c) 2020 Jan Flokstra
+#      Author:  Jan Flokstra
+#      License: BSD
+#
+
+directory       = 'extension'
+default_version = '0.0.1'
+module_pathname = '$libdir/mystr'
+superuser       = true
+relocatable     = false
+
+comment = 'Provides a mystr data type.'
