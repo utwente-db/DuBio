@@ -1,28 +1,36 @@
-CC = cc
-CFLAGS = -g
+#
+# Makefile for Postgres pgbdd extension and test environment
+#
+CC         = CC
+MYEXT      = pgbdd
+EXTENSION  = $(MYEXT)             # the extensions name
+MODULE_big = $(MYEXT)             # the extensions name
+DATA       = $(MYEXT)--0.0.1.sql  # script files to install
+OBJS       = pg_bdd.o pg_dictionary.o pg_utils.o pg_vector.o 
 
-RUN = test_package
+# default: all-lib # default just compile for postgres
+default: run
 
-HEADERS      = bdd.h dictionary.h utils.h vector.h
-PG-OBJECTS   = pg_bdd.o   pg_dictionary.o   pg_utils.o   pg_vector.o
+TEST-PACKAGE = test_package
 TEST-OBJECTS = test_bdd.o test_dictionary.o test_utils.o test_vector.o
 
-%.o: %.c $(HEADERS)
-	$(CC) $< $(CFLAGS) -c -o $@
-     
-run:    $(RUN)
-	# lldb ./$(RUN)
-	./$(RUN)
+HEADERS      = bdd.h dictionary.h utils.h vector.h
 
-test_package: test_config.h test_package.o $(TEST-OBJECTS) $(HEADERS)
-	$(CC) $(CFLAGS) -o $@ test_package.o $(TEST-OBJECTS)
+run:    $(TEST-PACKAGE)
+	# lldb ./$(TEST-PACKAGE)
+	./$(TEST-PACKAGE)
 
-clean: 
-	$(RM) test_package.o $(TEST-OBJECTS) $(PG-OBJECTS)
+$(TEST-PACKAGE): test_config.h $(TEST-PACKAGE).o $(TEST-OBJECTS) $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ $(TEST-PACKAGE).o $(TEST-OBJECTS)
+
+clean: test-clean
+
+test-clean: 
+	$(RM) $(TEST-PACKAGE) $(TEST-PACKAGE).o $(TEST-OBJECTS) $(PG-OBJECTS)
 
 backup: 
-	tar cvf - /Users/flokstra/pgext | gzip > /Users/flokstra/backup/pgext.tar.gz
-	scp /Users/flokstra/backup/pgext.tar.gz farm01.ewi.utwente.nl:
+	tar cvf - /Users/flokstra/Github/DuBio | gzip > /Users/flokstra/backup/DuBio.tar.gz
+	scp /Users/flokstra/backup/DuBio.tar.gz farm01.ewi.utwente.nl:
 
 pg_bdd.o : bdd.c
 pg_dictionary.o : dictionary.c
@@ -33,3 +41,8 @@ test_bdd.o : bdd.c
 test_dictionary.o : dictionary.c
 test_utils.o : utils.c
 test_vector.o : vector.c
+
+# postgres build stuff
+PG_CONFIG = pg_config
+PGXS := $(shell $(PG_CONFIG) --pgxs)
+include $(PGXS)

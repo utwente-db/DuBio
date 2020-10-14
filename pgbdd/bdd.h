@@ -52,8 +52,14 @@ typedef struct bdd {
     V_bddstr order;
 } bdd;
 
+bddstr bdd_get_rva_name(bddstr);
+int bdd_get_rva_value(bddstr);
+int bdd_low(bdd*,int);
+int bdd_high(bdd*,int);
+int bdd_is_leaf(bdd*,int);
+
 //
 
-void test_bdd();
+void test_bdd(void);
 
 #endif

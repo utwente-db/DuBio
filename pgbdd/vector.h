@@ -41,11 +41,16 @@ int V_##type##_bytesize(V_##type*); \
 int V_##type##_add(V_##type*, type); \
 type V_##type##_get(V_##type*, int); \
 type* V_##type##_getp(V_##type*, int); \
+void V_##type##_set(V_##type*, int, type); \
 void V_##type##_delete(V_##type*, int); \
 V_##type *V_##type##_serialize(void*, V_##type*); \
 int V_##type##_find(V_##type*, V_##type##_cmpfun, type); \
+int V_##type##_bsearch(V_##type*, V_##type##_cmpfun, int, int, type); \
 void V_##type##_quicksort(V_##type*,int,int,V_##type##_cmpfun); \
-
+void V_##type##_shrink2size(V_##type*); \
+int V_##type##_is_serialized(V_##type*); \
+V_##type *V_##type##_copy2(V_##type*, V_##type*); \
+void V_##type##_resize(V_##type*, int); \
 
 /*
  *

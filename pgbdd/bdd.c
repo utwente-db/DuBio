@@ -49,7 +49,7 @@ int cmpBddrow(bddrow l, bddrow r) {
  *
  */
 
-bdd* bdd_init(bdd* bdd, char* expr, char* name, V_bddstr* order, int verbose) {
+static bdd* bdd_init(bdd* bdd, char* expr, char* name, V_bddstr* order, int verbose) {
     fprintf(stdout,"Create bdd\n");
     strncpy(bdd->name,(name?name:"NONAME"),MAXRVA);
     bdd->verbose = 1;
@@ -63,12 +63,12 @@ bdd* bdd_init(bdd* bdd, char* expr, char* name, V_bddstr* order, int verbose) {
     return bdd;
 }
 
-void bdd_free(bdd* bdd) {
+static void bdd_free(bdd* bdd) {
     V_bddstr_free(&bdd->order);
     V_bddrow_free(&bdd->tree);
 }
 
-void bdd_print(bdd* bdd, FILE* out) {
+static void bdd_print(bdd* bdd, FILE* out) {
     fprintf(out,"BDD: %s\n",bdd->name);
     fprintf(out,"+ expr:\t%s\n",bdd->expr);
     fprintf(out,"+ order:\t");
@@ -115,7 +115,7 @@ int bdd_is_leaf(bdd* bdd, int i) {
     return (i==0)||(i==1); // incomplete, check row is cleaner
 }
 
-int bdd_lookup(bdd* bdd, char* rva, int low, int high) {
+static int bdd_lookup(bdd* bdd, char* rva, int low, int high) {
     bddrow findrow;
 
     // no hash like in python, optimization will be later
@@ -125,7 +125,7 @@ int bdd_lookup(bdd* bdd, char* rva, int low, int high) {
     return V_bddrow_find(&bdd->tree,cmpBddrow,findrow);
 } 
 
-int bdd_create_node(bdd* bdd, char* rva, int low, int high) {
+static int bdd_create_node(bdd* bdd, char* rva, int low, int high) {
     bddrow newrow;
 
     strncpy(newrow.rva,rva,MAXRVA);
@@ -134,7 +134,7 @@ int bdd_create_node(bdd* bdd, char* rva, int low, int high) {
     return V_bddrow_add(&bdd->tree,newrow);
 }
 
-int bdd_mk(bdd* bdd, char* v, int l, int h) {
+static int bdd_mk(bdd* bdd, char* v, int l, int h) {
     fprintf(stdout,"MK[v=\"%s\", l=%d, h=%d]\n",v,l,h);
     bdd->mk_calls++;
     if ( l == h )
@@ -146,7 +146,7 @@ int bdd_mk(bdd* bdd, char* v, int l, int h) {
     return node;
 } 
 
-int bdd_build_bdd(bdd* bdd, char* expr, int i, char* rewrite_buffer) {
+static int bdd_build_bdd(bdd* bdd, char* expr, int i, char* rewrite_buffer) {
     fprintf(stdout,"BUILD[i=%d]: %s\n",i,expr);
 
     if ( i >= bdd->n )
@@ -160,7 +160,7 @@ int bdd_build_bdd(bdd* bdd, char* expr, int i, char* rewrite_buffer) {
     return bdd_mk(bdd,var.str,l,h);
 }
 
-void bdd_start_build(bdd* bdd) {
+static void bdd_start_build(bdd* bdd) {
     fprintf(stdout,"BDD start_build\n");
     //
     V_bddrow_reset(&bdd->tree);
@@ -196,6 +196,8 @@ void bdd_start_build(bdd* bdd) {
  *
  */
 
+#ifdef TEST_CONFIG
+
 void test_bdd(){
     fprintf(stdout,"Test bdd\n");
     // char* expr = "((x=1 and x=1) or (not y=0 and not zzz=1)) and((xx=2 and x=3)or(not x=2 and not x=3))";
@@ -210,3 +212,5 @@ void test_bdd(){
     //
     bdd_free(bdd);
 }
+
+#endif

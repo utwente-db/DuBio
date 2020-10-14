@@ -34,9 +34,9 @@
 DefVectorH(int);
 DefVectorC(int);
 
-int cmpInt(int l, int r) { return l - r; }
+static int cmpInt(int l, int r) { return l - r; }
 
-void test_int(){
+static void test_int(){
     fprintf(stdout,"Test \"V_int\" start\n");
     V_int vv;
     V_int_init(&vv);
@@ -77,11 +77,11 @@ typedef char* string;
 DefVectorH(string);
 DefVectorC(string);
 
-int cmpString(string l, string r) { return strcmp(l,r); }
+static int cmpString(string l, string r) { return strcmp(l,r); }
 
 string sentence[] = {"this","sentence","is","unreadable","when","sorted"};
 
-void test_string(){
+static void test_string(){
     int i;
 
     fprintf(stdout,"Test \"V_string\" start\n");
@@ -116,10 +116,10 @@ typedef struct IV {
 DefVectorH(IV);
 DefVectorC(IV);
 
-int cmpIVi(IV l, IV r) { return l.i - r.i; }
-int cmpIVv(IV l, IV r) { return l.v<r.v?-1:(l.v==r.v?0:1); }
+static int cmpIVi(IV l, IV r) { return l.i - r.i; }
+static int cmpIVv(IV l, IV r) { return l.v<r.v?-1:(l.v==r.v?0:1); }
 
-void test_IV(){
+static void test_IV(){
     fprintf(stdout,"Test \"V_IV\" start\n");
     V_IV svv;
     V_IV* vv = V_IV_init(&svv);
@@ -164,7 +164,7 @@ void test_IV(){
  *
  */
 
-int test_pbuff(){
+static int test_pbuff(){
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
     for(int i=0; i<1000000; i++)
         bprintf(pbuff," %d ",i);
@@ -183,15 +183,15 @@ int test_pbuff(){
  *
  */
 
-void test_vector(){
+static void test_vector(){
     test_int();
     test_string();
     test_IV();
 }
 
 int main(){
-    // test_pbuff();
-    // test_vector();
-    // test_bdd();
-    test_bdd_dictionary();
+    if (0) test_pbuff();
+    if (0) test_vector();
+    if (0) test_bdd();
+    if (1) test_bdd_dictionary();
 }

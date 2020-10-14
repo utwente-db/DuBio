@@ -71,7 +71,7 @@ bdd_dictionary* bdd_dictionary_create(bdd_dictionary* dict, char* name) {
     return dict;
 }
 
-void bdd_dictionary_relocate(bdd_dictionary* dict) {
+static void bdd_dictionary_relocate(bdd_dictionary* dict) {
     dict->variables  = (V_dict_var*)(&dict->buff[dict->var_offset]);
     V_dict_var_relocate(dict->variables);
     dict->values     = (V_dict_val*)(&dict->buff[dict->val_offset]);
@@ -88,7 +88,7 @@ void bdd_dictionary_free(bdd_dictionary* dict) {
     dict->values    = NULL;
 }
 
-void bdd_dictionary_print(bdd_dictionary* dict, pbuff* pbuff) {
+static void bdd_dictionary_print(bdd_dictionary* dict, pbuff* pbuff) {
     bprintf(pbuff,"Dictionary(name=\"%s\"):\n",dict->name);
     if ( 1 ) {
         bprintf(pbuff,"+ size=%d\n",dict->size);
@@ -158,7 +158,7 @@ static int scantoken(char* to, char** base, char delimiter, int max) {
     return 0;
 }
 
-void bdd_dictionary_sort(bdd_dictionary* dict) {
+static void bdd_dictionary_sort(bdd_dictionary* dict) {
     V_dict_var_quicksort(dict->variables,0,dict->variables->size-1,cmpDict_var);
     dict->var_sorted = 1;
 }
@@ -258,7 +258,7 @@ static int update_var_val(bdd_dictionary* dict, char* s_var, char* s_val, char* 
     return 0;
 }
 
-int bdd_dictionary_delvars(bdd_dictionary* dict, char* delvars) { 
+static int bdd_dictionary_delvars(bdd_dictionary* dict, char* delvars) { 
     char*     p = delvars;
 
     do {
@@ -327,7 +327,9 @@ int bdd_dictionary_addvars(bdd_dictionary* dict, char* newvars) {
 //
 //
 
-void test_bdd_dictionary_v0() {
+#ifdef TEST_CONFIG
+
+static void test_bdd_dictionary_v0() {
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
     bdd_dictionary dict_struct, *dict;
 
@@ -356,7 +358,7 @@ void test_bdd_dictionary_v0() {
     }
 }
 
-void test_bdd_dictionary_v1() {
+static void test_bdd_dictionary_v1() {
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
     bdd_dictionary dict_struct, *dict;
 
@@ -386,5 +388,8 @@ void test_bdd_dictionary_v1() {
 }
 
 void test_bdd_dictionary() {
-    test_bdd_dictionary_v1();
+    if (0) test_bdd_dictionary_v0();
+    if (1) test_bdd_dictionary_v1();
 }
+
+#endif

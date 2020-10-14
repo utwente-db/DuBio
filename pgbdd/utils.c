@@ -233,7 +233,7 @@ int bprintf(pbuff* pbuff, const char *fmt,...)
 #define false 0
 #define true 1
 
-int op_preced(const char c)
+static int op_preced(const char c)
 {
     switch(c)    {
         case '|':
@@ -252,7 +252,7 @@ int op_preced(const char c)
     return 0;
 }
 
-bool op_left_assoc(const char c)
+static bool op_left_assoc(const char c)
 {
     switch(c)    {
         // left to right
@@ -265,24 +265,26 @@ bool op_left_assoc(const char c)
     return false;
 }
 
-unsigned int op_arg_count(const char c)
-{
-    switch(c)  {
-        case '*': case '/': case '%': case '+': case '-': case '=': case '&': case '|':
-            return 2;
-        case '!':
-            return 1;
-        default:
-            return c - 'A';
-    }
-    return 0;
-}
+/* 
+ * static unsigned int op_arg_count(const char c)
+ * {
+ *     switch(c)  {
+ *         case '*': case '/': case '%': case '+': case '-': case '=': case '&': case '|':
+ *             return 2;
+ *         case '!':
+ *             return 1;
+ *         default:
+ *             return c - 'A';
+ *     }
+ *     return 0;
+ * }
+ */
 
 #define is_operator(c)  (c == '+' || c == '-' || c == '/' || c == '*' || c == '!' || c == '%' || c == '=' || c == '&' || c == '|')
 #define is_function(c)  (c >= 'A' && c <= 'Z')
 #define is_ident(c)     ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z'))
 
-bool shunting_yard(const char *input, char *output)
+static bool shunting_yard(const char *input, char *output)
 {
     const char *strpos = input, *strend = input + strlen(input);
     char c, *outpos = output;
@@ -467,3 +469,6 @@ bool bdd_eval_bool(char * expr)  {
     // fprintf(stdout,"EVAL(%s)=%d\n",expr,res);
     return res;
 }
+
+#ifdef TEST_CONFIG
+#endif

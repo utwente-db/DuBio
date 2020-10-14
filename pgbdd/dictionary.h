@@ -62,6 +62,6 @@ bdd_dictionary* bdd_dictionary_serialize(bdd_dictionary*);
 int bdd_dictionary_addvars(bdd_dictionary*,char*);
 dict_var* bdd_dictionary_lookup_var(bdd_dictionary*, char*);
 
-void test_bdd_dictionary();
+void test_bdd_dictionary(void);
 
 #endif

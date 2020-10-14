@@ -21,6 +21,8 @@
 #include <stdarg.h>
 #include <stdnoreturn.h>
 
+#include "vector.h"
+
 void vector_error(const char *fmt,...)
 {
     va_list ap;
