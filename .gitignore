@@ -3,6 +3,9 @@ DOT/*
 *.png
 *.dot
 
+# MAC FILES
+.DS_Store
+
 # Prerequisites
 *.d
 
