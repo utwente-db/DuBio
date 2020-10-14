@@ -1,0 +1,6 @@
+# Local files to ignore
+DOT/*
+*.png
+*.dot
+./bdd 
+./test_package
