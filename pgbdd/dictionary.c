@@ -31,7 +31,7 @@ int cmpDict_var(dict_var l, dict_var r) {  return strcmp(l.name,r.name); }
 
 DefVectorC(dict_val);
 
-static int bdd_dictionary_is_serialized(bdd_dictionary* dict) {
+int bdd_dictionary_is_serialized(bdd_dictionary* dict) {
      return V_dict_var_is_serialized(dict->variables) &&
             V_dict_val_is_serialized(dict->values);
 }
@@ -40,9 +40,9 @@ bdd_dictionary* bdd_dictionary_serialize(bdd_dictionary* dict) {
     bdd_dictionary* res = NULL;
 
     if ( 0 /* INCOMPLETE */ && bdd_dictionary_is_serialized(dict) ) {
-        fprintf(stdout,"DICT[%s]: SERIALIZED\n",dict->name);
+        // fprintf(stdout,"DICT[%s]: SERIALIZED\n",dict->name);
     } else {
-        fprintf(stdout,"DICT[%s]: NOT SERIALIZED\n",dict->name);
+        // fprintf(stdout,"DICT[%s]: NOT SERIALIZED\n",dict->name);
         int varsize = V_dict_var_bytesize(dict->variables);
         int valsize = V_dict_val_bytesize(dict->values);
         int newsize = BDD_DICTIONARY_BASESIZE + varsize + valsize;
@@ -71,13 +71,14 @@ bdd_dictionary* bdd_dictionary_create(bdd_dictionary* dict, char* name) {
     return dict;
 }
 
-static void bdd_dictionary_relocate(bdd_dictionary* dict) {
+bdd_dictionary* bdd_dictionary_relocate(bdd_dictionary* dict) {
     dict->variables  = (V_dict_var*)(&dict->buff[dict->var_offset]);
     V_dict_var_relocate(dict->variables);
     dict->values     = (V_dict_val*)(&dict->buff[dict->val_offset]);
     V_dict_val_relocate(dict->values);
     if ( !bdd_dictionary_is_serialized(dict) ) 
         vector_error("bdd_dictionary_relocate: dictionary was not serialized");
+    return dict;
 }
 
 void bdd_dictionary_free(bdd_dictionary* dict) {
@@ -88,17 +89,16 @@ void bdd_dictionary_free(bdd_dictionary* dict) {
     dict->values    = NULL;
 }
 
-static void bdd_dictionary_print(bdd_dictionary* dict, pbuff* pbuff) {
-    bprintf(pbuff,"Dictionary(name=\"%s\"):\n",dict->name);
-    if ( 1 ) {
-        bprintf(pbuff,"+ size=%d\n",dict->size);
-        bprintf(pbuff,"+ sorted=%d\n",dict->var_sorted);
-        bprintf(pbuff,"+ val_deleted=%d\n",dict->val_deleted);
-        bprintf(pbuff,"+ serialized=%d\n",bdd_dictionary_is_serialized(dict));
-        bprintf(pbuff,"+ magic#=%d\n",dict->magic);
+void bdd_dictionary_print(bdd_dictionary* dict, pbuff* pbuff) {
+    // bprintf(pbuff,"Dictionary(name=\"%s\")[\n",dict->name);
+    if ( 0 ) {
+        bprintf(pbuff,"# size=%d\n",dict->size);
+        bprintf(pbuff,"# sorted=%d\n",dict->var_sorted);
+        bprintf(pbuff,"# val_deleted=%d\n",dict->val_deleted);
+        bprintf(pbuff,"# serialized=%d\n",bdd_dictionary_is_serialized(dict));
+        bprintf(pbuff,"# magic#=%d\n",dict->magic);
     }
     if ( 0 ) {
-        bprintf(pbuff,"+ Variables:\n");
         for(int i=0; i<V_dict_var_size(dict->variables); i++) {
             dict_var* varp = V_dict_var_getp(dict->variables,i);
             bprintf(pbuff,"(%d)\t\"%s\"\t o(%d)\t c(%d)\n",i,varp->name,varp->offset,varp->cardinality);
@@ -112,17 +112,17 @@ static void bdd_dictionary_print(bdd_dictionary* dict, pbuff* pbuff) {
     if ( 1 ) {
         for(int i=0; i<V_dict_var_size(dict->variables); i++) {
             dict_var* varp = V_dict_var_getp(dict->variables,i);
-            bprintf(pbuff,"{");
             for(int j=varp->offset; j<(varp->offset+varp->cardinality); j++) {
                 dict_val* valp = V_dict_val_getp(dict->values,j);
                 bprintf(pbuff,"%s=%d:%f; ",varp->name,valp->value,valp->prob);
             }
-            bprintf(pbuff,"}\n");
+            bprintf(pbuff,"\n");
         }
     }
+    // bprintf(pbuff,"]\n");
 }
 
-static int lookup_var_index(bdd_dictionary* dict, char* name) {
+int lookup_var_index(bdd_dictionary* dict, char* name) {
     dict_var tofind;
 
     strcpy(tofind.name, name);
@@ -158,7 +158,7 @@ static int scantoken(char* to, char** base, char delimiter, int max) {
     return 0;
 }
 
-static void bdd_dictionary_sort(bdd_dictionary* dict) {
+void bdd_dictionary_sort(bdd_dictionary* dict) {
     V_dict_var_quicksort(dict->variables,0,dict->variables->size-1,cmpDict_var);
     dict->var_sorted = 1;
 }
@@ -219,7 +219,7 @@ static int get_var_value_index(bdd_dictionary* dict, dict_var* varp, char* value
     return -1;
 }
 
-static int update_var_val(bdd_dictionary* dict, char* s_var, char* s_val, char* s_prob) {
+int update_var_val(bdd_dictionary* dict, char* s_var, char* s_val, char* s_prob) {
     int var_index, val_index;
 
     if ( (var_index=lookup_var_index(dict,s_var)) < 0 ) {
@@ -258,7 +258,7 @@ static int update_var_val(bdd_dictionary* dict, char* s_var, char* s_val, char* 
     return 0;
 }
 
-static int bdd_dictionary_delvars(bdd_dictionary* dict, char* delvars) { 
+int bdd_dictionary_delvars(bdd_dictionary* dict, char* delvars) { 
     char*     p = delvars;
 
     do {
@@ -322,74 +322,3 @@ int bdd_dictionary_addvars(bdd_dictionary* dict, char* newvars) {
         normalize_var(dict,varp);
     return 1;
 }
-
-//
-//
-//
-
-#ifdef TEST_CONFIG
-
-static void test_bdd_dictionary_v0() {
-    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
-    bdd_dictionary dict_struct, *dict;
-
-    char* input = "x=0 : 0.6; x=1 : 0.2; x=2 : 0.1; x=3 : 0.1; y=3 : 0.5; y=1 : 0.2; y=2 : 0.3; q=8 : 1.0; ";
-    dict = bdd_dictionary_create(&dict_struct,"XYZ");
-    if (bdd_dictionary_addvars(dict,input)) {
-        bdd_dictionary_print(dict, pbuff);
-        pbuff_flush(pbuff,stdout);
-        bdd_dictionary* new_dict = bdd_dictionary_serialize(dict);
-        bdd_dictionary_free(dict);
-        bdd_dictionary_sort(new_dict);
-        bdd_dictionary_lookup_var(new_dict,"x");
-        bdd_dictionary_print(new_dict, pbuff);
-        pbuff_flush(pbuff,stdout);
-        bdd_dictionary* relocate_dict = (bdd_dictionary*)MALLOC(new_dict->size);
-        memcpy(relocate_dict,new_dict,new_dict->size);
-        bdd_dictionary_relocate(relocate_dict);
-        bdd_dictionary_free(new_dict);
-        FREE(new_dict);
-        bdd_dictionary_print(relocate_dict, pbuff);
-        pbuff_flush(pbuff,stdout);
-        bdd_dictionary_free(relocate_dict);
-        FREE(relocate_dict);
-    } else {
-        fprintf(stdout,"DICTIONARY ADD VAR failed\n");
-    }
-}
-
-static void test_bdd_dictionary_v1() {
-    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
-    bdd_dictionary dict_struct, *dict;
-
-    char* input = "x=0 : 0.6; x=1 : 0.2; x=2 : 0.1; x=3 : 0.1; y=3 : 0.2; y=1 : 0.2; y=2 : 0.1; q=8 : 0.5; p=5:0.5; p=6:0.5;";
-    dict = bdd_dictionary_create(&dict_struct,"XYZ");
-    if (bdd_dictionary_addvars(dict,input)) {
-        bdd_dictionary_print(dict, pbuff);
-        pbuff_flush(pbuff,stdout);
-        //
-        bdd_dictionary_delvars(dict,"y=*;");
-        bdd_dictionary_print(dict, pbuff);
-        pbuff_flush(pbuff,stdout);
-        bdd_dictionary_delvars(dict,"x=2;");
-        bdd_dictionary_print(dict, pbuff);
-        pbuff_flush(pbuff,stdout);
-        bdd_dictionary_delvars(dict,"q=8;");
-        bdd_dictionary_print(dict, pbuff);
-        pbuff_flush(pbuff,stdout);
-        bdd_dictionary_addvars(dict,"p=6:1.0;");
-        bdd_dictionary_print(dict, pbuff);
-        pbuff_flush(pbuff,stdout);
-        //
-        bdd_dictionary_free(dict);
-    } else {
-        fprintf(stdout,"DICTIONARY ADD VAR failed\n");
-    }
-}
-
-void test_bdd_dictionary() {
-    if (0) test_bdd_dictionary_v0();
-    if (1) test_bdd_dictionary_v1();
-}
-
-#endif

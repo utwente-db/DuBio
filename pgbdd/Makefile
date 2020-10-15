@@ -3,10 +3,10 @@
 #
 CC         = CC
 MYEXT      = pgbdd
-EXTENSION  = $(MYEXT)             # the extensions name
-MODULE_big = $(MYEXT)             # the extensions name
-DATA       = $(MYEXT)--0.0.1.sql  # script files to install
-OBJS       = pg_bdd.o pg_dictionary.o pg_utils.o pg_vector.o 
+EXTENSION  = $(MYEXT)
+MODULE_big = $(MYEXT)
+DATA       = pgbdd--0.0.1.sql
+OBJS       = pg_dictionary.o pg_bdd.o pg_utils.o pg_vector.o
 
 # default: all-lib # default just compile for postgres
 default: run
@@ -14,7 +14,7 @@ default: run
 TEST-PACKAGE = test_package
 TEST-OBJECTS = test_bdd.o test_dictionary.o test_utils.o test_vector.o
 
-HEADERS      = bdd.h dictionary.h utils.h vector.h
+HEADERS      = pg_config.h bdd.h dictionary.h utils.h vector.h
 
 run:    $(TEST-PACKAGE)
 	# lldb ./$(TEST-PACKAGE)

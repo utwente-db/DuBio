@@ -27,6 +27,28 @@
 #include "bdd.h"
 #include "utils.h"
 
+//
+//
+//
+
+int   _debug_flag = 0;
+FILE* _debug_file = NULL;
+
+void dp_print(const char *fmt,...)
+{
+    va_list ap;
+    if ( _debug_file ) {
+        va_start(ap, fmt);
+        vfprintf(_debug_file, fmt, ap);
+        va_end(ap);
+        fflush(_debug_file);
+    }
+}
+
+//
+//
+//
+
 #define is_rva_char(C) (isalnum(C)||C=='=')
 
 bddstr create_bddstr(char* val, int len) {
@@ -184,6 +206,18 @@ pbuff* pbuff_reset(pbuff* pbuff) {
     return pbuff_init(pbuff);
 }
 
+char* pbuff_preserve_or_alloc(pbuff* pbuff) {
+    if ( pbuff->buffer != pbuff->fast_buffer )
+        return pbuff->buffer; // preserve
+    else {
+        char* res;
+        if ( !(res = (char*)MALLOC(pbuff->size+1)) )
+                return 0;
+        memcpy(res,pbuff->fast_buffer,pbuff->size+1);
+        return res;
+    }
+}
+
 void pbuff_free(pbuff* pbuff) {
     pbuff->size = pbuff->capacity = -1;
     if ( pbuff->buffer != pbuff->fast_buffer )
@@ -229,10 +263,6 @@ int bprintf(pbuff* pbuff, const char *fmt,...)
  *
  */
 
-#define bool int
-#define false 0
-#define true 1
-
 static int op_preced(const char c)
 {
     switch(c)    {
@@ -252,17 +282,17 @@ static int op_preced(const char c)
     return 0;
 }
 
-static bool op_left_assoc(const char c)
+static int op_left_assoc(const char c)
 {
     switch(c)    {
         // left to right
         case '*': case '/': case '%': case '+': case '-': case '|': case '&':
-            return true;
+            return 1;
         // right to left
         case '=': case '!':
-            return false;
+            return 0;
     }
-    return false;
+    return 0;
 }
 
 /* 
@@ -284,7 +314,7 @@ static bool op_left_assoc(const char c)
 #define is_function(c)  (c >= 'A' && c <= 'Z')
 #define is_ident(c)     ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z'))
 
-static bool shunting_yard(const char *input, char *output)
+static int shunting_yard(const char *input, char *output)
 {
     const char *strpos = input, *strend = input + strlen(input);
     char c, *outpos = output;
@@ -311,11 +341,11 @@ static bool shunting_yard(const char *input, char *output)
             }
             // If the token is a function argument separator (e.g., a comma):
             else if(c == ',')   {
-                bool pe = false;
+                int pe = 0;
                 while(sl > 0)   {
                     sc = stack[sl - 1];
                     if(sc == '(')  {
-                        pe = true;
+                        pe = 1;
                         break;
                     }
                     else  {
@@ -330,7 +360,7 @@ static bool shunting_yard(const char *input, char *output)
                 // or parentheses were mismatched.
                 if(!pe)   {
                     printf("Error: separator or parentheses mismatched\n");
-                    return false;
+                    return 0;
                 }
             }
             // If the token is an operator, op1, then:
@@ -361,13 +391,13 @@ static bool shunting_yard(const char *input, char *output)
             }
             // If the token is a right parenthesis:
             else if(c == ')')    {
-                bool pe = false;
+                int pe = 0;
                 // Until the token at the top of the stack is a left parenthesis,
                 // pop operators off the stack onto the output queue
                 while(sl > 0)     {
                     sc = stack[sl - 1];
                     if(sc == '(')    {
-                        pe = true;
+                        pe = 1;
                         break;
                     }
                     else  {
@@ -379,7 +409,7 @@ static bool shunting_yard(const char *input, char *output)
                 // If the stack runs out without finding a left parenthesis, then there are mismatched parentheses.
                 if(!pe)  {
                     printf("Error: parentheses mismatched\n");
-                    return false;
+                    return 0;
                 }
                 // Pop the left parenthesis from the stack, but not onto the output queue.
                 sl--;
@@ -395,7 +425,7 @@ static bool shunting_yard(const char *input, char *output)
             }
             else  {
                 printf("Unknown token %c\n", c);
-                return false; // Unknown token
+                return 0; // Unknown token
             }
         }
         ++strpos;
@@ -408,25 +438,25 @@ static bool shunting_yard(const char *input, char *output)
         sc = stack[sl - 1];
         if(sc == '(' || sc == ')')   {
             printf("Error: parentheses mismatched\n");
-            return false;
+            return 0;
         }
         *outpos = sc;
         ++outpos;
         --sl;
     }
     *outpos = 0; // Null terminator
-    return true;
+    return 1;
 }
 
-bool bdd_eval_bool(char * expr)  {
+int bdd_eval_bool(char * expr)  {
     char output[500] = {0};
     char * op;
-    bool tmp;
+    int tmp;
     char part1[250], part2[250];
 
     if(!shunting_yard(expr, output)) {
       vector_error("bdd_eval_bool: incorrect expression: %s",expr);
-      return false;  // oops can't convert to postfix form
+      return 0;  // oops can't convert to postfix form
     }
 
     while (strlen(output) > 1) {
@@ -435,7 +465,7 @@ bool bdd_eval_bool(char * expr)  {
         while (!is_operator(*op) && *op != '\0')
           op++;
         if (*op == '\0') {
-          return false;  // oops - zero operators found
+          return 0;  // oops - zero operators found
         }
         else if (*op == '!') {
             tmp = !(*(op-1) - 48);
@@ -460,12 +490,12 @@ bool bdd_eval_bool(char * expr)  {
         memset(output, 0, sizeof(output));
         strcat(output, part1);
 
-        strcat(output, ((tmp==false) ? "0" : "1"));
+        strcat(output, ((tmp==0) ? "0" : "1"));
 
         strcat(output, part2);
 
     }
-    bool res = (*output - 48);
+    int res = (*output - 48);
     // fprintf(stdout,"EVAL(%s)=%d\n",expr,res);
     return res;
 }

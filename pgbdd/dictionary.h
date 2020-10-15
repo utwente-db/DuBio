@@ -61,7 +61,21 @@ void bdd_dictionary_free(bdd_dictionary*);
 bdd_dictionary* bdd_dictionary_serialize(bdd_dictionary*);
 int bdd_dictionary_addvars(bdd_dictionary*,char*);
 dict_var* bdd_dictionary_lookup_var(bdd_dictionary*, char*);
+int bdd_dictionary_is_serialized(bdd_dictionary* dict);
+bdd_dictionary* bdd_dictionary_relocate(bdd_dictionary* dict);
+void bdd_dictionary_print(bdd_dictionary* dict, pbuff* pbuff);
+int lookup_var_index(bdd_dictionary* dict, char* name);
+void bdd_dictionary_sort(bdd_dictionary* dict);
+int update_var_val(bdd_dictionary* dict, char* s_var, char* s_val, char* s_prob);
+int bdd_dictionary_delvars(bdd_dictionary* dict, char* delvars);
 
-void test_bdd_dictionary(void);
+
+
+
+int test_bdd_dictionary_v0(void);
+int test_bdd_dictionary_v1(void);
+int test_bdd_dictionary_v2(void);
+
+int test_bdd_dictionary(void);
 
 #endif

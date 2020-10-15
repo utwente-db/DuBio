@@ -196,8 +196,6 @@ static void bdd_start_build(bdd* bdd) {
  *
  */
 
-#ifdef TEST_CONFIG
-
 void test_bdd(){
     fprintf(stdout,"Test bdd\n");
     // char* expr = "((x=1 and x=1) or (not y=0 and not zzz=1)) and((xx=2 and x=3)or(not x=2 and not x=3))";
@@ -212,5 +210,3 @@ void test_bdd(){
     //
     bdd_free(bdd);
 }
-
-#endif

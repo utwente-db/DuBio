@@ -242,13 +242,13 @@ void V_##type##_free(V_##type *v) \
 { \
     VECTOR_ASSERT(v); \
     if ( v->dynamic ) { \
-        free(v->dynamic); \
+        FREE(v->dynamic); \
         v->dynamic = NULL; \
     }  \
     v->items = NULL; \
 }
 
 
-void vector_error(const char*,...);
+int vector_error(const char*,...);
 
 #endif

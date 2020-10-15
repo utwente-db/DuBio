@@ -1,0 +1,14 @@
+# pgbdd.control
+#
+#      Copyright (c) 2020 Jan Flokstra
+#      Author:  Jan Flokstra
+#      License: BSD
+#
+
+directory       = 'extension'
+default_version = '0.0.1'
+module_pathname = '$libdir/pgbdd'
+superuser       = true
+relocatable     = false
+
+comment = 'Provides bdd and dictionary data types.'

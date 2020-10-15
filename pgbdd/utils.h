@@ -17,6 +17,28 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+//
+//
+//
+
+extern FILE* _debug_file;
+
+#define START_DP(F) _debug_file=fopen(F,"w")
+
+void dp_print(const char *fmt,...);
+
+#define DP if (_debug_file) dp_print
+
+/*
+ * usage:
+ * START_DP("/tmp/PGLOG.TXT");
+ * DP("+ dictionary_add() - 0\n"); // can be any printf style print
+ */
+
+//
+//
+//
+
 bddstr create_bddstr(char*, int);
 void bdd_print_V_bddstr(V_bddstr*, FILE*);
 
@@ -44,9 +66,10 @@ typedef struct pbuff {
 
 pbuff* pbuff_init(pbuff*);
 pbuff* pbuff_reset(pbuff*f);
-void pbuff_free(pbuff*);
-void pbuff_flush(pbuff*, FILE*);
-int bprintf(pbuff* pbuff, const char *fmt,...);
+char*  pbuff_preserve_or_alloc(pbuff* pbuff);
+void   pbuff_free(pbuff*);
+void   pbuff_flush(pbuff*, FILE*);
+int    bprintf(pbuff* pbuff, const char *fmt,...);
 
 int bdd_eval_bool(char*);
 

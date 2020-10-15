@@ -14,23 +14,22 @@
  * You should have received a copy of the GNU General Public License 
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#ifndef PG_CONFIG_H
+#define PG_CONFIG_H
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdarg.h>
-#include <stdnoreturn.h>
+#include "postgres.h"
+#include "funcapi.h"
 
-#include "vector.h"
+#define PG_CONFIG
 
-int vector_error(const char *fmt,...)
-{
-    va_list ap;
-    fprintf(stderr,"vector_error:");
-    va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
-    va_end(ap);
-    putc('\n', stderr);
-    if (1) exit(EXIT_FAILURE);
-    return 0;
-}
+#define MALLOC  palloc
+#define REALLOC repalloc
+#define FREE    pfree
+
+extern Datum dictionary_in(PG_FUNCTION_ARGS);
+extern Datum dictionary_out(PG_FUNCTION_ARGS);
+extern Datum dictionary_print(PG_FUNCTION_ARGS);
+extern Datum dictionary_add(PG_FUNCTION_ARGS);
+
+
+#endif
