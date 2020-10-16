@@ -43,7 +43,23 @@ function add(dict dictionary, vardef cstring) returns dictionary
      language C immutable strict;
 
 comment on function add(dictionary, cstring) is
-'Add the vardef variable defintions to the dictionary.';
+'Add the var=val:prob variable definitions to the dictionary.';
+
+create 
+function del(dict dictionary, vardef cstring) returns dictionary
+     as '$libdir/pgbdd', 'dictionary_del'
+     language C immutable strict;
+
+comment on function del(dictionary, cstring) is
+'Delete the var=val variable definitions from the dictionary.';
+
+create 
+function upd(dict dictionary, vardef cstring) returns dictionary
+     as '$libdir/pgbdd', 'dictionary_upd'
+     language C immutable strict;
+
+comment on function upd(dictionary, cstring) is
+'Update the var=val:prob variable definitions in the dictionary.';
 
 
 create 

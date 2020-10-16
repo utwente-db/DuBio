@@ -1,5 +1,6 @@
 # MAC FILES
 .DS_Store
+*.swp
 
 # Prerequisites
 *.d

@@ -221,7 +221,7 @@ static int get_var_value_index(bdd_dictionary* dict, dict_var* varp, char* value
     return -1;
 }
 
-int update_var_val(bdd_dictionary* dict, char* var, char* s_val, char* s_prob, int update, char** errmsg) {
+static int update_var_val(bdd_dictionary* dict, char* var, char* s_val, char* s_prob, int update, char** errmsg) {
     int var_index, val_index;
 
     if ( (var_index=lookup_var_index(dict,var)) < 0 )
@@ -243,7 +243,7 @@ int update_var_val(bdd_dictionary* dict, char* var, char* s_val, char* s_prob, i
             for(int i=val_index; i<(varp->offset+varp->cardinality); i++) {
                 dict->values->items[i] = dict->values->items[i+1]; // UGLY!!!!
             }
-            return normalize_var(dict,varp);
+            return 1;
         }
     } else if ( update && s_prob ) {
         double newprob = bdd_atof(s_prob);
@@ -253,14 +253,16 @@ int update_var_val(bdd_dictionary* dict, char* var, char* s_val, char* s_prob, i
         else {
             dict_val* valp = V_dict_val_getp(dict->values,val_index);
             valp->prob = newprob;
-            return normalize_var(dict,varp);
+            return 1;
         }
     }
     return 0;
 }
 
 int bdd_dictionary_delvars(bdd_dictionary* dict, char* delvars, char** errmsg) { 
-    char*     p = delvars;
+    dict_var* varp          = NULL;
+    int       dict_varcount = -1;
+    char*     p             = delvars;
 
     do {
         while(isspace(*p)) p++;
@@ -271,11 +273,22 @@ int bdd_dictionary_delvars(bdd_dictionary* dict, char* delvars, char** errmsg) {
                 scantoken(var, &p,'=',MAXRVA) &&
                 scantoken(val, &p,';',MAXRVA) ) )
                 return pg_error(errmsg,"bdd_dictionary_delvars: bad syntax: %s",delvars);
-            // fprintf(stdout,"DELVARS-SCAN \"%s\" = \"%s\"\n",var,val); 
+            if ( varp && (strcmp(varp->name,var)!=0) ) {
+                if (dict->variables->size == dict_varcount )  
+                    normalize_var(dict,varp); // only if varp was not deleted
+                varp = NULL;
+            }
+            if ( !varp )
+                varp = bdd_dictionary_lookup_var(dict,var);
+                dict_varcount = dict->variables->size;
             if ( !update_var_val(dict,var,val,NULL,0/*delete*/,errmsg) )
                 return 0;
         }
     } while (p && *p);
+    if ( varp )  {
+        if (dict->variables->size == dict_varcount )  
+            normalize_var(dict,varp); // only if varp was not deleted
+}
     return 1;
 }
 

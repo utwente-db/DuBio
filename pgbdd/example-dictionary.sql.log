@@ -6,61 +6,110 @@
 -- probabilities of the Binary Decision Diagram (bdd) types.
 -- The bdd's are implemented by the 'bdd' type, also in this extension.
 --
-
 --
 -- First remove old tables and extensions and start fresh
 --
 drop table if exists Dict; -- must be first, before drop extension
+DROP TABLE
 drop extension if exists pgbdd;
+DROP EXTENSION
 create extension pgbdd;
-
+CREATE EXTENSION
 -- create the main dictionary table
 create table Dict (name varchar(20), dict dictionary);
-
+CREATE TABLE
 -- create the 'mydict' dictionary
 insert into Dict(name,dict) VALUES('mydict',dictionary('mydict'));
-
+INSERT 0 1
 -- insert the first variable/value/prob pairs (vvp) in the 'mydict' dictionary
 update Dict
 set dict=add(dict,'x=0 : 0.6; x=1 : 0.4; ')
 where name='mydict';
-
+UPDATE 1
 -- now look if it works
 select print(dict) from Dict WHERE name = 'mydict';
+            print             
+------------------------------
+ x=0:0.600000; x=1:0.400000; +
+ 
+(1 row)
 
 -- add some more
 update Dict
 set dict=add(dict,'y=0:0.5;y=1:0.5; d=0:0.8;d=1:0.1;d=2:0.1;')
 where name='mydict';
+UPDATE 1
 select print(dict) from Dict WHERE name = 'mydict';
+                   print                    
+--------------------------------------------
+ d=0:0.800000; d=1:0.100000; d=2:0.100000; +
+ x=0:0.600000; x=1:0.400000;               +
+ y=0:0.500000; y=1:0.500000;               +
+ 
+(1 row)
 
 -- delete the d=0 variable/value and look what happens to the probabilities
 update Dict
 set dict=del(dict,'d=0;')
 where name='mydict';
+UPDATE 1
 select print(dict) from Dict WHERE name = 'mydict';
+            print             
+------------------------------
+ d=1:0.500000; d=2:0.500000; +
+ x=0:0.600000; x=1:0.400000; +
+ y=0:0.500000; y=1:0.500000; +
+ 
+(1 row)
 
 -- delete the complete d variable
 update Dict
 set dict=del(dict,'d=*;')
 where name='mydict';
+UPDATE 1
 select print(dict) from Dict WHERE name = 'mydict';
-
+            print             
+------------------------------
+ x=0:0.600000; x=1:0.400000; +
+ y=0:0.500000; y=1:0.500000; +
+ 
+(1 row)
 
 -- update the y=0 prob to 1.0, look at the probabilities after the operation
 update Dict
 set dict=upd(dict,'y=0 : 1.0; ')
 where name='mydict';
+UPDATE 1
 select print(dict) from Dict WHERE name = 'mydict';
+            print             
+------------------------------
+ x=0:0.600000; x=1:0.400000; +
+ y=0:0.666667; y=1:0.333333; +
+ 
+(1 row)
 
 -- and undo the previous update
 update Dict
 set dict=upd(dict,'y=0 : 0.5; y=1 : 0.5; ')
 where name='mydict';
+UPDATE 1
 select print(dict) from Dict WHERE name = 'mydict';
+            print             
+------------------------------
+ x=0:0.600000; x=1:0.400000; +
+ y=0:0.500000; y=1:0.500000; +
+ 
+(1 row)
 
 -- and now delete the entire y variable again, now without '*'
 update Dict
 set dict=del(dict,'y=0 : 0.5; y=1 : 0.5; ')
 where name='mydict';
+UPDATE 1
 select print(dict) from Dict WHERE name = 'mydict';
+            print             
+------------------------------
+ x=0:0.600000; x=1:0.400000; +
+ 
+(1 row)
+

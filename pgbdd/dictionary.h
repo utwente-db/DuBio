@@ -65,7 +65,6 @@ bdd_dictionary* bdd_dictionary_relocate(bdd_dictionary* dict);
 void bdd_dictionary_print(bdd_dictionary* dict, pbuff* pbuff);
 int lookup_var_index(bdd_dictionary* dict, char* name);
 int bdd_dictionary_sort(bdd_dictionary* dict);
-int update_var_val(bdd_dictionary*, char*, char*, char*, int, char**);
 int bdd_dictionary_delvars(bdd_dictionary*, char*, char**);
 int bdd_dictionary_addvars(bdd_dictionary*,char*,int,char**);
 

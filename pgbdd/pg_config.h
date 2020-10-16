@@ -30,6 +30,8 @@ extern Datum dictionary_in(PG_FUNCTION_ARGS);
 extern Datum dictionary_out(PG_FUNCTION_ARGS);
 extern Datum dictionary_print(PG_FUNCTION_ARGS);
 extern Datum dictionary_add(PG_FUNCTION_ARGS);
+extern Datum dictionary_del(PG_FUNCTION_ARGS);
+extern Datum dictionary_upd(PG_FUNCTION_ARGS);
 
 
 #endif

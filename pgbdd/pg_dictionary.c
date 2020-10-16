@@ -121,3 +121,63 @@ dictionary_add(PG_FUNCTION_ARGS)
 }
 
 
+PG_FUNCTION_INFO_V1(dictionary_del);
+/**
+ * <code>dictionary_del(dictionary dictionary) returns new dictionary with addes vars</code>
+ *
+ * @param fcinfo Params as described_below
+ * <br><code>mystr dictionary</code> A dictionary object
+ * @return <code>cstring</code> the string representation of the dictionary
+ */
+Datum
+dictionary_del(PG_FUNCTION_ARGS)
+{
+    bdd_dictionary  *dict    = PG_GETARG_DICTIONARY(0);
+    char            *vardefs = PG_GETARG_CSTRING(1);
+    bdd_dictionary  *return_dict = NULL;
+    char            *_errmsg     = NULL;
+
+    if ( !dict )
+        ereport(ERROR,(errmsg("dictionary_del: %s","internal error bad dict parameter")));
+    if ( !bdd_dictionary_delvars(dict,vardefs,&_errmsg) )
+        ereport(ERROR,(errmsg("%s",_errmsg)));
+    if ( !(
+           (return_dict = bdd_dictionary_serialize(dict))  &&
+           bdd_dictionary_free(dict) &&
+           bdd_dictionary_sort(return_dict) ))
+        ereport(ERROR,(errmsg("dictionary_del: %s","internal error serialize/free/sort")));
+    SET_VARSIZE(return_dict,return_dict->size);
+    PG_RETURN_DICTIONARY(return_dict);
+}
+
+
+PG_FUNCTION_INFO_V1(dictionary_upd);
+/**
+ * <code>dictionary_upd(dictionary dictionary) returns new dictionary with addes vars</code>
+ *
+ * @param fcinfo Params as described_below
+ * <br><code>mystr dictionary</code> A dictionary object
+ * @return <code>cstring</code> the string representation of the dictionary
+ */
+Datum
+dictionary_upd(PG_FUNCTION_ARGS)
+{
+    bdd_dictionary  *dict    = PG_GETARG_DICTIONARY(0);
+    char            *vardefs = PG_GETARG_CSTRING(1);
+    bdd_dictionary  *return_dict = NULL;
+    char            *_errmsg     = NULL;
+
+    if ( !dict )
+        ereport(ERROR,(errmsg("dictionary_upd: %s","internal error bad dict parameter")));
+    if ( !bdd_dictionary_addvars(dict,vardefs,1/*UPDATE*/,&_errmsg) )
+        ereport(ERROR,(errmsg("%s",_errmsg)));
+    if ( !(
+           (return_dict = bdd_dictionary_serialize(dict))  &&
+           bdd_dictionary_free(dict) &&
+           bdd_dictionary_sort(return_dict) ))
+        ereport(ERROR,(errmsg("dictionary_upd: %s","internal error serialize/free/sort")));
+    SET_VARSIZE(return_dict,return_dict->size);
+    PG_RETURN_DICTIONARY(return_dict);
+}
+
+
