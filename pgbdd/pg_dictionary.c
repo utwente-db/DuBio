@@ -104,14 +104,16 @@ dictionary_add(PG_FUNCTION_ARGS)
 {
     bdd_dictionary  *dict    = PG_GETARG_DICTIONARY(0);
     char            *vardefs = PG_GETARG_CSTRING(1);
+    bdd_dictionary  *return_dict = NULL;
+    char            *_errmsg     = NULL;
 
-    if ( !bdd_dictionary_addvars(dict,vardefs) )
-        return vector_error("DICTIONARY ADDVARS[%s] failed: %s",dict->name,vardefs);
-    bdd_dictionary* return_dict = bdd_dictionary_serialize(dict);
-    bdd_dictionary_free(dict); // free possible new unserialized memory
-    bdd_dictionary_sort(return_dict);
-    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
-    bdd_dictionary_print(return_dict, pbuff);
+    if ( !bdd_dictionary_addvars(dict,vardefs,0/*NO UPDATE*/,&_errmsg) )
+        ereport(ERROR,(errmsg("%s",_errmsg)));
+    if ( !(
+           (return_dict = bdd_dictionary_serialize(dict))  &&
+           bdd_dictionary_free(dict) &&
+           bdd_dictionary_sort(return_dict) ))
+        ereport(ERROR,(errmsg("dictionary_add: %s","internal error serialize/free/sort")));
     SET_VARSIZE(return_dict,return_dict->size);
     PG_RETURN_DICTIONARY(return_dict);
 }

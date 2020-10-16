@@ -45,9 +45,31 @@ void dp_print(const char *fmt,...)
     }
 }
 
-//
-//
-//
+/*
+ *
+ *
+ */
+
+int pg_error(char** errmsg, const char *fmt,...)
+{
+    va_list ap;
+    
+    /*
+     * Create error message buffer. In postgres context this is palloc'd
+     * so it it pfree()'d after the aborted transaction.
+     */
+    *errmsg = MALLOC(256+2);
+    va_start(ap, fmt);
+    vsnprintf(*errmsg, 256, fmt, ap);
+    strcat(*errmsg,"\n");
+    va_end(ap);
+    return 0;
+}
+
+/*
+ *
+ *
+ */
 
 #define is_rva_char(C) (isalnum(C)||C=='=')
 
@@ -186,11 +208,6 @@ double bdd_atof(char* a) {
     else
         return d;
 }
-
-/*
- *
- *
- */
 
 pbuff* pbuff_init(pbuff* pbuff) {
     pbuff->size     = 0;

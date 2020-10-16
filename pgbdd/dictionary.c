@@ -46,7 +46,8 @@ bdd_dictionary* bdd_dictionary_serialize(bdd_dictionary* dict) {
         int varsize = V_dict_var_bytesize(dict->variables);
         int valsize = V_dict_val_bytesize(dict->values);
         int newsize = BDD_DICTIONARY_BASESIZE + varsize + valsize;
-        res  = (bdd_dictionary*)MALLOC(newsize);
+        if ( !(res  = (bdd_dictionary*)MALLOC(newsize)) )
+            return NULL;
         *res = *dict;
         res->size = newsize;
         res->var_offset = 0;
@@ -81,12 +82,13 @@ bdd_dictionary* bdd_dictionary_relocate(bdd_dictionary* dict) {
     return dict;
 }
 
-void bdd_dictionary_free(bdd_dictionary* dict) {
+int bdd_dictionary_free(bdd_dictionary* dict) {
     V_dict_var_free(dict->variables);
     V_dict_val_free(dict->values);
     dict->name[0]   = 0;
     dict->variables = NULL;
     dict->values    = NULL;
+    return 1;
 }
 
 void bdd_dictionary_print(bdd_dictionary* dict, pbuff* pbuff) {
@@ -158,9 +160,10 @@ static int scantoken(char* to, char** base, char delimiter, int max) {
     return 0;
 }
 
-void bdd_dictionary_sort(bdd_dictionary* dict) {
+int bdd_dictionary_sort(bdd_dictionary* dict) {
     V_dict_var_quicksort(dict->variables,0,dict->variables->size-1,cmpDict_var);
     dict->var_sorted = 1;
+    return 1;
 }
 
 static int normalize_var(bdd_dictionary* dict, dict_var* varp) { 
@@ -169,7 +172,6 @@ static int normalize_var(bdd_dictionary* dict, dict_var* varp) {
     for(int i=varp->offset; i<(varp->offset+varp->cardinality); i++) {
         dict_val* valp = V_dict_val_getp(dict->values,i);
         total += valp->prob;
-        // fprintf(stdout,"FFFF(%d)\t\"%d\"\t: %f\n",i,valp->value,valp->prob);
     }
     if ( total<(1.0-0.0001) || total>(1.0+0.0001) ) {
         double factor = 1.0/total;
@@ -219,13 +221,11 @@ static int get_var_value_index(bdd_dictionary* dict, dict_var* varp, char* value
     return -1;
 }
 
-int update_var_val(bdd_dictionary* dict, char* s_var, char* s_val, char* s_prob) {
+int update_var_val(bdd_dictionary* dict, char* var, char* s_val, char* s_prob, int update, char** errmsg) {
     int var_index, val_index;
 
-    if ( (var_index=lookup_var_index(dict,s_var)) < 0 ) {
-        vector_error("bdd_dictionary:update_var_val: no var \"%s\"",s_var);
-        return 0;
-    }
+    if ( (var_index=lookup_var_index(dict,var)) < 0 )
+        return pg_error(errmsg,"bdd_dictionary:update_var_val: no var \"%s\"",var);
     dict_var* varp = V_dict_var_getp(dict->variables,var_index);
     if ( strcmp(s_val,"*")==0 ) {
         // delete entire var
@@ -234,22 +234,23 @@ int update_var_val(bdd_dictionary* dict, char* s_var, char* s_val, char* s_prob)
         return 1;
     } 
     if ( (val_index=get_var_value_index(dict,varp,s_val)) < 0)
-        return 0; // value not found
-    if ( !s_prob ) {
-        // delete var-value alternative
+        return pg_error(errmsg,"bdd_dictionary: %s=%s value not found",var,s_val);
+    if ( !update /* delete */ ) {
         dict->val_deleted++;
         if ( --varp->cardinality == 0) 
-            return update_var_val(dict,s_var,"*",NULL); // delete entire variable
+            return update_var_val(dict,var,"*",NULL,0/*delete*/,errmsg); // delete entire variable
         else {
             for(int i=val_index; i<(varp->offset+varp->cardinality); i++) {
                 dict->values->items[i] = dict->values->items[i+1]; // UGLY!!!!
             }
             return normalize_var(dict,varp);
         }
-    } else if ( s_prob ) {
+    } else if ( update && s_prob ) {
         double newprob = bdd_atof(s_prob);
 
-        if ( newprob >= 0.0 ) {
+        if ( newprob < 0.0 ) 
+            return pg_error(errmsg,"bdd_dictionary:update_var_val: %s=%s : %s bad probability",var,s_val,s_prob);
+        else {
             dict_val* valp = V_dict_val_getp(dict->values,val_index);
             valp->prob = newprob;
             return normalize_var(dict,varp);
@@ -258,7 +259,7 @@ int update_var_val(bdd_dictionary* dict, char* s_var, char* s_val, char* s_prob)
     return 0;
 }
 
-int bdd_dictionary_delvars(bdd_dictionary* dict, char* delvars) { 
+int bdd_dictionary_delvars(bdd_dictionary* dict, char* delvars, char** errmsg) { 
     char*     p = delvars;
 
     do {
@@ -268,19 +269,17 @@ int bdd_dictionary_delvars(bdd_dictionary* dict, char* delvars) {
 
             if ( !(
                 scantoken(var, &p,'=',MAXRVA) &&
-                scantoken(val, &p,';',MAXRVA) ) ) {
-                vector_error("bdd_dictionary_delvars: bad syntax: %s",delvars);
-                return 0;
-            }
-            fprintf(stdout,"DELVARS-SCAN \"%s\" = \"%s\"\n",var,val); 
-            if (!update_var_val(dict,var,val,NULL) )
+                scantoken(val, &p,';',MAXRVA) ) )
+                return pg_error(errmsg,"bdd_dictionary_delvars: bad syntax: %s",delvars);
+            // fprintf(stdout,"DELVARS-SCAN \"%s\" = \"%s\"\n",var,val); 
+            if ( !update_var_val(dict,var,val,NULL,0/*delete*/,errmsg) )
                 return 0;
         }
     } while (p && *p);
     return 1;
 }
 
-int bdd_dictionary_addvars(bdd_dictionary* dict, char* newvars) { 
+int bdd_dictionary_addvars(bdd_dictionary* dict, char* newvars, int update, char** errmsg) { 
     dict_var* varp = NULL;
     char*     p = newvars;
 
@@ -289,33 +288,31 @@ int bdd_dictionary_addvars(bdd_dictionary* dict, char* newvars) {
         if (*p) {
             char var[MAXRVA], val[MAXRVA], prob[MAXRVA];
 
+            char* tstart = p;
             if ( !(
                 scantoken(var, &p,'=',MAXRVA) &&
                 scantoken(val, &p,':',MAXRVA) &&
-                scantoken(prob,&p,';',MAXRVA) ) ) {
-                vector_error("bdd_dictionary_add: bad syntax: %s",newvars);
-                return 0;
-            }
+                scantoken(prob,&p,';',MAXRVA) ) )
+                return pg_error(errmsg,"bdd_dictionary_add: bad syntax: %s",tstart);
             // fprintf(stdout,"SCAN \"%s\" = \"%s\" : \"%s\"\n",var,val,prob); 
             if ( varp && (strcmp(varp->name,var)!=0) ) {
-                normalize_var(dict,varp);
+                normalize_var(dict,varp); // start with a new var
                 varp = NULL;
             } 
             if ( !varp )
                 if ( !(varp=bdd_dictionary_lookup_var(dict,var)) )
                     varp = new_var(dict,var);
             if ( get_var_value_index(dict,varp,val) >= 0) {
-                // value already exists, update the value
-                if (!update_var_val(dict,var,val,prob) )
-                    vector_error("bdd_dictionary_addvars: bad value: %s=%s:%s",var,val,prob);
-                    return 0; // error
+                if ( update ) {
+                    if (!update_var_val(dict,var,val,prob,update,errmsg) )
+                        return 0;
+                } else
+                    return pg_error(errmsg,"bdd_dictionary_add: variable/value %s=%s alreay exists",var,val);
             } else {
-                if ( !new_val(dict,val,prob)  ) {
-                    vector_error("bdd_dictionary_addvars: bad value: %s=%s:%s",var,val,prob);
-                    return 0;
-                }
+                if ( !new_val(dict,val,prob)  )
+                    return pg_error(errmsg,"bdd_dictionary_addvars: bad value: %s=%s:%s",var,val,prob);
+                varp->cardinality++;
             }
-            varp->cardinality++;
         }
     } while (p && *p);
     if ( varp ) 

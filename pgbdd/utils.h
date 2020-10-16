@@ -39,6 +39,8 @@ void dp_print(const char *fmt,...);
 //
 //
 
+int pg_error(char**, const char*,...);
+
 bddstr create_bddstr(char*, int);
 void bdd_print_V_bddstr(V_bddstr*, FILE*);
 
