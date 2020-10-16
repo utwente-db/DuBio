@@ -93,7 +93,7 @@ dictionary_print(PG_FUNCTION_ARGS)
 
 PG_FUNCTION_INFO_V1(dictionary_add);
 /**
- * <code>dictionary_add(dictionary dictionary) returns new dictionary with addes vars</code>
+ * <code>dictionary_add(dictionary dictionary) returns new dictionary with added vars</code>
  *
  * @param fcinfo Params as described_below
  * <br><code>mystr dictionary</code> A dictionary object
@@ -107,8 +107,7 @@ dictionary_add(PG_FUNCTION_ARGS)
     bdd_dictionary  *return_dict = NULL;
     char            *_errmsg     = NULL;
 
-    if ( !dict )
-        ereport(ERROR,(errmsg("dictionary_add: %s","internal error bad dict parameter")));
+    SET_VARSIZE(return_dict,return_dict->size);
     if ( !bdd_dictionary_addvars(dict,vardefs,0/*NO UPDATE*/,&_errmsg) )
         ereport(ERROR,(errmsg("%s",_errmsg)));
     if ( !(
@@ -119,5 +118,3 @@ dictionary_add(PG_FUNCTION_ARGS)
     SET_VARSIZE(return_dict,return_dict->size);
     PG_RETURN_DICTIONARY(return_dict);
 }
-
-
