@@ -34,7 +34,7 @@
 DefVectorH(int);
 DefVectorC(int);
 
-static int cmpInt(int l, int r) { return l - r; }
+static int cmpInt(int* l, int* r) { return *l - *r; }
 
 static void test_int(){
     fprintf(stdout,"Test \"V_int\" start\n");
@@ -59,48 +59,13 @@ static void test_int(){
             vector_error("Should not happen 1");
     }
     // putc('\n', stdout);
-    if ( V_int_find(vc,cmpInt,9) != V_int_bsearch(vc,cmpInt,0,vc->size-1,9) )
+    int tofind = 9;
+    if ( V_int_find(vc,cmpInt,&tofind) != V_int_bsearch(vc,cmpInt,0,vc->size-1,&tofind) )
         vector_error("Should not happen-2");
     V_int_free(&vv);
     V_int_free(vc);
     FREE(buff);
     fprintf(stdout,"Test \"V_int\" OK\n");
-}
-
-/*
- *
- *
- */
-
-typedef char* string;
-
-DefVectorH(string);
-DefVectorC(string);
-
-static int cmpString(string l, string r) { return strcmp(l,r); }
-
-string sentence[] = {"this","sentence","is","unreadable","when","sorted"};
-
-static void test_string(){
-    int i;
-
-    fprintf(stdout,"Test \"V_string\" start\n");
-    int len_sentence = (int)(sizeof(sentence)/sizeof(string));
-    V_string vv;
-    V_string_init(&vv);
-    for(i=0;i<len_sentence;i++) {
-        V_string_add(&vv,sentence[i]);
-    }
-    V_string_quicksort(&vv,0,vv.size-1,cmpString);
-    // fprintf(stdout,"Sorted: ");
-    // for(i=0; i<V_string_size(&vv); i++)
-    //     fprintf(stdout,"%s ",V_string_get(&vv,i));
-    // putc('\n', stdout);
-    // fprintf(stdout,"The word \"%s\"is the %d\'rd word\n","this",V_string_find(&vv,cmpString,"this")+1);
-    if ( V_string_find(&vv,cmpString,"this") != 3 )
-            vector_error("Should not happen 3");
-    V_string_free(&vv);
-    fprintf(stdout,"Test \"V_string\" OK\n");
 }
 
 /*
@@ -116,8 +81,8 @@ typedef struct IV {
 DefVectorH(IV);
 DefVectorC(IV);
 
-static int cmpIVi(IV l, IV r) { return l.i - r.i; }
-static int cmpIVv(IV l, IV r) { return l.v<r.v?-1:(l.v==r.v?0:1); }
+static int cmpIVi(IV *l, IV *r) { return l->i - r->i; }
+static int cmpIVv(IV *l, IV *r) { return l->v<r->v?-1:(l->v==r->v?0:1); }
 
 static void test_IV(){
     fprintf(stdout,"Test \"V_IV\" start\n");
@@ -148,7 +113,7 @@ static void test_IV(){
         if ( V_IV_get(vc,i).v < last )
             vector_error("Should not happen, not sorted");
         lastf = V_IV_get(vv,i).v;
-        int fi = V_IV_bsearch(vv,cmpIVi,0,vv->size-1,V_IV_get(vc,i));
+        int fi = V_IV_bsearch(vv,cmpIVi,0,vv->size-1,V_IV_getp(vc,i));
         if ( V_IV_get(vv,fi).v != V_IV_get(vc,i).v )
             vector_error("Should not happen-9 fi=%d [%f <> %f]",fi,vv->items[fi].v,vc->items[i].v);
     }
@@ -185,13 +150,12 @@ static int test_pbuff(){
 
 static void test_vector(){
     test_int();
-    test_string();
     test_IV();
 }
 
 int main(){
     if (0) test_pbuff();
-    if (0) test_vector();
-    if (0) test_bdd();
+    if (1) test_vector();
+    if (1) test_bdd();
     if (1) test_bdd_dictionary();
 }

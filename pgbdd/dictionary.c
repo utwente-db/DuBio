@@ -27,7 +27,7 @@
 
 DefVectorC(dict_var);
 
-int cmpDict_var(dict_var l, dict_var r) {  return strcmp(l.name,r.name); }
+int cmpDict_var(dict_var* l, dict_var* r) {  return strcmp(l->name,r->name); }
 
 DefVectorC(dict_val);
 
@@ -129,9 +129,9 @@ int lookup_var_index(bdd_dictionary* dict, char* name) {
 
     strcpy(tofind.name, name);
     if ( dict->var_sorted )
-        return V_dict_var_bsearch(dict->variables,cmpDict_var,0,dict->variables->size-1,tofind);
+        return V_dict_var_bsearch(dict->variables,cmpDict_var,0,dict->variables->size-1,&tofind);
     else
-        return V_dict_var_find(dict->variables,cmpDict_var,tofind);
+        return V_dict_var_find(dict->variables,cmpDict_var,&tofind);
 }
 
 dict_var* bdd_dictionary_lookup_var(bdd_dictionary* dict, char* name) {

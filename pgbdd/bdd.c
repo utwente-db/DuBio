@@ -28,18 +28,18 @@
 
 DefVectorC(bddstr);
 
-int cmpBddstr(bddstr l, bddstr r) {  return strcmp(l.str,r.str); }
+int cmpBddstr(bddstr* l, bddstr* r) {  return strcmp(l->str,r->str); }
 
 //
 
 DefVectorC(bddrow);
 
-int cmpBddrow(bddrow l, bddrow r) {
-    int res = strcmp(l.rva, r.rva);
+int cmpBddrow(bddrow* l, bddrow* r) {
+    int res = strcmp(l->rva, r->rva);
     if (res == 0) {
-        res = l.low - r.low;
+        res = l->low - r->low;
         if ( res == 0 )
-            res = l.high - r.high;
+            res = l->high - r->high;
     }
     return res;
 } 
@@ -49,7 +49,7 @@ int cmpBddrow(bddrow l, bddrow r) {
  *
  */
 
-static bdd* bdd_init(bdd* bdd, char* expr, char* name, V_bddstr* order, int verbose) {
+bdd* bdd_init(bdd* bdd, char* expr, char* name, V_bddstr* order, int verbose) {
     fprintf(stdout,"Create bdd\n");
     strncpy(bdd->name,(name?name:"NONAME"),MAXRVA);
     bdd->verbose = 1;
@@ -63,7 +63,7 @@ static bdd* bdd_init(bdd* bdd, char* expr, char* name, V_bddstr* order, int verb
     return bdd;
 }
 
-static void bdd_free(bdd* bdd) {
+void bdd_free(bdd* bdd) {
     V_bddstr_free(&bdd->order);
     V_bddrow_free(&bdd->tree);
 }
@@ -118,11 +118,11 @@ int bdd_is_leaf(bdd* bdd, int i) {
 static int bdd_lookup(bdd* bdd, char* rva, int low, int high) {
     bddrow findrow;
 
-    // no hash like in python, optimization will be later
+    // no hash like in python example, optimization will be later
     strncpy(findrow.rva,rva,MAXRVA);
     findrow.low  = low;
     findrow.high = high;
-    return V_bddrow_find(&bdd->tree,cmpBddrow,findrow);
+    return V_bddrow_find(&bdd->tree,cmpBddrow,&findrow);
 } 
 
 static int bdd_create_node(bdd* bdd, char* rva, int low, int high) {
@@ -160,7 +160,7 @@ static int bdd_build_bdd(bdd* bdd, char* expr, int i, char* rewrite_buffer) {
     return bdd_mk(bdd,var.str,l,h);
 }
 
-static void bdd_start_build(bdd* bdd) {
+void bdd_start_build(bdd* bdd) {
     fprintf(stdout,"BDD start_build\n");
     //
     V_bddrow_reset(&bdd->tree);
@@ -189,24 +189,4 @@ static void bdd_start_build(bdd* bdd) {
     }
     //
     fprintf(stdout,"BDD start_build finish\n");
-}
-
-/*
- *
- *
- */
-
-void test_bdd(){
-    fprintf(stdout,"Test bdd\n");
-    // char* expr = "((x=1 and x=1) or (not y=0 and not zzz=1)) and((xx=2 and x=3)or(not x=2 and not x=3))";
-    // char* expr = "((x=1 | x=2) & x=2)";
-    char* expr = "x=1 & x=2 | x=3 & x=4 | x=5 & x=6 | x=7 & x=8";
-    // (x0 and y1) or (not x0 and not y1) or ((x2 and y2) and y34)
-    // char* expr = "(x=1 | x=2)";
-    bdd bdd_struct;
-    bdd* bdd = bdd_init(&bdd_struct,expr,NULL,NULL,1);
-    //
-    bdd_start_build(bdd);
-    //
-    bdd_free(bdd);
 }

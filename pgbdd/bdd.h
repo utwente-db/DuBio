@@ -26,7 +26,7 @@ typedef struct bddstr {
 
 DefVectorH(bddstr);
 
-int cmpBddstr(bddstr, bddstr);
+int cmpBddstr(bddstr*, bddstr*);
 
 // 
 
@@ -37,19 +37,20 @@ typedef struct bddrow {
 
 DefVectorH(bddrow);
 
-int cmpBddrow(bddrow, bddrow);
+int cmpBddrow(bddrow*, bddrow*);
 
 // 
 
 typedef struct bdd {
+    char     vl_len[4]; // used by Postgres memory management
     int      verbose;
     char     name[MAXRVA];
     char    *expr; // incomplete, must be array in future
-    int      expr_bufflen;
-    V_bddrow tree;
+    int      expr_bufflen;      // 
     int      n;
     int      mk_calls;
     V_bddstr order;
+    V_bddrow tree;
 } bdd;
 
 bddstr bdd_get_rva_name(bddstr);
@@ -59,6 +60,10 @@ int bdd_high(bdd*,int);
 int bdd_is_leaf(bdd*,int);
 
 //
+
+bdd* bdd_init(bdd*, char*, char*, V_bddstr*, int);
+void bdd_free(bdd*);
+void bdd_start_build(bdd*);
 
 void test_bdd(void);
 

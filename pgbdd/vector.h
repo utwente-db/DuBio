@@ -31,7 +31,7 @@ typedef struct V_##type { \
     type *dynamic; \
     type  fixed[0]; \
 } V_##type; \
-typedef int (*V_##type##_cmpfun)(type,type); \
+typedef int (*V_##type##_cmpfun)(type*,type*); \
 V_##type *V_##type##_init(V_##type*); \
 V_##type *V_##type##_relocate(V_##type*); \
 void V_##type##_free(V_##type*); \
@@ -44,8 +44,8 @@ type* V_##type##_getp(V_##type*, int); \
 void V_##type##_set(V_##type*, int, type); \
 void V_##type##_delete(V_##type*, int); \
 V_##type *V_##type##_serialize(void*, V_##type*); \
-int V_##type##_find(V_##type*, V_##type##_cmpfun, type); \
-int V_##type##_bsearch(V_##type*, V_##type##_cmpfun, int, int, type); \
+int V_##type##_find(V_##type*, V_##type##_cmpfun, type*); \
+int V_##type##_bsearch(V_##type*, V_##type##_cmpfun, int, int, type*); \
 void V_##type##_quicksort(V_##type*,int,int,V_##type##_cmpfun); \
 void V_##type##_shrink2size(V_##type*); \
 int V_##type##_is_serialized(V_##type*); \
@@ -185,21 +185,21 @@ void V_##type##_delete(V_##type *v, int index) \
         V_##type##_resize(v, v->capacity / 2); \
 } \
 \
-int V_##type##_find(V_##type *v, V_##type##_cmpfun f, type val) { \
+int V_##type##_find(V_##type *v, V_##type##_cmpfun f, type* val) { \
     VECTOR_ASSERT(v); \
     for(int i=0; i<v->size; i++) { \
-        if ( f(v->items[i],val)==0) \
+        if ( f(&v->items[i],val)==0) \
             return i; \
     } \
     return -1; \
 } \
 \
-int V_##type##_bsearch(V_##type *v, V_##type##_cmpfun f, int l, int r, type x) \
+int V_##type##_bsearch(V_##type *v, V_##type##_cmpfun f, int l, int r, type *x) \
 { \
     VECTOR_ASSERT(v); \
     if (r >= l) { \
         int mid = l + (r - l) / 2; \
-        int cmp = f(v->items[mid],x);\
+        int cmp = f(&v->items[mid],x);\
         if (cmp==0) \
             return mid; \
         else if (cmp>0) \
@@ -220,9 +220,9 @@ void V_##type##_quicksort(V_##type *v,int first,int last, V_##type##_cmpfun f){ 
       j=last; \
       \
       while(i<j){ \
-         while((f(v->items[i],v->items[pivot])<=0) && i<last) \
+         while((f(&v->items[i],&v->items[pivot])<=0) && i<last) \
             i++; \
-         while((f(v->items[j],v->items[pivot])>0)) \
+         while((f(&v->items[j],&v->items[pivot])>0)) \
             j--; \
          if(i<j){ \
             temp=v->items[i]; \

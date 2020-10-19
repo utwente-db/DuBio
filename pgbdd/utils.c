@@ -110,9 +110,9 @@ V_bddstr bdd_set_default_order(char* expr) {
     // now sort the result string and make result unique
     if ( V_bddstr_size(&res) > 0) {
         V_bddstr_quicksort(&res,0,res.size-1,cmpBddstr);
-        bddstr last = V_bddstr_get(&res,0);
+        bddstr* last = V_bddstr_getp(&res,0);
         for(int i=1; i<V_bddstr_size(&res); i++) {
-            bddstr curstr = V_bddstr_get(&res,i);
+            bddstr* curstr = V_bddstr_getp(&res,i);
             if ( cmpBddstr(last,curstr)==0 )
                 V_bddstr_delete(&res,i--); // remove i'th element and decrease i
             last = curstr;

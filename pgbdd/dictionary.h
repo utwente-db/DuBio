@@ -25,7 +25,7 @@ typedef struct dict_var {
 
 DefVectorH(dict_var);
 
-int cmpDict_var(dict_var l, dict_var r);
+int cmpDict_var(dict_var* l, dict_var* r);
 
 //
 
