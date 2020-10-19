@@ -18,3 +18,25 @@
 #include "test_config.h"
 
 #include "utils.c"
+
+static int test_pbuff(){
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    for(int i=0; i<1000000; i++)
+        bprintf(pbuff," %d ",i);
+    fprintf(stdout,"+ buffsize=%ld\n",strlen(pbuff->buffer));
+    pbuff_reset(pbuff);
+    bprintf(pbuff,"This %s a %s ","is","test");
+    pbuff_flush(pbuff,stdout);
+    bprintf(pbuff,"of the %s pbuffer %s\n","new","class");
+    pbuff_flush(pbuff,stdout);
+    pbuff_free(pbuff);
+    return 1;
+}
+
+/*
+ *
+ */
+
+void test_utils() {
+    test_pbuff();
+}

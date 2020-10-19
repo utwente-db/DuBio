@@ -134,28 +134,25 @@ void bdd_print_tree(V_bddrow* tree, FILE* f) {
     }
 }
 
-void bdd_generate_dot(bdd* bdd, char* filename) {
-    FILE* f;
+void bdd_generate_dot(bdd* bdd, pbuff* pbuff) {
     V_bddrow* tree = &bdd->tree;
 
-    if ( !(f = fopen(filename,"w") ) )
-       vector_error("bdd_generate_dot: cannot open \"%s\" for write",filename);
-    fprintf(f,"digraph {\n");
+    bprintf(pbuff,"digraph {\n");
     for(int i=0; i<V_bddrow_size(tree); i++) {
         bddrow row = V_bddrow_get(tree,i);
         if ( i<2 ) {
-            fprintf(f,"\tnode [shape=square]\n");
-            fprintf(f,"\t%d [label=\"%s\"]\n",i,row.rva);
+            bprintf(pbuff,"\tnode [shape=square]\n");
+            bprintf(pbuff,"\t%d [label=\"%s\"]\n",i,row.rva);
         } else {
-            fprintf(f,"\tnode [shape=circle]\n");
-            fprintf(f,"\t%d [label=\"%s\"]\n",i,row.rva);
-            fprintf(f,"\tedge [shape=rarrow style=dashed]\n");
-            fprintf(f,"\t%d -> %d\n",i,row.low);
-            fprintf(f,"\tedge [shape=rarrow style=bold]\n");
-            fprintf(f,"\t%d -> %d\n",i,row.high);
+            bprintf(pbuff,"\tnode [shape=circle]\n");
+            bprintf(pbuff,"\t%d [label=\"%s\"]\n",i,row.rva);
+            bprintf(pbuff,"\tedge [shape=rarrow style=dashed]\n");
+            bprintf(pbuff,"\t%d -> %d\n",i,row.low);
+            bprintf(pbuff,"\tedge [shape=rarrow style=bold]\n");
+            bprintf(pbuff,"\t%d -> %d\n",i,row.high);
         }
     }
-    fprintf(f,"}\n");
+    bprintf(pbuff,"}\n");
 }
 
 /*

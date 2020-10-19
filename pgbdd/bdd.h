@@ -41,29 +41,39 @@ int cmpBddrow(bddrow*, bddrow*);
 
 // 
 
+// The BDD core structure stored in the Postgres Database
 typedef struct bdd {
     char     vl_len[4]; // used by Postgres memory management
+    char    *expr; 
+    int      bytesize;  // size in bytes of serialized bdd
+    V_bddrow tree;
+    // because serialized tree grows in memory do not define attributes here!!!
+} bdd;
+
+typedef struct bdd_runtime {
     int      verbose;
-    char     name[MAXRVA];
-    char    *expr; // incomplete, must be array in future
-    int      expr_bufflen;      // 
+    int      expr_bufflen;
     int      n;
     int      mk_calls;
     V_bddstr order;
-    V_bddrow tree;
-} bdd;
+    //
+    bdd      core;
+} bdd_runtime;
 
 bddstr bdd_get_rva_name(bddstr);
 int bdd_get_rva_value(bddstr);
-int bdd_low(bdd*,int);
-int bdd_high(bdd*,int);
-int bdd_is_leaf(bdd*,int);
+int bdd_low(bdd_runtime*,int);
+int bdd_high(bdd_runtime*,int);
+int bdd_is_leaf(bdd_runtime*,int);
 
 //
 
-bdd* bdd_init(bdd*, char*, char*, V_bddstr*, int);
-void bdd_free(bdd*);
-void bdd_start_build(bdd*);
+bdd_runtime* bdd_init(bdd_runtime*, char*, V_bddstr*, int);
+void bdd_free(bdd_runtime*);
+void bdd_start_build(bdd_runtime*);
+
+bdd* create_bdd(char* expr, char **_errmsg, int verbose);
+bdd* relocate_bdd(bdd*);
 
 void test_bdd(void);
 

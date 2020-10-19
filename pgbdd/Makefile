@@ -6,13 +6,16 @@ MYEXT      = pgbdd
 EXTENSION  = $(MYEXT)
 MODULE_big = $(MYEXT)
 DATA       = pgbdd--0.0.1.sql
-OBJS       = pg_dictionary.o pg_bdd.o pg_utils.o pg_vector.o
+
+SRCBASE    = TAG_dictionary.c TAG_bdd.c TAG_utils.c TAG_vector.c
+
+OBJS       = $(SRCBASE:TAG_%.c=pg_%.o)
 
 # default: all-lib # default just compile for postgres
 default: run
 
 TEST-PACKAGE = test_package
-TEST-OBJECTS = test_bdd.o test_dictionary.o test_utils.o test_vector.o
+TEST-OBJECTS = $(SRCBASE:TAG_%.c=test_%.o)
 
 HEADERS      = pg_config.h bdd.h dictionary.h utils.h vector.h
 

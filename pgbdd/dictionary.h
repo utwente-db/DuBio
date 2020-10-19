@@ -72,6 +72,6 @@ int bdd_dictionary_addvars(bdd_dictionary*,char*,int,char**);
 int test_bdd_dictionary_v0(void);
 int test_bdd_dictionary_v1(void);
 
-int test_bdd_dictionary(void);
+int test_dictionary(void);
 
 #endif

@@ -251,4 +251,6 @@ void V_##type##_free(V_##type *v) \
 
 int vector_error(const char*,...);
 
+void test_vector(void);
+
 #endif

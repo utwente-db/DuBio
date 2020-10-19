@@ -39,23 +39,6 @@ void dp_print(const char *fmt,...);
 //
 //
 
-int pg_error(char**, const char*,...);
-
-bddstr create_bddstr(char*, int);
-void bdd_print_V_bddstr(V_bddstr*, FILE*);
-
-V_bddstr bdd_set_default_order(char*);
-
-void bdd_print_row(bddrow, FILE*);
-
-void bdd_print_tree(V_bddrow*, FILE*);
-void bdd_generate_dot(bdd*, char* filename);
-
-char* bdd_replace_str(char*,char*,char*,char*);
-
-int    bdd_atoi(char*);
-double bdd_atof(char*);
-
 #define DEFAULT_PBUFF_SIZE      1024
 // #define DEFAULT_PBUFF_SIZE      16
 
@@ -73,6 +56,29 @@ void   pbuff_free(pbuff*);
 void   pbuff_flush(pbuff*, FILE*);
 int    bprintf(pbuff* pbuff, const char *fmt,...);
 
+//
+//
+//
+
+int pg_error(char**, const char*,...);
+
+bddstr create_bddstr(char*, int);
+void bdd_print_V_bddstr(V_bddstr*, FILE*);
+
+V_bddstr bdd_set_default_order(char*);
+
+void bdd_print_row(bddrow, FILE*);
+
+void bdd_print_tree(V_bddrow*, FILE*);
+void bdd_generate_dot(bdd*, pbuff*);
+
+char* bdd_replace_str(char*,char*,char*,char*);
+
+int    bdd_atoi(char*);
+double bdd_atof(char*);
+
 int bdd_eval_bool(char*);
+
+void test_utils(void);
 
 #endif

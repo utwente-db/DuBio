@@ -83,6 +83,6 @@ int test_bdd_dictionary_v1() {
     return 1;
 }
 
-int test_bdd_dictionary() {
+int test_dictionary() {
     return test_bdd_dictionary_v1();
 }
