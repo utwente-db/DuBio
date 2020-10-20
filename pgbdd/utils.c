@@ -24,7 +24,6 @@
 #include <stdnoreturn.h>
 
 #include "vector.h"
-#include "bdd.h"
 #include "utils.h"
 
 //
@@ -71,94 +70,6 @@ int pg_error(char** errmsg, const char *fmt,...)
  *
  */
 
-#define is_rva_char(C) (isalnum(C)||C=='=')
-
-bddstr create_bddstr(char* val, int len) {
-    bddstr newstr;
-
-    if ( len >= MAXRVA )
-        vector_error("RVA string too large");
-    memcpy(newstr.str,val,len);
-    newstr.str[len] = 0;
-    return newstr;
-}
-
-void bdd_print_V_bddstr(V_bddstr* v, FILE* f) {
-    fprintf(f,"{");
-    for(int i=0; i<V_bddstr_size(v); i++) {
-        fprintf(f,"%s ",V_bddstr_get(v,i).str);
-    }
-    fprintf(f,"}");
-}
-
-V_bddstr bdd_set_default_order(char* expr) {
-    V_bddstr res;
-
-    V_bddstr_init(&res);
-    char*p = expr;
-    do {
-        while (*p && !is_rva_char(*p)) p++;
-        if ( *p) {
-            char* start=p; 
-
-            while (*p && is_rva_char(*p)) p++; 
-            bddstr s = create_bddstr(start,p-start);
-            if ( !(strcmp(s.str,"not")==0||strcmp(s.str,"and")==0||strcmp(s.str,"or")==0) )
-                V_bddstr_add(&res,s);
-        }
-    } while (*p);
-    // now sort the result string and make result unique
-    if ( V_bddstr_size(&res) > 0) {
-        V_bddstr_quicksort(&res,0,res.size-1,cmpBddstr);
-        bddstr* last = V_bddstr_getp(&res,0);
-        for(int i=1; i<V_bddstr_size(&res); i++) {
-            bddstr* curstr = V_bddstr_getp(&res,i);
-            if ( cmpBddstr(last,curstr)==0 )
-                V_bddstr_delete(&res,i--); // remove i'th element and decrease i
-            last = curstr;
-        }
-    }
-    return res;
-}
-
-void bdd_print_row(bddrow row, FILE* f) {
-        fprintf(f,"[\"%s\",%d,%d]\n",row.rva,row.low,row.high);
-}
-
-void bdd_print_tree(V_bddrow* tree, FILE* f) {
-    fprintf(f,"Tree:\n");
-    fprintf(f,"-----\n");
-    for(int i=0; i<V_bddrow_size(tree); i++) {
-        fprintf(f,"%d:\t",i);
-        bdd_print_row(V_bddrow_get(tree,i),f);
-    }
-}
-
-void bdd_generate_dot(bdd* bdd, pbuff* pbuff) {
-    V_bddrow* tree = &bdd->tree;
-
-    bprintf(pbuff,"digraph {\n");
-    for(int i=0; i<V_bddrow_size(tree); i++) {
-        bddrow row = V_bddrow_get(tree,i);
-        if ( i<2 ) {
-            bprintf(pbuff,"\tnode [shape=square]\n");
-            bprintf(pbuff,"\t%d [label=\"%s\"]\n",i,row.rva);
-        } else {
-            bprintf(pbuff,"\tnode [shape=circle]\n");
-            bprintf(pbuff,"\t%d [label=\"%s\"]\n",i,row.rva);
-            bprintf(pbuff,"\tedge [shape=rarrow style=dashed]\n");
-            bprintf(pbuff,"\t%d -> %d\n",i,row.low);
-            bprintf(pbuff,"\tedge [shape=rarrow style=bold]\n");
-            bprintf(pbuff,"\t%d -> %d\n",i,row.high);
-        }
-    }
-    bprintf(pbuff,"}\n");
-}
-
-/*
- *
- */
-
 char* bdd_replace_str(char *dst, char* src, char *find, char *replace) {
     int strlen_find    = strlen(find);
     int strlen_replace = strlen(replace);
@@ -178,7 +89,6 @@ char* bdd_replace_str(char *dst, char* src, char *find, char *replace) {
     delta = strlen(last);
     memcpy(&dst[dst_i],last,delta);
     dst[dst_i+delta] = 0;
-    // fprintf(stdout,"+REPLACE-RES: \"%s\" {%s->%s}> \t\"%s\"\n",src,find,replace,dst);
     return dst;
 } 
 
@@ -194,14 +104,14 @@ int bdd_atoi(char* a) {
     if (errno == 0)
         return (int)val; // incomplete, can still be too big
     else 
-        return BDD_NONE;
+        return -1;
 }
 
 double bdd_atof(char* a) {
     char * endptr;
     double d = strtod(a, &endptr);
     if (a == endptr)
-        return (double)BDD_NONE;
+        return (double)-1;
     else
         return d;
 }

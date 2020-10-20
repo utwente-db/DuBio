@@ -20,3 +20,113 @@
 PG_MODULE_MAGIC;
 
 #include "bdd.c"
+
+#define DatumGetBdd(x)        relocate_bdd(((bdd *) DatumGetPointer(x)))
+
+#define PG_GETARG_BDD(x)      DatumGetBdd(          \
+                PG_DETOAST_DATUM(PG_GETARG_DATUM(x)))
+
+#define PG_RETURN_BDD(x)      PG_RETURN_POINTER(x)
+
+PG_FUNCTION_INFO_V1(bdd_in);
+/**
+ * <code>bdd_in(expression cstring) returns bdd</code>
+ * Create an expression from argument string.
+ *
+ */
+Datum
+bdd_in(PG_FUNCTION_ARGS)
+{       
+    char *expr       = PG_GETARG_CSTRING(0);
+    char *_errmsg    = NULL;
+    bdd  *return_bdd = NULL;
+
+    if ( !(return_bdd = create_bdd(expr,&_errmsg,0/*verbose*/)) )
+        ereport(ERROR,(errmsg("bdd_in: %s",(_errmsg ? _errmsg : "NULL"))));
+    SET_VARSIZE(return_bdd,return_bdd->bytesize);
+    PG_RETURN_BDD(return_bdd);
+}
+
+
+PG_FUNCTION_INFO_V1(bdd_out);
+/**
+ * <code>bdd_out(bdd bdd) returns text</code>
+ * Create a text representation of a bdd expression.
+ *
+ */
+Datum
+bdd_out(PG_FUNCTION_ARGS)
+{
+    bdd *par_bdd = PG_GETARG_BDD(0);
+
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    bprintf(pbuff,"Bdd(\'%s\')",par_bdd->expr);
+    char* result = pbuff_preserve_or_alloc(pbuff);
+    PG_RETURN_CSTRING(result);
+}
+
+
+PG_FUNCTION_INFO_V1(bdd_pg_tostring);
+/**
+ * <code>bdd_pg_tostring(bdd bdd) returns text</code>
+ * Create tostring representation of a bdd expression.
+ *
+ */
+Datum
+bdd_pg_tostring(PG_FUNCTION_ARGS)
+{
+    bdd* par_bdd  = PG_GETARG_BDD(0);
+
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    bprintf(pbuff,"%s",par_bdd->expr);
+    char* result = pbuff_preserve_or_alloc(pbuff);
+    PG_RETURN_CSTRING(result);
+}
+
+
+PG_FUNCTION_INFO_V1(bdd_pg_info);
+/**
+ * <code>bdd_pg_info(bdd bdd) returns text</code>
+ * Create info representation of a bdd expression.
+ *
+ */
+Datum
+bdd_pg_info(PG_FUNCTION_ARGS)
+{
+    bdd* par_bdd  = PG_GETARG_BDD(0);
+
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    bdd_info(par_bdd, pbuff);
+    char* result = pbuff_preserve_or_alloc(pbuff);
+    PG_RETURN_CSTRING(result);
+}
+
+
+PG_FUNCTION_INFO_V1(bdd_pg_dot);
+/**
+ * <code>bdd_pg_dot(bdd bdd) returns text</code>
+ * Create Graphviz DOT representation of a bdd expression.
+ *
+ */
+Datum
+bdd_pg_dot(PG_FUNCTION_ARGS)
+{
+    bdd*  par_bdd  = PG_GETARG_BDD(0);
+    char* dotfile  = PG_GETARG_CSTRING(1);
+
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    bdd_generate_dot(par_bdd, pbuff);
+    char* result = pbuff_preserve_or_alloc(pbuff);
+
+    if ( dotfile && strlen(dotfile) > 0) {
+        FILE* f = fopen(dotfile,"w");
+
+        if ( f ) {
+            fputs(result,f);
+            fclose(f);
+        }
+    }
+    PG_RETURN_CSTRING(result);
+}
+
+

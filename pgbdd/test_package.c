@@ -20,8 +20,8 @@
 #include <stdio.h>
 
 #include "vector.h"
-#include "bdd.h"
 #include "utils.h"
+#include "bdd.h"
 #include "dictionary.h"
 
 /*

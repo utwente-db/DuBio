@@ -4,3 +4,5 @@ installation just type 'make install' and everyrhing should work automagically.
 
 See file(s) example-dictionary.sql(.log) for an example using the 'dictionary'
 type.
+
+See file(s) example-bdd.sql(.log) for an example using the 'bdd' type.

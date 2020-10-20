@@ -73,7 +73,17 @@ void bdd_free(bdd_runtime*);
 void bdd_start_build(bdd_runtime*);
 
 bdd* create_bdd(char* expr, char **_errmsg, int verbose);
+void bdd_info(bdd*, pbuff*);
 bdd* relocate_bdd(bdd*);
+
+bddstr create_bddstr(char*, int);
+void bdd_print_V_bddstr(V_bddstr*, FILE*);
+
+V_bddstr bdd_set_default_order(char*);
+
+void bdd_print_tree(V_bddrow*, pbuff*);
+void bdd_generate_dot(bdd*, pbuff*);
+
 
 void test_bdd(void);
 

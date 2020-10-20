@@ -18,10 +18,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #include "vector.h"
-#include "bdd.h"
 #include "utils.h"
+#include "bdd.h"
 #include "dictionary.h"
 
 //
@@ -74,7 +75,12 @@ static void bdd_print(bdd_runtime* bdd, FILE* out) {
     bdd_print_V_bddstr(&bdd->order,out);
     putc('\n',out);
     fprintf(out,"N=%d\n",bdd->n);
-    bdd_print_tree(&bdd->core.tree,stdout);
+    // bdd_print_tree(&bdd->core.tree,stdout);
+}
+
+void bdd_info(bdd* bdd, pbuff* pbuff) {
+    bprintf(pbuff,"%s\n\n",bdd->expr);
+    bdd_print_tree(&bdd->tree,pbuff);
 }
 
 bddstr bdd_get_rva_name(bddstr rva) {
@@ -221,4 +227,90 @@ bdd* create_bdd(char* expr, char** _errmsg, int verbose) {
     bdd_free(bdd_rt);
 
     return res;
+}
+
+//
+//
+//
+
+bddstr create_bddstr(char* val, int len) {
+    bddstr newstr;
+
+    if ( len >= MAXRVA )
+        vector_error("RVA string too large");
+    memcpy(newstr.str,val,len);
+    newstr.str[len] = 0;
+    return newstr;
+}
+
+void bdd_print_V_bddstr(V_bddstr* v, FILE* f) {
+    fprintf(f,"{");
+    for(int i=0; i<V_bddstr_size(v); i++) {
+        fprintf(f,"%s ",V_bddstr_get(v,i).str);
+    }
+    fprintf(f,"}");
+}
+
+#define is_rva_char(C) (isalnum(C)||C=='=')
+
+V_bddstr bdd_set_default_order(char* expr) {
+    V_bddstr res;
+
+    V_bddstr_init(&res);
+    char*p = expr;
+    do {
+        while (*p && !is_rva_char(*p)) p++;
+        if ( *p) {
+            char* start=p; 
+
+            while (*p && is_rva_char(*p)) p++; 
+            bddstr s = create_bddstr(start,p-start);
+            if ( !(strcmp(s.str,"not")==0||strcmp(s.str,"and")==0||strcmp(s.str,"or")==0) )
+                V_bddstr_add(&res,s);
+        }
+    } while (*p);
+    // now sort the result string and make result unique
+    if ( V_bddstr_size(&res) > 0) {
+        V_bddstr_quicksort(&res,0,res.size-1,cmpBddstr);
+        bddstr* last = V_bddstr_getp(&res,0);
+        for(int i=1; i<V_bddstr_size(&res); i++) {
+            bddstr* curstr = V_bddstr_getp(&res,i);
+            if ( cmpBddstr(last,curstr)==0 )
+                V_bddstr_delete(&res,i--); // remove i'th element and decrease i
+            last = curstr;
+        }
+    }
+    return res;
+}
+
+static void bdd_print_row(bddrow row, pbuff* pbuff) {
+        bprintf(pbuff,"[\"%s\",%d,%d]\n",row.rva,row.low,row.high);
+}
+
+void bdd_print_tree(V_bddrow* tree, pbuff* pbuff) {
+    for(int i=0; i<V_bddrow_size(tree); i++) {
+        bprintf(pbuff,"%d:\t",i);
+        bdd_print_row(V_bddrow_get(tree,i),pbuff);
+    }
+}
+
+void bdd_generate_dot(bdd* bdd, pbuff* pbuff) {
+    V_bddrow* tree = &bdd->tree;
+
+    bprintf(pbuff,"digraph {\n");
+    for(int i=0; i<V_bddrow_size(tree); i++) {
+        bddrow row = V_bddrow_get(tree,i);
+        if ( i<2 ) {
+            bprintf(pbuff,"\tnode [shape=square]\n");
+            bprintf(pbuff,"\t%d [label=\"%s\"]\n",i,row.rva);
+        } else {
+            bprintf(pbuff,"\tnode [shape=circle]\n");
+            bprintf(pbuff,"\t%d [label=\"%s\"]\n",i,row.rva);
+            bprintf(pbuff,"\tedge [shape=rarrow style=dashed]\n");
+            bprintf(pbuff,"\t%d -> %d\n",i,row.low);
+            bprintf(pbuff,"\tedge [shape=rarrow style=bold]\n");
+            bprintf(pbuff,"\t%d -> %d\n",i,row.high);
+        }
+    }
+    bprintf(pbuff,"}\n");
 }

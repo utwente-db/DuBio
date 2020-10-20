@@ -30,16 +30,16 @@ void test_bdd(){
     bdd* test_bdd;
 
     if ( (test_bdd = create_bdd(expr,&_errmsg,1/*verbose*/)) ) {
+        pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
         char* dot_filename = "./DOT/test.dot";
 
-        fprintf(stdout,"Created bdd: %s\n",test_bdd->expr);
-        bdd_print_tree(&test_bdd->tree,stdout);
+        bdd_info(test_bdd,pbuff);
+        pbuff_flush(pbuff,stdout);
         if ( dot_filename ) {
             FILE* f = fopen(dot_filename,"w");
 
             if ( ! f )
                 fprintf(stderr,"Warning: unable to write dotfile: %s\n",dot_filename);
-            pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
             bdd_generate_dot(test_bdd,pbuff);
             pbuff_flush(pbuff,f);
             fclose(f);

@@ -62,16 +62,6 @@ int    bprintf(pbuff* pbuff, const char *fmt,...);
 
 int pg_error(char**, const char*,...);
 
-bddstr create_bddstr(char*, int);
-void bdd_print_V_bddstr(V_bddstr*, FILE*);
-
-V_bddstr bdd_set_default_order(char*);
-
-void bdd_print_row(bddrow, FILE*);
-
-void bdd_print_tree(V_bddrow*, FILE*);
-void bdd_generate_dot(bdd*, pbuff*);
-
 char* bdd_replace_str(char*,char*,char*,char*);
 
 int    bdd_atoi(char*);

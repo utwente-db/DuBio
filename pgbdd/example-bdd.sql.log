@@ -1,0 +1,87 @@
+--
+-- Example of the 'bdd' type in the 'pgbdd; extension.
+-- First do 'make install' in this directory to install the pgbdd extension.
+-- This will create the SQL 'bdd' (Binary Decision Diagram) type
+--
+--
+-- First remove old tables and extensions and start fresh
+--
+drop extension if exists pgbdd cascade;
+DROP EXTENSION
+create extension pgbdd;
+CREATE EXTENSION
+select bdd('x=1');
+    bdd     
+------------
+ Bdd('x=1')
+(1 row)
+
+select tostring(bdd('x=1|y=1'));
+ tostring 
+----------
+ x=1|y=1
+(1 row)
+
+select info(bdd('x=1|y=1'));
+        info         
+---------------------
+ x=1|y=1            +
+                    +
+ 0:      ["0",-1,-1]+
+ 1:      ["1",-1,-1]+
+ 2:      ["y=1",0,1]+
+ 3:      ["x=1",2,1]+
+ 
+(1 row)
+
+select dot(bdd('x=1|(x=2&y=4)'),'/tmp/x.dot');
+                   dot                    
+------------------------------------------
+ digraph {                               +
+         node [shape=square]             +
+         0 [label="0"]                   +
+         node [shape=square]             +
+         1 [label="1"]                   +
+         node [shape=circle]             +
+         2 [label="y=4"]                 +
+         edge [shape=rarrow style=dashed]+
+         2 -> 0                          +
+         edge [shape=rarrow style=bold]  +
+         2 -> 1                          +
+         node [shape=circle]             +
+         3 [label="x=2"]                 +
+         edge [shape=rarrow style=dashed]+
+         3 -> 0                          +
+         edge [shape=rarrow style=bold]  +
+         3 -> 2                          +
+         node [shape=circle]             +
+         4 [label="x=1"]                 +
+         edge [shape=rarrow style=dashed]+
+         4 -> 3                          +
+         edge [shape=rarrow style=bold]  +
+         4 -> 1                          +
+ }                                       +
+ 
+(1 row)
+
+CREATE OR REPLACE FUNCTION op(op text, lbdd bdd) RETURNS bdd
+    AS $$ SELECT bdd(concat($1,'(',tostring($2),')')); $$
+    LANGUAGE SQL;
+CREATE FUNCTION
+CREATE OR REPLACE FUNCTION op(lbdd bdd, op text, rbdd bdd) RETURNS bdd
+    AS $$ SELECT bdd(concat('(',tostring($1),')',$2,'(',tostring($3),')')); $$
+    LANGUAGE SQL;
+CREATE FUNCTION
+select op(bdd('x=1'),'&',bdd('y=2'));
+         op         
+--------------------
+ Bdd('(x=1)&(y=2)')
+(1 row)
+
+select op('!',op(bdd('x=1'),'&',bdd('y=2')));
+          op           
+-----------------------
+ Bdd('!((x=1)&(y=2))')
+(1 row)
+
+-- select dot(op('!',op(bdd('x=1'),'&',bdd('y=2'))),'/tmp/prettybrilliant.dot');
