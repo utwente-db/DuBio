@@ -56,7 +56,7 @@ bdd_runtime* bdd_init(bdd_runtime* bdd, char* expr, V_bddstr* order, int verbose
     V_bddrow_init(&bdd->core.tree);
     //
     bdd->core.expr  = expr;
-    bdd->order = (order ? *order :bdd_set_default_order(bdd->core.expr));
+    bdd->order = (order ? *order:bdd_set_default_order(bdd->core.expr));
     bdd->n     = V_bddstr_size(&bdd->order);
     bdd->mk_calls = 0;
     //
@@ -277,7 +277,8 @@ V_bddstr bdd_set_default_order(char* expr) {
             bddstr* curstr = V_bddstr_getp(&res,i);
             if ( cmpBddstr(last,curstr)==0 )
                 V_bddstr_delete(&res,i--); // remove i'th element and decrease i
-            last = curstr;
+            else
+                last = curstr;
         }
     }
     return res;
