@@ -61,6 +61,6 @@ select print(dict) from Dict WHERE name = 'mydict';
 
 -- and now delete the entire y variable again, now without '*'
 update Dict
-set dict=del(dict,'y=0 : 0.5; y=1 : 0.5; ')
+set dict=del(dict,'y=0 ; y=1 ; ')
 where name='mydict';
 select print(dict) from Dict WHERE name = 'mydict';
