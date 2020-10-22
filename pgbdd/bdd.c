@@ -60,6 +60,7 @@ bdd_runtime* bdd_init(bdd_runtime* bdd, char* expr, V_bddstr* order, int verbose
     bdd->order = (order ? *order:bdd_set_default_order(bdd->core.expr));
     bdd->n     = V_bddstr_size(&bdd->order);
     bdd->mk_calls = 0;
+    bdd->check_calls = 0;
     //
     return bdd;
 }
@@ -70,13 +71,16 @@ void bdd_free(bdd_runtime* bdd) {
 }
 
 static void bdd_print(bdd_runtime* bdd, pbuff* pbuff) {
-    bprintf(pbuff,"BDD: \n");
-    bprintf(pbuff,"+ expr:\t%s\n",bdd->core.expr);
-    bprintf(pbuff,"+ order:\t");
+    bprintf(pbuff,"+ expr     = %s\n",bdd->core.expr);
+    bprintf(pbuff,"+ order    = ");
     bdd_print_V_bddstr(&bdd->order,pbuff);
     bprintf(pbuff,"\n");
-    bprintf(pbuff,"N=%d\n",bdd->n);
+    bprintf(pbuff,"N          = %d\n",bdd->n);
+    bprintf(pbuff,"mk_calls   = %d\n",bdd->mk_calls);
+    bprintf(pbuff,"check_calls= %d\n",bdd->check_calls);
+    bprintf(pbuff,"Tree       = [\n");
     bdd_print_tree(&bdd->core.tree,pbuff);
+    bprintf(pbuff,"]\n");
 }
 
 void bdd_info(bdd* bdd, pbuff* pbuff) {
@@ -144,9 +148,19 @@ static int bdd_create_node(bdd_runtime* bdd, char* rva, int low, int high) {
     return V_bddrow_add(&bdd->core.tree,newrow);
 }
 
-static int bdd_mk(bdd_runtime* bdd, char* v, int l, int h) {
+/*
+ * bdd_alg is used to simulate subtyping/function inheritance
+ */
+typedef struct bdd_alg bdd_alg; /*forward*/
+typedef struct bdd_alg {
+    char name[32];
+    int  (*build)(bdd_alg*,bdd_runtime*,char*,int,char*);
+    int  (*mk)(bdd_alg*,bdd_runtime*,char*,int,int);
+} bdd_alg;
+
+static int bdd_mk(bdd_alg* alg, bdd_runtime* bdd, char* v, int l, int h) {
     if ( bdd->verbose )
-        fprintf(stdout,"MK[v=\"%s\", l=%d, h=%d]\n",v,l,h);
+        fprintf(stdout,"MK{%s}[v=\"%s\", l=%d, h=%d]\n",alg->name,v,l,h);
     bdd->mk_calls++;
     if ( l == h )
         return h;
@@ -157,21 +171,22 @@ static int bdd_mk(bdd_runtime* bdd, char* v, int l, int h) {
     return node;
 } 
 
-static int bdd_build_bdd(bdd_runtime* bdd, char* expr, int i, char* rewrite_buffer) {
+static int bdd_build_bdd(bdd_alg* alg, bdd_runtime* bdd, char* expr, int i, char* rewrite_buffer) {
     if ( bdd->verbose )
-        fprintf(stdout,"BUILD[i=%d]: %s\n",i,expr);
+        fprintf(stdout,"BUILD{%s}[i=%d]: %s\n",alg->name,i,expr);
     if ( i >= bdd->n )
         return (bdd_eval_bool(expr) ? 1 : 0);
     bddstr var = V_bddstr_get(&bdd->order,i);
     char* newexpr = rewrite_buffer + (i*bdd->expr_bufflen); // Pretty brill:-)
     bdd_replace_str(newexpr,expr,var.str,"0");
-    int l = bdd_build_bdd(bdd,newexpr,i+1,rewrite_buffer);
+    int l = alg->build(alg,bdd,newexpr,i+1,rewrite_buffer);
     bdd_replace_str(newexpr,expr,var.str,"1");
-    int h = bdd_build_bdd(bdd,newexpr,i+1,rewrite_buffer);
-    return bdd_mk(bdd,var.str,l,h);
+    int h = alg->build(alg,bdd,newexpr,i+1,rewrite_buffer);
+    return alg->mk(alg,bdd,var.str,l,h);
 }
 
-void bdd_start_build(bdd_runtime* bdd) {
+
+static void bdd_start_build(bdd_alg* alg, bdd_runtime* bdd) {
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
     if ( bdd->verbose )
         fprintf(stdout,"BDD start_build\n");
@@ -182,29 +197,46 @@ void bdd_start_build(bdd_runtime* bdd) {
     bdd->mk_calls = 0;
     //
     if ( bdd->verbose ) {
-        fprintf(stdout,"/-------START--------\n");
+        fprintf(stdout,"/-------START, alg=\"%s\"--------\n",alg->name);
         bdd_print(bdd,pbuff); pbuff_flush(pbuff,stdout);
-        fprintf(stdout,"/--------------------\n");
+        fprintf(stdout,"/--------------------------------\n");
     }
     bdd->expr_bufflen = strlen(bdd->core.expr)+1;
     char* rewrite_buffer = (char*)MALLOC((bdd->n * bdd->expr_bufflen));
     //
-    bdd_build_bdd(bdd,bdd->core.expr,0,rewrite_buffer);
+    alg->build(alg,bdd,bdd->core.expr,0,rewrite_buffer);
     //
     FREE(rewrite_buffer);
     //
     if ( bdd->verbose ) {
-        fprintf(stdout,"/------FINISH--------\n");
+        fprintf(stdout,"/------FINISH, alg=\"%s\"--------\n",alg->name);
         bdd_print(bdd,pbuff); pbuff_flush(pbuff,stdout);
-        fprintf(stdout,"/--------------------\n");
+        fprintf(stdout,"/--------------------------------\n");
     }
     //
     pbuff_free(&pbuff_struct);
 }
 
+bdd_alg BASE_BDD = {.name = "BASE", .build = bdd_build_bdd, .mk = bdd_mk};
+
+bdd* create_bdd(char* expr, char** _errmsg, int verbose) {
+    bdd_runtime  bdd_struct;
+    bdd_runtime* bdd_rt = bdd_init(&bdd_struct,expr,NULL,verbose);
+
+    bdd_start_build(&BASE_BDD,bdd_rt);
+    bdd* res = serialize_bdd(&bdd_rt->core);
+    bdd_free(bdd_rt);
+
+    return res;
+}
+
+/*
+ *
+ */
+
 #define BDD_BASE_SIZE   (sizeof(bdd) - sizeof(V_bddrow))
 
-static bdd* serialize_bdd(bdd* tbs) {
+bdd* serialize_bdd(bdd* tbs) {
     int tree_size, expr_size, bytesize;
 
     V_bddrow_shrink2size(&tbs->tree);
@@ -229,17 +261,6 @@ bdd* relocate_bdd(bdd* tbr) {
     return tbr;
 }
 
-bdd* create_bdd(char* expr, char** _errmsg, int verbose) {
-    bdd_runtime  bdd_struct;
-    bdd_runtime* bdd_rt = bdd_init(&bdd_struct,expr,NULL,verbose);
-
-    bdd_start_build(bdd_rt);
-    bdd* res = serialize_bdd(&bdd_rt->core);
-    bdd_free(bdd_rt);
-
-    return res;
-}
-
 //
 //
 //
@@ -252,14 +273,6 @@ bddstr create_bddstr(char* val, int len) {
     memcpy(newstr.str,val,len);
     newstr.str[len] = 0;
     return newstr;
-}
-
-void bdd_print_V_bddstr(V_bddstr* v, pbuff* pbuff) {
-    bprintf(pbuff,"{");
-    for(int i=0; i<V_bddstr_size(v); i++) {
-        bprintf(pbuff,"%s ",V_bddstr_get(v,i).str);
-    }
-    bprintf(pbuff,"}");
 }
 
 #define is_rva_char(C) (isalnum(C)||C=='=')
@@ -295,13 +308,25 @@ V_bddstr bdd_set_default_order(char* expr) {
     return res;
 }
 
+void bdd_print_V_bddstr(V_bddstr* v, pbuff* pbuff) {
+    bprintf(pbuff,"{");
+    for(int i=0; i<V_bddstr_size(v); i++) {
+        bprintf(pbuff,"%s ",V_bddstr_get(v,i).str);
+    }
+    bprintf(pbuff,"}");
+}
+
+/*
+ *
+ */
+
 static void bdd_print_row(bddrow row, pbuff* pbuff) {
         bprintf(pbuff,"[\"%s\",%d,%d]\n",row.rva,row.low,row.high);
 }
 
 void bdd_print_tree(V_bddrow* tree, pbuff* pbuff) {
     for(int i=0; i<V_bddrow_size(tree); i++) {
-        bprintf(pbuff,"%d:\t",i);
+        bprintf(pbuff,"\t%d:\t",i);
         bdd_print_row(V_bddrow_get(tree,i),pbuff);
     }
 }
@@ -348,7 +373,6 @@ void bdd_generate_dotfile(bdd* bdd, char* dotfile, char** extra) {
 }
 
 /*
- *
  *
  */
 

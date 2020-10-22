@@ -54,6 +54,7 @@ typedef struct bdd_runtime {
     int      expr_bufflen;
     int      n;
     int      mk_calls;
+    int      check_calls;
     V_bddstr order;
     //
     bdd      core;
@@ -70,7 +71,7 @@ int   bdd_is_leaf(bdd*,int);
 
 bdd_runtime* bdd_init(bdd_runtime*, char*, V_bddstr*, int);
 void bdd_free(bdd_runtime*);
-void bdd_start_build(bdd_runtime*);
+bdd* serialize_bdd(bdd*);
 
 bdd* create_bdd(char* expr, char **_errmsg, int verbose);
 void bdd_info(bdd*, pbuff*);

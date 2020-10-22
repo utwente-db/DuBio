@@ -143,7 +143,6 @@ static int test_bdd_probability() {
 //
 
 void test_bdd() {
-    if (0) test_bdd_creation();
-    if (1) test_bdd_probability();
+    if (1) test_bdd_creation();
+    if (0) test_bdd_probability();
 }
-
