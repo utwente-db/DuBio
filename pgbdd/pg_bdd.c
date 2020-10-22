@@ -21,13 +21,6 @@ PG_MODULE_MAGIC;
 
 #include "bdd.c"
 
-#define DatumGetBdd(x)        relocate_bdd(((bdd *) DatumGetPointer(x)))
-
-#define PG_GETARG_BDD(x)      DatumGetBdd(          \
-                PG_DETOAST_DATUM(PG_GETARG_DATUM(x)))
-
-#define PG_RETURN_BDD(x)      PG_RETURN_POINTER(x)
-
 PG_FUNCTION_INFO_V1(bdd_in);
 /**
  * <code>bdd_in(expression cstring) returns bdd</code>
@@ -115,7 +108,7 @@ bdd_pg_dot(PG_FUNCTION_ARGS)
     char* dotfile  = PG_GETARG_CSTRING(1);
 
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
-    bdd_generate_dot(par_bdd, pbuff);
+    bdd_generate_dot(par_bdd,pbuff,NULL);
     char* result = pbuff_preserve_or_alloc(pbuff);
 
     if ( dotfile && strlen(dotfile) > 0) {
@@ -127,6 +120,26 @@ bdd_pg_dot(PG_FUNCTION_ARGS)
         }
     }
     PG_RETURN_CSTRING(result);
+}
+
+
+PG_FUNCTION_INFO_V1(bdd_pg_prob);
+/**
+ * <code>bdd_pg_prob(dict dictionary, bdd bdd) returns double</code>
+ * Computes probability of bdd expression with defined rva probs in dictionary
+ *
+ */
+Datum
+bdd_pg_prob(PG_FUNCTION_ARGS)
+{
+    bdd_dictionary  *dict     = PG_GETARG_DICTIONARY(0);
+    bdd             *par_bdd  = PG_GETARG_BDD(1);
+
+    char* _errmsg;
+    double prob = bdd_probability(dict,par_bdd,NULL,0,&_errmsg);
+    if ( prob < 0.0 )
+        ereport(ERROR,(errmsg("bdd_pg_prob: %s",_errmsg)));
+    PG_RETURN_FLOAT8(prob);
 }
 
 

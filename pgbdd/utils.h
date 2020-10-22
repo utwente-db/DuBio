@@ -60,6 +60,8 @@ int    bprintf(pbuff* pbuff, const char *fmt,...);
 //
 //
 
+int pg_fatal(const char*,...);
+
 int pg_error(char**, const char*,...);
 
 char* bdd_replace_str(char*,char*,char*,char*);

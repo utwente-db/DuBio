@@ -17,7 +17,6 @@
 #ifndef BDD_H
 #define BDD_H
 
-#define MAXRVA   32
 #define BDD_NONE -1
 
 typedef struct bddstr {
@@ -61,10 +60,11 @@ typedef struct bdd_runtime {
 } bdd_runtime;
 
 bddstr bdd_get_rva_name(bddstr);
-int bdd_get_rva_value(bddstr);
-int bdd_low(bdd_runtime*,int);
-int bdd_high(bdd_runtime*,int);
-int bdd_is_leaf(bdd_runtime*,int);
+char* bdd_rva(bdd*,int);
+int   bdd_get_rva_value(bddstr);
+int   bdd_low(bdd*,int);
+int   bdd_high(bdd*,int);
+int   bdd_is_leaf(bdd*,int);
 
 //
 
@@ -77,13 +77,16 @@ void bdd_info(bdd*, pbuff*);
 bdd* relocate_bdd(bdd*);
 
 bddstr create_bddstr(char*, int);
-void bdd_print_V_bddstr(V_bddstr*, FILE*);
+void bdd_print_V_bddstr(V_bddstr*, pbuff*);
 
 V_bddstr bdd_set_default_order(char*);
 
 void bdd_print_tree(V_bddrow*, pbuff*);
-void bdd_generate_dot(bdd*, pbuff*);
 
+void bdd_generate_dot(bdd*,pbuff*,char**);
+void bdd_generate_dotfile(bdd*,char*,char**);
+
+double bdd_probability(bdd_dictionary*, bdd*,char**, int, char**);
 
 void test_bdd(void);
 

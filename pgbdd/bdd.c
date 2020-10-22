@@ -22,8 +22,8 @@
 
 #include "vector.h"
 #include "utils.h"
-#include "bdd.h"
 #include "dictionary.h"
+#include "bdd.h"
 
 //
 
@@ -51,7 +51,8 @@ int cmpBddrow(bddrow* l, bddrow* r) {
  */
 
 bdd_runtime* bdd_init(bdd_runtime* bdd, char* expr, V_bddstr* order, int verbose) {
-    fprintf(stdout,"Create bdd\n");
+    if ( verbose ) 
+        fprintf(stdout,"Create bdd: %s\n",expr);
     bdd->verbose = verbose;
     V_bddrow_init(&bdd->core.tree);
     //
@@ -68,14 +69,14 @@ void bdd_free(bdd_runtime* bdd) {
     V_bddrow_free(&bdd->core.tree);
 }
 
-static void bdd_print(bdd_runtime* bdd, FILE* out) {
-    fprintf(out,"BDD: \n");
-    fprintf(out,"+ expr:\t%s\n",bdd->core.expr);
-    fprintf(out,"+ order:\t");
-    bdd_print_V_bddstr(&bdd->order,out);
-    putc('\n',out);
-    fprintf(out,"N=%d\n",bdd->n);
-    // bdd_print_tree(&bdd->core.tree,stdout);
+static void bdd_print(bdd_runtime* bdd, pbuff* pbuff) {
+    bprintf(pbuff,"BDD: \n");
+    bprintf(pbuff,"+ expr:\t%s\n",bdd->core.expr);
+    bprintf(pbuff,"+ order:\t");
+    bdd_print_V_bddstr(&bdd->order,pbuff);
+    bprintf(pbuff,"\n");
+    bprintf(pbuff,"N=%d\n",bdd->n);
+    bdd_print_tree(&bdd->core.tree,pbuff);
 }
 
 void bdd_info(bdd* bdd, pbuff* pbuff) {
@@ -108,15 +109,19 @@ int bdd_get_rva_value(bddstr rva) {
     return BDD_NONE;
 }
 
-int bdd_low(bdd_runtime* bdd, int i) {
-    return V_bddrow_get(&bdd->core.tree,i).low;
+char* bdd_rva(bdd* bdd, int i) {
+    return V_bddrow_getp(&bdd->tree,i)->rva;
 }
 
-int bdd_high(bdd_runtime* bdd, int i) {
-    return V_bddrow_get(&bdd->core.tree,i).high;
+int bdd_low(bdd* bdd, int i) {
+    return V_bddrow_getp(&bdd->tree,i)->low;
 }
 
-int bdd_is_leaf(bdd_runtime* bdd, int i) {
+int bdd_high(bdd* bdd, int i) {
+    return V_bddrow_getp(&bdd->tree,i)->high;
+}
+
+int bdd_is_leaf(bdd* bdd, int i) {
     return (i==0)||(i==1); // incomplete, check row is cleaner
 }
 
@@ -140,7 +145,8 @@ static int bdd_create_node(bdd_runtime* bdd, char* rva, int low, int high) {
 }
 
 static int bdd_mk(bdd_runtime* bdd, char* v, int l, int h) {
-    fprintf(stdout,"MK[v=\"%s\", l=%d, h=%d]\n",v,l,h);
+    if ( bdd->verbose )
+        fprintf(stdout,"MK[v=\"%s\", l=%d, h=%d]\n",v,l,h);
     bdd->mk_calls++;
     if ( l == h )
         return h;
@@ -152,8 +158,8 @@ static int bdd_mk(bdd_runtime* bdd, char* v, int l, int h) {
 } 
 
 static int bdd_build_bdd(bdd_runtime* bdd, char* expr, int i, char* rewrite_buffer) {
-    fprintf(stdout,"BUILD[i=%d]: %s\n",i,expr);
-
+    if ( bdd->verbose )
+        fprintf(stdout,"BUILD[i=%d]: %s\n",i,expr);
     if ( i >= bdd->n )
         return (bdd_eval_bool(expr) ? 1 : 0);
     bddstr var = V_bddstr_get(&bdd->order,i);
@@ -166,17 +172,20 @@ static int bdd_build_bdd(bdd_runtime* bdd, char* expr, int i, char* rewrite_buff
 }
 
 void bdd_start_build(bdd_runtime* bdd) {
-    fprintf(stdout,"BDD start_build\n");
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    if ( bdd->verbose )
+        fprintf(stdout,"BDD start_build\n");
     //
     V_bddrow_reset(&bdd->core.tree);
     bdd_create_node(bdd,"0",BDD_NONE,BDD_NONE);
     bdd_create_node(bdd,"1",BDD_NONE,BDD_NONE);
     bdd->mk_calls = 0;
     //
-    fprintf(stdout,"/-------START--------\n");
-    bdd_print(bdd,stdout);
-    fprintf(stdout,"/--------------------\n");
-    //
+    if ( bdd->verbose ) {
+        fprintf(stdout,"/-------START--------\n");
+        bdd_print(bdd,pbuff); pbuff_flush(pbuff,stdout);
+        fprintf(stdout,"/--------------------\n");
+    }
     bdd->expr_bufflen = strlen(bdd->core.expr)+1;
     char* rewrite_buffer = (char*)MALLOC((bdd->n * bdd->expr_bufflen));
     //
@@ -184,11 +193,13 @@ void bdd_start_build(bdd_runtime* bdd) {
     //
     FREE(rewrite_buffer);
     //
-    fprintf(stdout,"/------FINISH--------\n");
-    bdd_print(bdd,stdout);
-    fprintf(stdout,"/--------------------\n");
+    if ( bdd->verbose ) {
+        fprintf(stdout,"/------FINISH--------\n");
+        bdd_print(bdd,pbuff); pbuff_flush(pbuff,stdout);
+        fprintf(stdout,"/--------------------\n");
+    }
     //
-    fprintf(stdout,"BDD start_build finish\n");
+    pbuff_free(&pbuff_struct);
 }
 
 #define BDD_BASE_SIZE   (sizeof(bdd) - sizeof(V_bddrow))
@@ -243,12 +254,12 @@ bddstr create_bddstr(char* val, int len) {
     return newstr;
 }
 
-void bdd_print_V_bddstr(V_bddstr* v, FILE* f) {
-    fprintf(f,"{");
+void bdd_print_V_bddstr(V_bddstr* v, pbuff* pbuff) {
+    bprintf(pbuff,"{");
     for(int i=0; i<V_bddstr_size(v); i++) {
-        fprintf(f,"%s ",V_bddstr_get(v,i).str);
+        bprintf(pbuff,"%s ",V_bddstr_get(v,i).str);
     }
-    fprintf(f,"}");
+    bprintf(pbuff,"}");
 }
 
 #define is_rva_char(C) (isalnum(C)||C=='=')
@@ -295,18 +306,27 @@ void bdd_print_tree(V_bddrow* tree, pbuff* pbuff) {
     }
 }
 
-void bdd_generate_dot(bdd* bdd, pbuff* pbuff) {
+static void generate_label(pbuff* pbuff, int i, char* base, char* extra) {
+    bprintf(pbuff,"\t%d [label=<<b>%s</b>",i,base);
+    if ( extra )
+        bprintf(pbuff,"%s",extra);
+    bprintf(pbuff,">]\n");
+}
+
+void bdd_generate_dot(bdd* bdd, pbuff* pbuff, char** extra) {
     V_bddrow* tree = &bdd->tree;
 
     bprintf(pbuff,"digraph {\n");
+    bprintf(pbuff,"\tlabelloc=\"t\";\n");
+    bprintf(pbuff,"\tlabel=\"bdd(\'%s\')\";\n",bdd->expr);
     for(int i=0; i<V_bddrow_size(tree); i++) {
         bddrow row = V_bddrow_get(tree,i);
         if ( i<2 ) {
             bprintf(pbuff,"\tnode [shape=square]\n");
-            bprintf(pbuff,"\t%d [label=\"%s\"]\n",i,row.rva);
+            generate_label(pbuff,i,row.rva,(extra ? extra[i] : NULL));
         } else {
             bprintf(pbuff,"\tnode [shape=circle]\n");
-            bprintf(pbuff,"\t%d [label=\"%s\"]\n",i,row.rva);
+            generate_label(pbuff,i,row.rva,(extra ? extra[i] : NULL));
             bprintf(pbuff,"\tedge [shape=rarrow style=dashed]\n");
             bprintf(pbuff,"\t%d -> %d\n",i,row.low);
             bprintf(pbuff,"\tedge [shape=rarrow style=bold]\n");
@@ -314,4 +334,63 @@ void bdd_generate_dot(bdd* bdd, pbuff* pbuff) {
         }
     }
     bprintf(pbuff,"}\n");
+}
+
+void bdd_generate_dotfile(bdd* bdd, char* dotfile, char** extra) {
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    bdd_generate_dot(bdd,pbuff,extra);
+    FILE* f = fopen(dotfile,"w");
+    if ( f ) {
+        fputs(pbuff->buffer,f);
+        fclose(f);
+    }
+    pbuff_free(pbuff);
+}
+
+/*
+ *
+ *
+ */
+
+static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, int i,char** extra,int verbose,char** _errmsg) {
+    char *rva = bdd_rva(bdd,i);
+    double res;
+
+    // incomplete: highly unefficient, store already computed results
+    if (verbose )
+        fprintf(stdout,"+ bdd_probability(node=%d,\'%s\')\n",i,rva);
+    double p_root;
+    if ( bdd_is_leaf(bdd,i) ) {
+        res = p_root = (i==0) ? 0.0 : 1.0;
+        if ( verbose )
+            fprintf(stdout,"++ is_leaf: P=%f\n",res);
+    } else {
+        p_root = bdd_dictionary_lookup_rva_prob(dict,rva);
+        if ( p_root < 0.0 ) {
+            pg_error(_errmsg,"dictionary_lookup: rva[\'%s\'] not found.",rva);
+            return -1.0;
+        }
+        int low = bdd_low(bdd,i);
+        int high = bdd_high(bdd,i);
+        if ( verbose )
+            fprintf(stdout,"++ is_node(low=%d, high=%d)\n",low,high);
+        double p_l = bdd_probability_node(dict,bdd,low,extra,verbose,_errmsg);
+        double p_h = bdd_probability_node(dict,bdd,high,extra,verbose,_errmsg);
+        if ( p_l < 0.0 || p_h < 0.0 )
+            return -1.0;
+        res = (p_root * p_h) + p_l;
+        if ( ! rva_samevar(rva,bdd_rva(bdd,low)) )
+            res = res - p_root*p_l;
+        if ( verbose )
+            fprintf(stdout,"+ bdd_probability(node=%d,\'%s\') p_root=%f, P=%f\n",i,rva,p_root,res);
+   }
+   if ( extra )
+       sprintf(extra[i],"<i>(%.2f)<br/>%.2f</i>",p_root,res);
+   return res;
+}
+
+double bdd_probability(bdd_dictionary* dict, bdd* bdd,char** extra, int verbose, char** _errmsg) {
+    int topnode = V_bddrow_size(&bdd->tree) - 1;
+    
+    return bdd_probability_node(dict,bdd,topnode,extra,verbose,_errmsg);
 }

@@ -49,6 +49,8 @@ void dp_print(const char *fmt,...)
  *
  */
 
+#define MAXERRMSG       256
+
 int pg_error(char** errmsg, const char *fmt,...)
 {
     va_list ap;
@@ -57,14 +59,29 @@ int pg_error(char** errmsg, const char *fmt,...)
      * Create error message buffer. In postgres context this is palloc'd
      * so it it pfree()'d after the aborted transaction.
      */
-    *errmsg = MALLOC(256+2);
+    *errmsg = MALLOC(MAXERRMSG+2);
     va_start(ap, fmt);
-    vsnprintf(*errmsg, 256, fmt, ap);
+    vsnprintf(*errmsg, MAXERRMSG, fmt, ap);
     strcat(*errmsg,"\n");
     va_end(ap);
     return 0;
 }
 
+int pg_fatal(const char *fmt,...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    fputs("\n",stderr);
+    va_end(ap);
+    exit(-1);
+    return 0;
+}
+
+/*
+ *
+ *
+ */
 /*
  *
  *

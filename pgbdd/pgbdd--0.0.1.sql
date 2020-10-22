@@ -127,3 +127,12 @@ function print(dict dictionary) returns cstring
 
 comment on function print(dictionary) is
 'create a serialised string representation of dictionary.';
+
+
+create 
+function prob(dict dictionary, bdd bdd) returns double precision
+     as '$libdir/pgbdd', 'bdd_pg_prob'
+     language C immutable strict;
+
+comment on function prob(dictionary, bdd) is
+'return probability of bdd expression with rva/probabilities defined in dictionary.';

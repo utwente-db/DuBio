@@ -22,8 +22,8 @@
 
 #include "vector.h"
 #include "utils.h"
-#include "bdd.h"
 #include "dictionary.h"
+#include "bdd.h"
 
 DefVectorC(dict_var);
 
@@ -257,6 +257,31 @@ static int update_var_val(bdd_dictionary* dict, char* var, char* s_val, char* s_
         }
     }
     return 0;
+}
+
+double rva_samevar(char* l, char* r) {
+    while(isspace(*l)) l++;
+    while(isspace(*r)) r++;
+
+    if (*l && *l && *l==*r) {
+        while ( (*++l == *++r) && isalnum(*l));
+        return (!isalnum(*l) && !isalnum(*r));
+    }
+    return 0; 
+}
+
+double bdd_dictionary_lookup_rva_prob(bdd_dictionary* dict,char* rva) {
+    char var[MAXRVA], *s_val;
+    char* p = rva;
+
+    while(isspace(*p)) p++;
+    scantoken(var, &p,'=',MAXRVA);
+    s_val = p;
+    int val_index;
+    dict_var* varp = bdd_dictionary_lookup_var(dict,var);
+    if ( varp && ((val_index=get_var_value_index(dict,varp,s_val))>=0) )
+        return dict->values->items[val_index].prob;
+    return -1.0;
 }
 
 int bdd_dictionary_delvars(bdd_dictionary* dict, char* delvars, char** errmsg) { 

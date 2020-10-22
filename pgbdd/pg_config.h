@@ -26,12 +26,33 @@
 #define REALLOC repalloc
 #define FREE    pfree
 
+//
+
+#define DatumGetDictionary(x)        bdd_dictionary_relocate(((bdd_dictionary *) DatumGetPointer(x)))
+
+#define PG_GETARG_DICTIONARY(x)      DatumGetDictionary(          \
+                PG_DETOAST_DATUM(PG_GETARG_DATUM(x)))
+
+#define PG_RETURN_DICTIONARY(x)      PG_RETURN_POINTER(x)
+
+//
+
+#define DatumGetBdd(x)        relocate_bdd(((bdd *) DatumGetPointer(x)))
+
+#define PG_GETARG_BDD(x)      DatumGetBdd(          \
+                PG_DETOAST_DATUM(PG_GETARG_DATUM(x)))
+
+#define PG_RETURN_BDD(x)      PG_RETURN_POINTER(x)
+
+//
+//
+//
+
 extern Datum dictionary_in(PG_FUNCTION_ARGS);
 extern Datum dictionary_out(PG_FUNCTION_ARGS);
 extern Datum dictionary_print(PG_FUNCTION_ARGS);
 extern Datum dictionary_add(PG_FUNCTION_ARGS);
 extern Datum dictionary_del(PG_FUNCTION_ARGS);
 extern Datum dictionary_upd(PG_FUNCTION_ARGS);
-
 
 #endif

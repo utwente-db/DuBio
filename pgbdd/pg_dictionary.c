@@ -17,14 +17,6 @@
 
 #include "pg_config.h"
 
-
-#define DatumGetDictionary(x)        bdd_dictionary_relocate(((bdd_dictionary *) DatumGetPointer(x)))
-
-#define PG_GETARG_DICTIONARY(x)      DatumGetDictionary(          \
-                PG_DETOAST_DATUM(PG_GETARG_DATUM(x)))
-
-#define PG_RETURN_DICTIONARY(x)      PG_RETURN_POINTER(x)
-
 #include "dictionary.c"
 
 PG_FUNCTION_INFO_V1(dictionary_in);

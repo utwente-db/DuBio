@@ -17,6 +17,8 @@
 #ifndef DICTIONARY_H
 #define DICTIONARY_H
 
+#define MAXRVA 32
+
 typedef struct dict_var {
     char name[MAXRVA];
     int  offset;
@@ -68,6 +70,9 @@ int bdd_dictionary_sort(bdd_dictionary* dict);
 int bdd_dictionary_delvars(bdd_dictionary*, char*, char**);
 int bdd_dictionary_addvars(bdd_dictionary*,char*,int,char**);
 
+double rva_samevar(char*,char*);
+
+double bdd_dictionary_lookup_rva_prob(bdd_dictionary*,char*);
 
 int test_bdd_dictionary_v0(void);
 int test_bdd_dictionary_v1(void);

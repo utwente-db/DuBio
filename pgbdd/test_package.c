@@ -21,8 +21,8 @@
 
 #include "vector.h"
 #include "utils.h"
-#include "bdd.h"
 #include "dictionary.h"
+#include "bdd.h"
 
 /*
  *
