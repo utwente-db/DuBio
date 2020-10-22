@@ -128,8 +128,8 @@ static double bdd_prob_test(char* expr, char* dict_vars, char* dotfile, int verb
 
 static int test_bdd_probability() {
     bdd_prob_test(
-            "(x=1|x=2)",
-            // "(x=1|y=1)",
+            // "(x=1|x=2)",
+            "(x=1|y=1)",
             "x=1:0.4; x=2:0.6 ; y=1:0.2; y=2:0.8; ",
             "./DOT/test.dot", /* filename of dotfile or NULL */
             1 /* verbose */,
@@ -143,6 +143,6 @@ static int test_bdd_probability() {
 //
 
 void test_bdd() {
-    if (1) test_bdd_creation();
-    if (0) test_bdd_probability();
+    if (0) test_bdd_creation();
+    if (1) test_bdd_probability();
 }
