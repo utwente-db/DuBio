@@ -194,23 +194,15 @@ static dict_var* new_var(bdd_dictionary* dict, char* name) {
     return V_dict_var_getp(dict->variables,index);
 }
 
-static dict_val* new_val(bdd_dictionary* dict, char* value, char* prob) {
-    dict_val newval;
+static dict_val* new_val(bdd_dictionary* dict, int value, double prob) {
+    dict_val newval = { .value = value, .prob = prob };
 
-    newval.value = bdd_atoi(value);
-    newval.prob  = bdd_atof(prob);
-    if ( newval.value < 0 || newval.prob < 0 )
-        return NULL;
-    else {
-        int index = V_dict_val_add(dict->values,newval);
-        return V_dict_val_getp(dict->values,index);
-    }
+    int index = V_dict_val_add(dict->values,newval);
+    return V_dict_val_getp(dict->values,index);
 }
 
 
-static int get_var_value_index(bdd_dictionary* dict, dict_var* varp, char* value) {
-    int val = bdd_atoi(value);
-
+static int get_var_value_index(bdd_dictionary* dict, dict_var* varp, int val) {
     if ( val >= 0 ) {
         for(int i=varp->offset; i<(varp->offset+varp->cardinality); i++) {
             dict_val* valp = V_dict_val_getp(dict->values,i);
@@ -233,7 +225,8 @@ static int update_var_val(bdd_dictionary* dict, char* var, char* s_val, char* s_
         V_dict_var_delete(dict->variables,var_index);
         return 1;
     } 
-    if ( (val_index=get_var_value_index(dict,varp,s_val)) < 0)
+    int i_val = bdd_atoi(s_val);
+    if ( (val_index=get_var_value_index(dict,varp,i_val)) < 0)
         return pg_error(errmsg,"bdd_dictionary: %s=%s value not found",var,s_val);
     if ( !update /* delete */ ) {
         dict->val_deleted++;
@@ -259,27 +252,11 @@ static int update_var_val(bdd_dictionary* dict, char* var, char* s_val, char* s_
     return 0;
 }
 
-double rva_samevar(char* l, char* r) {
-    while(isspace(*l)) l++;
-    while(isspace(*r)) r++;
-
-    if (*l && *l && *l==*r) {
-        while ( (*++l == *++r) && isalnum(*l));
-        return (!isalnum(*l) && !isalnum(*r));
-    }
-    return 0; 
-}
-
-double bdd_dictionary_lookup_rva_prob(bdd_dictionary* dict,char* rva) {
-    char var[MAXRVA], *s_val;
-    char* p = rva;
-
-    while(isspace(*p)) p++;
-    scantoken(var, &p,'=',MAXRVA);
-    s_val = p;
+double dictionar_lookup_prob(bdd_dictionary* dict,rva* rva) {
     int val_index;
-    dict_var* varp = bdd_dictionary_lookup_var(dict,var);
-    if ( varp && ((val_index=get_var_value_index(dict,varp,s_val))>=0) )
+
+    dict_var* varp = bdd_dictionary_lookup_var(dict,rva->var);
+    if ( varp && ((val_index=get_var_value_index(dict,varp,rva->val))>=0) )
         return dict->values->items[val_index].prob;
     return -1.0;
 }
@@ -324,13 +301,13 @@ int bdd_dictionary_addvars(bdd_dictionary* dict, char* newvars, int update, char
     do {
         while(isspace(*p)) p++;
         if (*p) {
-            char var[MAXRVA], val[MAXRVA], prob[MAXRVA];
+            char var[MAXRVA], s_val[MAXRVA], s_prob[MAXRVA];
 
             char* tstart = p;
             if ( !(
-                scantoken(var, &p,'=',MAXRVA) &&
-                scantoken(val, &p,':',MAXRVA) &&
-                scantoken(prob,&p,';',MAXRVA) ) )
+                scantoken(var,   &p,'=',MAXRVA) &&
+                scantoken(s_val, &p,':',MAXRVA) &&
+                scantoken(s_prob,&p,';',MAXRVA) ) )
                 return pg_error(errmsg,"bdd_dictionary_add: bad syntax: %s",tstart);
             // fprintf(stdout,"SCAN \"%s\" = \"%s\" : \"%s\"\n",var,val,prob); 
             if ( varp && (strcmp(varp->name,var)!=0) ) {
@@ -340,15 +317,19 @@ int bdd_dictionary_addvars(bdd_dictionary* dict, char* newvars, int update, char
             if ( !varp )
                 if ( !(varp=bdd_dictionary_lookup_var(dict,var)) )
                     varp = new_var(dict,var);
-            if ( get_var_value_index(dict,varp,val) >= 0) {
+            int    i_val  = bdd_atoi(s_val);
+            double d_prob = bdd_atof(s_prob);
+            if ( (i_val<0) || (d_prob<0) )
+                return pg_error(errmsg,"bdd_dictionary_addvars: bad rva-prob: %s=%s:%s",var,s_val,s_prob);
+            if ( get_var_value_index(dict,varp,i_val) >= 0) {
                 if ( update ) {
-                    if (!update_var_val(dict,var,val,prob,update,errmsg) )
+                    if (!update_var_val(dict,var,s_val,s_prob,update,errmsg) )
                         return 0;
                 } else
-                    return pg_error(errmsg,"bdd_dictionary_add: variable/value %s=%s alreay exists",var,val);
+                    return pg_error(errmsg,"bdd_dictionary_add: variable/value %s=%s alreay exists",var,s_val);
             } else {
-                if ( !new_val(dict,val,prob)  )
-                    return pg_error(errmsg,"bdd_dictionary_addvars: bad value: %s=%s:%s",var,val,prob);
+                if ( !new_val(dict,i_val,d_prob)  )
+                    return pg_error(errmsg,"bdd_dictionary_addvars: internal error on: %s=%s:%s",var,s_val,s_prob);
                 varp->cardinality++;
             }
         }

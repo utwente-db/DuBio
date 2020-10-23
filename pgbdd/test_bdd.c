@@ -46,7 +46,7 @@ static bdd* get_test_bdd(char* expr, int verbose) {
 static void test_bdd_creation(){
     // char* expr = "((x=1 and x=1) or (not y=0 and not zzz=1)) and((xx=2 and x=3)or(not x=2 and not x=3))";
     // char* expr = "((x=1 | x=2) & x=2)";
-    // char* expr = "x=1 & x=2 | x=3 & x=4 | x=5 & x=6 | x=7 & x=8";
+    // char* expr = "   x=1 & x=2 | x=3 & x=4 | x=5 & x=6 | x=7 & x=8 | y=4";
     // (x0 and y1) or (not x0 and not y1) or ((x2 and y2) and y34)
     // char* expr = "(x=1 | x=2)&(y=1 | y=1) | (z=4)";
     // char* expr = "x=1 | (y=1 & x=2)";
@@ -93,7 +93,7 @@ static double bdd_prob_test(char* expr, char* dict_vars, char* dotfile, int verb
 
     char** extra = NULL;
     if ( dotfile && show_prob_in_dot ) {
-        int n = V_bddrow_size(&pbdd->tree);
+        int n = V_rva_node_size(&pbdd->tree);
         int sz_ptrs = n * sizeof(char*);
         extra = (char**)MALLOC(sz_ptrs + (n * EXTRA_PRINT_SIZE));
         char* extra_str_base = ((char*)extra)+sz_ptrs;

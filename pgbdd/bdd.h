@@ -19,24 +19,25 @@
 
 #define BDD_NONE -1
 
-typedef struct bddstr {
-    char str[MAXRVA];
-} bddstr;
+typedef struct rva {
+    char var[MAXRVA];
+    int  val;
+} rva;
 
-DefVectorH(bddstr);
+DefVectorH(rva);
 
-int cmpBddstr(bddstr*, bddstr*);
+int cmpRva(rva*, rva*);
 
 // 
 
-typedef struct bddrow {
-    char rva[MAXRVA];
-    int  low, high;
-} bddrow;
+typedef struct rva_node {
+    rva rva;
+    int low, high;
+} rva_node;
 
-DefVectorH(bddrow);
+DefVectorH(rva_node);
 
-int cmpBddrow(bddrow*, bddrow*);
+int cmpRva_node(rva_node*, rva_node*);
 
 // 
 
@@ -45,7 +46,7 @@ typedef struct bdd {
     char     vl_len[4]; // used by Postgres memory management
     char    *expr; 
     int      bytesize;  // size in bytes of serialized bdd
-    V_bddrow tree;
+    V_rva_node tree;
     // because serialized tree grows in memory do not define attributes here!!!
 } bdd;
 
@@ -55,21 +56,20 @@ typedef struct bdd_runtime {
     int      n;
     int      mk_calls;
     int      check_calls;
-    V_bddstr order;
+    V_rva order;
     //
     bdd      core;
 } bdd_runtime;
 
-bddstr bdd_get_rva_name(bddstr);
-char* bdd_rva(bdd*,int);
-int   bdd_get_rva_value(bddstr);
 int   bdd_low(bdd*,int);
 int   bdd_high(bdd*,int);
 int   bdd_is_leaf(bdd*,int);
 
+rva*  bdd_rva(bdd*,int);
+int   rva_is_samevar(rva*, rva*);
+
 //
 
-bdd_runtime* bdd_init(bdd_runtime*, char*, V_bddstr*, int);
 void bdd_free(bdd_runtime*);
 bdd* serialize_bdd(bdd*);
 
@@ -77,12 +77,12 @@ bdd* create_bdd(char* expr, char **_errmsg, int verbose);
 void bdd_info(bdd*, pbuff*);
 bdd* relocate_bdd(bdd*);
 
-bddstr create_bddstr(char*, int);
-void bdd_print_V_bddstr(V_bddstr*, pbuff*);
+int create_rva(rva*,char*,int,char**);
+void bdd_print_V_rva(V_rva*, pbuff*);
 
-V_bddstr bdd_set_default_order(char*);
+int bdd_set_default_order(V_rva*,char*,char**);
 
-void bdd_print_tree(V_bddrow*, pbuff*);
+void bdd_print_tree(V_rva_node*, pbuff*);
 
 void bdd_generate_dot(bdd*,pbuff*,char**);
 void bdd_generate_dotfile(bdd*,char*,char**);

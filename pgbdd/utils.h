@@ -69,7 +69,7 @@ char* bdd_replace_str(char*,char*,char*,char*);
 int    bdd_atoi(char*);
 double bdd_atof(char*);
 
-int bdd_eval_bool(char*);
+int bdd_eval_bool(char*,char**);
 
 void test_utils(void);
 

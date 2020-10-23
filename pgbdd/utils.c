@@ -87,10 +87,16 @@ int pg_fatal(const char *fmt,...)
  *
  */
 
+// #define TRACE_REWRITE
+
 char* bdd_replace_str(char *dst, char* src, char *find, char *replace) {
     int strlen_find    = strlen(find);
     int strlen_replace = strlen(replace);
 
+#ifdef TRACE_REWRITE
+    fprintf(stdout,"+ bdd_replace_str: find=\"%s\", repl=\"%s\"\n",find,replace);
+    fprintf(stdout,"+ IN: \"%s\"\n",src);
+#endif
     if (strlen_replace > strlen_find)
         vector_error("bdd_replace_str: replace > find");
     int delta, dst_i = 0;
@@ -106,6 +112,9 @@ char* bdd_replace_str(char *dst, char* src, char *find, char *replace) {
     delta = strlen(last);
     memcpy(&dst[dst_i],last,delta);
     dst[dst_i+delta] = 0;
+#ifdef TRACE_REWRITE
+    fprintf(stdout,"+ OUT:\"%s\"\n",dst);
+#endif
     return dst;
 } 
 
@@ -255,7 +264,7 @@ static int op_left_assoc(const char c)
 #define is_function(c)  (c >= 'A' && c <= 'Z')
 #define is_ident(c)     ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z'))
 
-static int shunting_yard(const char *input, char *output)
+static int shunting_yard(const char *input, char *output, char** _errmsg)
 {
     const char *strpos = input, *strend = input + strlen(input);
     char c, *outpos = output;
@@ -299,10 +308,8 @@ static int shunting_yard(const char *input, char *output)
                 }
                 // If no left parentheses are encountered, either the separator was misplaced
                 // or parentheses were mismatched.
-                if(!pe)   {
-                    printf("Error: separator or parentheses mismatched\n");
-                    return 0;
-                }
+                if(!pe)
+                    return pg_error(_errmsg,"Error: separator or parentheses mismatched\n");
             }
             // If the token is an operator, op1, then:
             else if(is_operator(c))  {
@@ -348,10 +355,8 @@ static int shunting_yard(const char *input, char *output)
                     }
                 }
                 // If the stack runs out without finding a left parenthesis, then there are mismatched parentheses.
-                if(!pe)  {
-                    printf("Error: parentheses mismatched\n");
-                    return 0;
-                }
+                if(!pe)
+                    return pg_error(_errmsg,"Error: separator or parentheses mismatched\n");
                 // Pop the left parenthesis from the stack, but not onto the output queue.
                 sl--;
                 // If the token at the top of the stack is a function token, pop it onto the output queue.
@@ -364,10 +369,8 @@ static int shunting_yard(const char *input, char *output)
                     }
                 }
             }
-            else  {
-                printf("Unknown token %c\n", c);
-                return 0; // Unknown token
-            }
+            else 
+                return pg_error(_errmsg,"Unknown token\n");
         }
         ++strpos;
     }
@@ -377,10 +380,8 @@ static int shunting_yard(const char *input, char *output)
 
     while(sl > 0)  {
         sc = stack[sl - 1];
-        if(sc == '(' || sc == ')')   {
-            printf("Error: parentheses mismatched\n");
-            return 0;
-        }
+        if(sc == '(' || sc == ')')
+            return pg_error(_errmsg,"Error: separator or parentheses mismatched\n");
         *outpos = sc;
         ++outpos;
         --sl;
@@ -389,24 +390,21 @@ static int shunting_yard(const char *input, char *output)
     return 1;
 }
 
-int bdd_eval_bool(char * expr)  {
+int bdd_eval_bool(char * expr, char** _errmsg)  {
     char output[500] = {0};
     char * op;
     int tmp;
     char part1[250], part2[250];
 
-    if(!shunting_yard(expr, output)) {
-      vector_error("bdd_eval_bool: incorrect expression: %s",expr);
-      return 0;  // oops can't convert to postfix form
-    }
-
+    if(!shunting_yard(expr, output, _errmsg))
+        return 0;
     while (strlen(output) > 1) {
         op = &output[0];
 
         while (!is_operator(*op) && *op != '\0')
           op++;
         if (*op == '\0') {
-          return 0;  // oops - zero operators found
+          return pg_error(_errmsg,"oops - zero operators found");
         }
         else if (*op == '!') {
             tmp = !(*(op-1) - 48);

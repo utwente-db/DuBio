@@ -26,7 +26,7 @@ set dict=add(dict,'x=1:0.4; x=2:0.6 ; y=1:0.2; y=2:0.8; ')
 where name='mydict';
 
 -- now compute first simple prob!
-select prob(dict,bdd('(x=1|y=1)')) from Dict WHERE name = 'mydict';
+-- select prob(dict,bdd('(x=1|y=1)')) from Dict WHERE name = 'mydict';
 
 drop table if exists T;
 create table T (name varchar(20), bdd bdd);

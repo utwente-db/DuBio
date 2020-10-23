@@ -57,6 +57,7 @@ typedef struct bdd_dictionary {
 #define BDD_DICTIONARY_BASESIZE (sizeof(bdd_dictionary)-(sizeof(V_dict_var)+sizeof(V_dict_val)))
 
 //
+typedef struct rva rva;
 
 bdd_dictionary* bdd_dictionary_create(bdd_dictionary*,char*);
 int bdd_dictionary_free(bdd_dictionary*);
@@ -70,9 +71,7 @@ int bdd_dictionary_sort(bdd_dictionary* dict);
 int bdd_dictionary_delvars(bdd_dictionary*, char*, char**);
 int bdd_dictionary_addvars(bdd_dictionary*,char*,int,char**);
 
-double rva_samevar(char*,char*);
-
-double bdd_dictionary_lookup_rva_prob(bdd_dictionary*,char*);
+double dictionar_lookup_prob(bdd_dictionary*,rva*);
 
 int test_bdd_dictionary_v0(void);
 int test_bdd_dictionary_v1(void);
