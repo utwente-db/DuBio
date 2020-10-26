@@ -17,8 +17,6 @@
 #ifndef TEST_CONFIG_H
 #define TEST_CONFIG_H
 
-#define TEST_CONFIG
-
 #define MALLOC  malloc
 #define REALLOC realloc
 #define FREE    free

@@ -43,6 +43,41 @@ static bdd* get_test_bdd(char* expr, int verbose) {
     return res;
 }
 
+char *bdd_expr[] = {
+    "(x=1) & y=2",
+    "(x=1 | x=2)&(y=1 | y=1) | (z=4)",
+    "x=1 & (x=2 | x=3 & x=4) | (x=5 & x=6 | x=7 & x=8) | y=4",
+    "x=1 | (y=1 & x=2)",
+    0
+};
+
+#include <time.h>
+
+static void test_timings(){
+    bdd* test_bdd;
+    char* _errmsg = NULL;
+
+    int REPEAT = 10000;
+    clock_t start = clock(), diff;
+    for (int r=0; r<REPEAT; r++) {
+        for (int i=0; bdd_expr[i]; i++) {
+            // fprintf(stderr,"EXPR: %s\n",bdd_expr[i]);
+            if ( (test_bdd = create_bdd(bdd_expr[i],&_errmsg,0)) ) {
+                FREE(test_bdd);
+            } else {
+                fprintf(stderr,"test_timings:error: %s\n",(_errmsg ? _errmsg : "NULL"));
+                exit(0);
+            }
+        }
+    }
+    diff = clock() - start;
+    int msec = diff * 1000 / CLOCKS_PER_SEC;
+    fprintf(stdout,"Time %ds/%dms\n", msec/1000, msec%1000);
+}
+
+
+
+
 static void test_bdd_creation(){
     // char* expr = "((x=1 and x=1) or (not y=0 and not zzz=1)) and((xx=2 and x=3)or(not x=2 and not x=3))";
     // char* expr = "((x=1 | x=2) & x=2)";
@@ -145,4 +180,5 @@ static int test_bdd_probability() {
 void test_bdd() {
     if (0) test_bdd_creation();
     if (1) test_bdd_probability();
+    if (0) test_timings();
 }

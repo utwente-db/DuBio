@@ -156,8 +156,11 @@ static int bdd_build_bdd_BASE(bdd_alg* alg, bdd_runtime* bdd, char* expr, int i,
     if ( bdd->verbose )
         fprintf(stdout,"BUILD{%s}[i=%d]: %s\n",alg->name,i,expr);
     if ( i >= bdd->n ) {
-        int res = (bdd_eval_bool(expr,_errmsg) ? 1 : 0);
-        if ( *_errmsg ) return -1;
+        if ( bdd->verbose )
+            fprintf(stdout,"EVAL{%s}[i=%d]: %s = ",alg->name,i,expr);
+        int res = bee_eval(expr,_errmsg);
+        if ( bdd->verbose )
+            fprintf(stdout,"%d\n",res);
         return res;
     }
     rva var = V_rva_get(&bdd->order,i);
@@ -193,9 +196,16 @@ static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd, char** _errmsg) {
         fprintf(stdout,"/--------------------------------\n");
     }
     bdd->expr_bufflen = strlen(bdd->core.expr)+1;
-    char* rewrite_buffer = (char*)MALLOC((bdd->n * bdd->expr_bufflen));
+    char* rewrite_buffer = (char*)MALLOC(((bdd->n+1) * bdd->expr_bufflen));
+    // the last buffer is for the expression self
+    char* exprbuff       = rewrite_buffer + (bdd->n*bdd->expr_bufflen);
+    memcpy(exprbuff,bdd->core.expr,bdd->expr_bufflen);
+    // Remove all spaces from the buffer! This will result in final expressions
+    // with only characters 01&|!(). This way we can build an extremely fast
+    // expression evaluator
+    bdd_remove_spaces(exprbuff);
     //
-    int res = alg->build(alg,bdd,bdd->core.expr,0,rewrite_buffer,_errmsg);
+    int res = alg->build(alg,bdd,exprbuff,0,rewrite_buffer,_errmsg);
     //
     FREE(rewrite_buffer);
     //

@@ -87,26 +87,35 @@ int pg_fatal(const char *fmt,...)
  *
  */
 
+void bdd_remove_spaces(char* p) {
+    char *d=p;
+
+    while (*p) {
+        if ( isspace(*p) )
+            p++;
+        else
+            *d++ = *p++; 
+    }
+    *d = 0;
+}
+ 
 // #define TRACE_REWRITE
 
 char* bdd_replace_str(char *dst, char* src, char *find, char *replace) {
     int strlen_find    = strlen(find);
-    int strlen_replace = strlen(replace);
 
 #ifdef TRACE_REWRITE
     fprintf(stdout,"+ bdd_replace_str: find=\"%s\", repl=\"%s\"\n",find,replace);
     fprintf(stdout,"+ IN: \"%s\"\n",src);
 #endif
-    if (strlen_replace > strlen_find)
-        vector_error("bdd_replace_str: replace > find");
     int delta, dst_i = 0;
     char *cp, *last;
     last = cp = src;
     while ( (cp=strstr(cp,find)) ) {
         delta = (cp - last);
         memcpy(&dst[dst_i],last,delta);
-        memcpy(&dst[dst_i+delta],replace,strlen_replace);
-        dst_i += (delta+strlen_replace);
+        dst[dst_i+delta] = *replace;
+        dst_i += (delta+1);
         last = cp = cp + strlen_find;
     }
     delta = strlen(last);
@@ -210,234 +219,182 @@ int bprintf(pbuff* pbuff, const char *fmt,...)
 
 /*
  *
+ * The bool_eval utility. The fastest possible boolean expression evaluator
+ * for a boolean algebra with only ['0','1','!','&','|','(',')'] tokens!.
+ * The implementation consists of a finite state machine with static table 
+ * traversing part and a dynmic part which handles a stack of states used
+ * for parenthese expression.
+ *
  *
  */
 
-static int op_preced(const char c)
-{
-    switch(c)    {
-        case '|':
-            return 6;
-        case '&':
-            return 5;
-        case '!':
-            return 4;
-        case '*':  case '/': case '%':
-            return 3;
-        case '+': case '-':
-            return 2;
-        case '=':
-            return 1;
-    }
-    return 0;
-}
+// #define BEE_DEBUG
 
-static int op_left_assoc(const char c)
-{
-    switch(c)    {
-        // left to right
-        case '*': case '/': case '%': case '+': case '-': case '|': case '&':
-            return 1;
-        // right to left
-        case '=': case '!':
-            return 0;
-    }
-    return 0;
-}
+typedef unsigned char bee_state;
 
-/* 
- * static unsigned int op_arg_count(const char c)
- * {
- *     switch(c)  {
- *         case '*': case '/': case '%': case '+': case '-': case '=': case '&': case '|':
- *             return 2;
- *         case '!':
- *             return 1;
- *         default:
- *             return c - 'A';
- *     }
- *     return 0;
- * }
- */
+#define bee_s0              0
+#define bee_s1              1
+#define bee_snot            2
+#define bee_s0and           3
+#define bee_s0or            4
+#define bee_s1and           5
+#define bee_s1or            6
+#define bee_salways0        7
+#define bee_salways1        8
+#define bee_svalstart       9
+#define bee_NSTATES_STATIC 10
+#define bee_sresult0       10
+#define bee_sresult1       11
+#define bee_sparopen       12
+#define bee_error          13
+#define bee_sparclose      14
+#define bee_NSTATES        15
 
-#define is_operator(c)  (c == '+' || c == '-' || c == '/' || c == '*' || c == '!' || c == '%' || c == '=' || c == '&' || c == '|')
-#define is_function(c)  (c >= 'A' && c <= 'Z')
-#define is_ident(c)     ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z'))
+typedef unsigned char bee_token;
 
-static int shunting_yard(const char *input, char *output, char** _errmsg)
-{
-    const char *strpos = input, *strend = input + strlen(input);
-    char c, *outpos = output;
+#define bee_0               0
+#define bee_1               1
+#define bee_not             2
+#define bee_and             3
+#define bee_or              4
+#define bee_paropen         5
+#define bee_parclose        6
+#define bee_eof             7
+#define bee_NTOKEN          8
 
-    char stack[32];       // operator stack
-    unsigned int sl = 0;  // stack length
-    char     sc;          // used for record stack element
+#ifdef BEE_DEBUG
 
+static char *bee_state_STR[bee_NSTATES] = {
+        "bee_s0", "bee_s1", "bee_snot", "bee_s0and", "bee_s0or", "bee_s1and",
+        "bee_s1or", "bee_salways0", "bee_salways1", "bee_svalstart",
+        "bee_sresult0", "bee_sresult1", "bee_sparopen", "bee_error", 
+        "bee_sparclose" };
 
-    while(strpos < strend)   {
-        // read one token from the input stream
-        c = *strpos;
-        if(c != ' ')    {
+static char *bee_token_STR[bee_NTOKEN] = {"0","1","!","&","|","(",")","E"};
 
-            // If the token is a number (identifier), then add it to the output queue.
-            if(is_ident(c))  {
+#endif
 
-                *outpos = c; ++outpos;
+static bee_state fsm[bee_NSTATES_STATIC][bee_NTOKEN] = {
+/*                  0   1   !   &   |   (   )   E  */
+/*bee_s0*/       { 13, 13, 13,  3,  4, 13, 14, 10 },
+/*bee_s1*/       { 13, 13, 13,  5,  6, 13, 14, 11 },
+/*bee_snot*/     {  1,  0,  9, 13, 13, 12, 13, 13 },
+/*bee_s0and*/    {  0,  0,  7, 13, 13, 12, 13, 13 },
+/*bee_s0or*/     {  0,  1,  2, 13, 13, 12, 13, 13 },
+/*bee_s1and*/    {  0,  1,  2, 13, 13, 12, 13, 13 },
+/*bee_s1or*/     {  1,  1,  8, 13, 13, 12, 13, 13 },
+/*bee_salways0*/ {  0,  0,  7, 13, 13, 12, 13, 13 },
+/*bee_salways1*/ {  1,  1,  8, 13, 13, 12, 13, 13 },
+/*bee_svalstart*/{  0,  1,  2, 13, 13, 12, 13, 13 }
+};
+
+static unsigned char bee_token_xlate[256] = {
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,bee_not,255,
+    255,255,255,bee_and,255,bee_paropen,bee_parclose,255,255,255,255,255,255,
+    bee_0,bee_1,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,bee_or,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255};
+
+static int parse_tokens(char* p, char** _errmsg) {
+    char *d=p;
+
+    while (*p) {
+        if ( isspace(*p) )
+            p++;
+        else {
+            bee_token t = bee_token_xlate[(int)*p++];
+            if ( t == 255 ) {
+                pg_error(_errmsg,"bee:parse_tokens: invalid char (%d)",(int)*--p);
+                return -1; 
             }
-            // If the token is a function token, then push it onto the stack.
-            else if(is_function(c))   {
-                stack[sl] = c;
-                ++sl;
-            }
-            // If the token is a function argument separator (e.g., a comma):
-            else if(c == ',')   {
-                int pe = 0;
-                while(sl > 0)   {
-                    sc = stack[sl - 1];
-                    if(sc == '(')  {
-                        pe = 1;
-                        break;
-                    }
-                    else  {
-                        // Until the token at the top of the stack is a left parenthesis,
-                        // pop operators off the stack onto the output queue.
-                        *outpos = sc;
-                        ++outpos;
-                        sl--;
-                    }
-                }
-                // If no left parentheses are encountered, either the separator was misplaced
-                // or parentheses were mismatched.
-                if(!pe)
-                    return pg_error(_errmsg,"Error: separator or parentheses mismatched\n");
-            }
-            // If the token is an operator, op1, then:
-            else if(is_operator(c))  {
-                while(sl > 0)    {
-                    sc = stack[sl - 1];
-                    if(is_operator(sc) &&
-                        ((op_left_assoc(c) && (op_preced(c) >= op_preced(sc))) ||
-                           (op_preced(c) > op_preced(sc))))   {
-                        // Pop op2 off the stack, onto the output queue;
-                        *outpos = sc;
-                        ++outpos;
-                        sl--;
-                    }
-                    else   {
-                        break;
-                    }
-                }
-                // push op1 onto the stack.
-                stack[sl] = c;
-                ++sl;
-
-            }
-            // If the token is a left parenthesis, then push it onto the stack.
-            else if(c == '(')   {
-                stack[sl] = c;
-                ++sl;
-            }
-            // If the token is a right parenthesis:
-            else if(c == ')')    {
-                int pe = 0;
-                // Until the token at the top of the stack is a left parenthesis,
-                // pop operators off the stack onto the output queue
-                while(sl > 0)     {
-                    sc = stack[sl - 1];
-                    if(sc == '(')    {
-                        pe = 1;
-                        break;
-                    }
-                    else  {
-                        *outpos = sc;
-                        ++outpos;
-                        sl--;
-                    }
-                }
-                // If the stack runs out without finding a left parenthesis, then there are mismatched parentheses.
-                if(!pe)
-                    return pg_error(_errmsg,"Error: separator or parentheses mismatched\n");
-                // Pop the left parenthesis from the stack, but not onto the output queue.
-                sl--;
-                // If the token at the top of the stack is a function token, pop it onto the output queue.
-                if(sl > 0)   {
-                    sc = stack[sl - 1];
-                    if(is_function(sc))   {
-                        *outpos = sc;
-                        ++outpos;
-                        sl--;
-                    }
-                }
-            }
-            else 
-                return pg_error(_errmsg,"Unknown token\n");
+            *d++ = t;
         }
-        ++strpos;
     }
-
-    // When there are no more tokens to read:
-    // While there are still operator tokens in the stack:
-
-    while(sl > 0)  {
-        sc = stack[sl - 1];
-        if(sc == '(' || sc == ')')
-            return pg_error(_errmsg,"Error: separator or parentheses mismatched\n");
-        *outpos = sc;
-        ++outpos;
-        --sl;
-    }
-    *outpos = 0; // Null terminator
+    *d = bee_eof;
     return 1;
 }
 
-int bdd_eval_bool(char * expr, char** _errmsg)  {
-    char output[500] = {0};
-    char * op;
-    int tmp;
-    char part1[250], part2[250];
+#define BEE_STACKMAX    1024
 
-    if(!shunting_yard(expr, output, _errmsg))
-        return 0;
-    while (strlen(output) > 1) {
-        op = &output[0];
+typedef struct bee_state_stack {
+    int        sp;
+    bee_state  stack[BEE_STACKMAX];
+} bee_state_stack;
 
-        while (!is_operator(*op) && *op != '\0')
-          op++;
-        if (*op == '\0') {
-          return pg_error(_errmsg,"oops - zero operators found");
+static int bee_eval_fsm(char* t, char** _errmsg) {
+    bee_state_stack ss = { .sp=0 };
+    bee_state prev_state = bee_error;
+    bee_state state      = bee_svalstart;
+
+    while (1) {
+#ifdef BEE_DEBUG
+        fprintf(stderr,"- bee: start while = S[%s]\n",bee_state_STR[state]); 
+#endif
+        while ( state < bee_NSTATES_STATIC ) {
+            bee_token new_token = (bee_token)*t++;
+            prev_state = state;
+            state      = fsm[state][new_token];
+#ifdef BEE_DEBUG
+            fprintf(stderr,"- bee_fsm: T[%s] >> S[%s]\n",bee_token_STR[new_token],bee_state_STR[state]); 
+#endif
         }
-        else if (*op == '!') {
-            tmp = !(*(op-1) - 48);
-            *(op-1) = '\0';
+#ifdef BEE_DEBUG
+        fprintf(stderr,"- bee: start case = S[%s]\n",bee_state_STR[state]); 
+#endif
+        switch ( state ) {
+         case bee_sparopen:
+#ifdef BEE_DEBUG
+            fprintf(stderr,"- push S[%s]\n",bee_state_STR[prev_state]); 
+#endif
+            ss.stack[ss.sp++] = prev_state;
+            if ( ss.sp == BEE_STACKMAX ) {
+                pg_error(_errmsg,"bee_eval: stack overflow");
+                return -1;
+            }
+            state = bee_svalstart;
+            break;
+         case bee_sparclose:
+            if ( (state < 2) || (ss.sp == 0) ) {
+                pg_error(_errmsg,"bee_eval: parenthese mismatch?");
+                return -1;
+            }
+            bee_state pop_state = ss.stack[--ss.sp];
+#ifdef BEE_DEBUG
+            fprintf(stderr,"- pop S[%s]\n",bee_state_STR[pop_state]); 
+#endif
+            state = fsm[pop_state][(bee_token)prev_state];
+            break;
+         case bee_sresult0:
+         case bee_sresult1:
+            if (ss.sp != 0 ) {
+                pg_error(_errmsg,"bee_eval: missing \')\'");
+                return -1;
+            }
+#ifdef BEE_DEBUG
+            fprintf(stderr,"- return S[%s]\n",bee_state_STR[state]); 
+#endif
+            return ( state - bee_sresult0); // 0 or 1
+         case bee_error:
+            pg_error(_errmsg,"bee_eval: syntax error");
+            return -1;
+         default:
+            pg_error(_errmsg,"bee_eval: internal error");
+            return -1;
         }
-        else if(*op == '&') {
-            tmp = (*(op-1) - 48) && (*(op-2) - 48);
-            *(op-2) = '\0';
-        }
-        else if (*op == '|') {
-            tmp = (*(op-1) - 48) || (*(op-2) - 48);
-            *(op-2) = '\0';
-        }
-
-        memset(part1, 0, sizeof(part1));
-
-        memset(part2, 0, sizeof(part2));
-        strcpy(part1, output);
-
-        strcpy(part2, op+1);
-
-        memset(output, 0, sizeof(output));
-        strcat(output, part1);
-
-        strcat(output, ((tmp==0) ? "0" : "1"));
-
-        strcat(output, part2);
-
     }
-    int res = (*output - 48);
-    // fprintf(stdout,"EVAL(%s)=%d\n",expr,res);
-    return res;
+    return -1; // should not happen
 }
 
-#ifdef TEST_CONFIG
-#endif
+int bee_eval(char* boolean_expr, char** _errmsg) {
+    return (parse_tokens(boolean_expr,_errmsg)!=-1) ? bee_eval_fsm(boolean_expr,_errmsg) : -1;
+}
