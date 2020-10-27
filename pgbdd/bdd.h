@@ -48,12 +48,16 @@ typedef struct bdd {
     // because serialized tree grows in memory do not define attributes here!!!
 } bdd;
 
+// #define BDD_VERBOSE
+
 typedef struct bdd_runtime {
+#ifdef BDD_VERBOSE
     int      verbose;
-    int      expr_bufflen;
-    int      n;
     int      mk_calls;
     int      check_calls;
+#endif
+    int      expr_bufflen;
+    int      n;
     V_rva order;
     //
     bdd      core;

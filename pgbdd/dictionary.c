@@ -184,20 +184,18 @@ static int normalize_var(bdd_dictionary* dict, dict_var* varp) {
 }
 
 static dict_var* new_var(bdd_dictionary* dict, char* name) {
-    dict_var newvar;
-
+    dict_var newvar = { .offset=V_dict_val_size(dict->values), .cardinality=0 };
     strcpy(newvar.name,name);
-    newvar.offset      = V_dict_val_size(dict->values);
-    newvar.cardinality = 0;
+
     dict->var_sorted = 0;
-    int index = V_dict_var_add(dict->variables,newvar);
+    int index = V_dict_var_add(dict->variables,&newvar);
     return V_dict_var_getp(dict->variables,index);
 }
 
 static dict_val* new_val(bdd_dictionary* dict, int value, double prob) {
     dict_val newval = { .value = value, .prob = prob };
 
-    int index = V_dict_val_add(dict->values,newval);
+    int index = V_dict_val_add(dict->values,&newval);
     return V_dict_val_getp(dict->values,index);
 }
 

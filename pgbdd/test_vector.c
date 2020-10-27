@@ -29,7 +29,7 @@ static void test_int(){
     V_int vv;
     V_int_init(&vv);
     for (int i=0; i<66; i++) {
-        V_int_add(&vv,i);
+        V_int_add(&vv,&i);
     }
     V_int_delete(&vv,10);
     V_int_delete(&vv,30);
@@ -80,7 +80,7 @@ static void test_IV(){
         IV iv;
         iv.i = i;
         iv.v = (float)(i+((i%2==0)?8000:9000));
-        V_IV_add(vv,iv);
+        V_IV_add(vv,&iv);
     }
     //
     void* buff = MALLOC(V_IV_bytesize(vv));

@@ -58,11 +58,13 @@ static void test_timings(){
     char* _errmsg = NULL;
 
     int REPEAT = 10000;
+    int count  = 0;
     clock_t start = clock(), diff;
     for (int r=0; r<REPEAT; r++) {
         for (int i=0; bdd_expr[i]; i++) {
             // fprintf(stderr,"EXPR: %s\n",bdd_expr[i]);
             if ( (test_bdd = create_bdd(BDD_BASE,bdd_expr[i],&_errmsg,0)) ) {
+                count++;
                 FREE(test_bdd);
             } else {
                 fprintf(stderr,"test_timings:error: %s\n",(_errmsg ? _errmsg : "NULL"));
@@ -72,7 +74,7 @@ static void test_timings(){
     }
     diff = clock() - start;
     int msec = diff * 1000 / CLOCKS_PER_SEC;
-    fprintf(stdout,"Time %ds/%dms\n", msec/1000, msec%1000);
+    fprintf(stdout,"Time %ds/%dms, created %d bdd's (%d/s)\n", msec/1000, msec%1000,count, (int)((double)count/((double)msec/1000)));
 }
 
 

@@ -54,16 +54,18 @@ int cmpRva_node(rva_node* l, rva_node* r) {
  */
 
 static bdd_runtime* bdd_init(bdd_runtime* bdd, char* expr, int verbose, char** _errmsg) {
+#ifdef BDD_VERBOSE
     if ( verbose ) 
         fprintf(stdout,"Create bdd: %s\n",expr);
-    bdd->verbose = verbose;
+    bdd->verbose     = verbose;
+    bdd->mk_calls    = 0;
+    bdd->check_calls = 0;
+#endif
     bdd->core.expr  = expr;
     if ( !bdd_set_default_order(&bdd->order,bdd->core.expr,_errmsg))  
         return NULL;
     V_rva_node_init(&bdd->core.tree);
     bdd->n     = V_rva_size(&bdd->order);
-    bdd->mk_calls = 0;
-    bdd->check_calls = 0;
     //
     return bdd;
 }
@@ -73,6 +75,7 @@ void bdd_free(bdd_runtime* bdd) {
     V_rva_node_free(&bdd->core.tree);
 }
 
+#ifdef BDD_VERBOSE
 static void bdd_print(bdd_runtime* bdd, pbuff* pbuff) {
     bprintf(pbuff,"+ expr     = %s\n",bdd->core.expr);
     bprintf(pbuff,"+ order    = ");
@@ -85,6 +88,7 @@ static void bdd_print(bdd_runtime* bdd, pbuff* pbuff) {
     bdd_print_tree(&bdd->core.tree,pbuff);
     bprintf(pbuff,"]\n");
 }
+#endif
 
 void bdd_info(bdd* bdd, pbuff* pbuff) {
     bprintf(pbuff,"%s\n\n",bdd->expr);
@@ -131,7 +135,7 @@ static int bdd_lookup(bdd_runtime* bdd, rva* rva, int low, int high) {
 
 static int bdd_create_node(bdd_runtime* bdd, rva* rva, int low, int high) {
     rva_node newrow = { .rva  = *rva, .low  = low, .high = high };
-    return V_rva_node_add(&bdd->core.tree,newrow);
+    return V_rva_node_add(&bdd->core.tree,&newrow);
 }
 
 /*
@@ -139,9 +143,11 @@ static int bdd_create_node(bdd_runtime* bdd, rva* rva, int low, int high) {
  */
 
 static int bdd_mk_BASE(bdd_alg* alg, bdd_runtime* bdd, rva *v, int l, int h, char** _errmsg) {
+#ifdef BDD_VERBOSE
     if ( bdd->verbose )
         fprintf(stdout,"MK{%s}[v=\"%s=%d\", l=%d, h=%d]\n",alg->name,v->var,v->val,l,h);
     bdd->mk_calls++;
+#endif
     if ( l == h )
         return h;
     int node = bdd_lookup(bdd,v,l,h);
@@ -155,22 +161,29 @@ static void create_rva_string(char* dst, rva* src) {
     char *s = src->var;
     while ( *s ) *dst++ = *s++;
     *dst++ = '=';
-    if ( 0 ) {
+    if ( 1 ) {
+        fast_itoa(dst,src->val);
+    } else {
         *dst   = 0;
         sprintf(dst,"%d",src->val);
-    } else 
-        fast_itoa(dst,src->val);
+    }
 }
 
 static int bdd_build_bdd_BASE(bdd_alg* alg, bdd_runtime* bdd, char* expr, int i, char* rewrite_buffer, char** _errmsg) {
+#ifdef BDD_VERBOSE
     if ( bdd->verbose )
         fprintf(stdout,"BUILD{%s}[i=%d]: %s\n",alg->name,i,expr);
+#endif
     if ( i >= bdd->n ) {
+#ifdef BDD_VERBOSE
         if ( bdd->verbose )
             fprintf(stdout,"EVAL{%s}[i=%d]: %s = ",alg->name,i,expr);
+#endif
         int res = bee_eval(expr,_errmsg);
+#ifdef BDD_VERBOSE
         if ( bdd->verbose )
             fprintf(stdout,"%d\n",res);
+#endif
         return res;
     }
     rva* var = V_rva_getp(&bdd->order,i);
@@ -188,14 +201,20 @@ static int bdd_build_bdd_BASE(bdd_alg* alg, bdd_runtime* bdd, char* expr, int i,
 }
 
 static int bdd_build_bdd_KAJ(bdd_alg* alg, bdd_runtime* bdd, char* expr, int i, char* rewrite_buffer, char** _errmsg) {
+#ifdef BDD_VERBOSE
     if ( bdd->verbose )
         fprintf(stdout,"BUILD{%s}[i=%d]: %s\n",alg->name,i,expr);
+#endif
     if ( i >= bdd->n ) {
+#ifdef BDD_VERBOSE
         if ( bdd->verbose )
             fprintf(stdout,"EVAL{%s}[i=%d]: %s = ",alg->name,i,expr);
+#endif
         int res = bee_eval(expr,_errmsg);
+#ifdef BDD_VERBOSE
         if ( bdd->verbose )
             fprintf(stdout,"%d\n",res);
+#endif
         return res;
     }
     rva* var = V_rva_getp(&bdd->order,i);
@@ -230,20 +249,23 @@ static rva RVA_0 = {.var = "0", .val = -1};
 static rva RVA_1 = {.var = "1", .val = -1};
 
 static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd, char** _errmsg) {
+#ifdef BDD_VERBOSE
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
     if ( bdd->verbose )
         fprintf(stdout,"BDD start_build\n");
+#endif
     //
     V_rva_node_reset(&bdd->core.tree);
     bdd_create_node(bdd,&RVA_0,BDD_NONE,BDD_NONE);
     bdd_create_node(bdd,&RVA_1,BDD_NONE,BDD_NONE);
+#ifdef BDD_VERBOSE
     bdd->mk_calls = 0;
-    //
     if ( bdd->verbose ) {
         fprintf(stdout,"/-------START, alg=\"%s\"--------\n",alg->name);
         bdd_print(bdd,pbuff); pbuff_flush(pbuff,stdout);
         fprintf(stdout,"/--------------------------------\n");
     }
+#endif
     bdd->expr_bufflen = strlen(bdd->core.expr)+1;
     char* rewrite_buffer = (char*)MALLOC(((bdd->n+1) * bdd->expr_bufflen));
     // the last buffer is for the expression self
@@ -258,6 +280,7 @@ static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd, char** _errmsg) {
     //
     FREE(rewrite_buffer);
     //
+#ifdef BDD_VERBOSE
     if ( bdd->verbose ) {
         fprintf(stdout,"/------FINISH, alg=\"%s\"--------\n",alg->name);
         if ( res < 0 ) 
@@ -266,18 +289,18 @@ static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd, char** _errmsg) {
             bdd_print(bdd,pbuff); pbuff_flush(pbuff,stdout);
         fprintf(stdout,"/--------------------------------\n");
     }
-    //
     pbuff_free(&pbuff_struct);
-    //
+#endif
     return (res<0) ? 0 : 1;
 }
 
 bdd_alg S_BDD_BASE    = {.name = "BASE", .build = bdd_build_bdd_BASE, .mk = bdd_mk_BASE};
-bdd_alg S_BDD_KAJ     = {.name = "KAJ" , .build = bdd_build_bdd_KAJ,  .mk = bdd_mk_BASE};
-bdd_alg S_BDD_PROBBDD = {.name = "PROBBDD", .build = bdd_build_bdd_BASE, .mk = bdd_mk_BASE};
-
 bdd_alg *BDD_BASE    = &S_BDD_BASE;
+
+bdd_alg S_BDD_KAJ     = {.name = "KAJ" , .build = bdd_build_bdd_KAJ,  .mk = bdd_mk_BASE};
 bdd_alg *BDD_KAJ     = &S_BDD_KAJ;
+
+bdd_alg S_BDD_PROBBDD = {.name = "PROBBDD", .build = bdd_build_bdd_BASE, .mk = bdd_mk_BASE};
 bdd_alg *BDD_PROBBDD = &S_BDD_PROBBDD;
 
 bdd* create_bdd(bdd_alg* alg, char* expr, char** _errmsg, int verbose) {
@@ -366,7 +389,7 @@ int bdd_set_default_order(V_rva* order, char* expr, char** _errmsg) {
             rva s;
             if ( !create_rva(&s,start,p-start,_errmsg) )
                 return 0;
-            V_rva_add(order,s);
+            V_rva_add(order,&s);
         }
     } while (*p);
     // now sort the result string and make result unique

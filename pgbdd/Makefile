@@ -1,7 +1,9 @@
 #
 # Makefile for Postgres pgbdd extension and test environment
 #
-CC         = CC
+
+# PG_CFLAGS  = -Ofast # switch on for large speedup
+
 MYEXT      = pgbdd
 EXTENSION  = $(MYEXT)
 MODULE_big = $(MYEXT)

@@ -38,7 +38,7 @@ void V_##type##_free(V_##type*); \
 void V_##type##_reset(V_##type*); \
 int V_##type##_size(V_##type*);\
 int V_##type##_bytesize(V_##type*); \
-int V_##type##_add(V_##type*, type); \
+int V_##type##_add(V_##type*, type*); \
 type V_##type##_get(V_##type*, int); \
 type* V_##type##_getp(V_##type*, int); \
 void V_##type##_set(V_##type*, int, type); \
@@ -141,12 +141,12 @@ void V_##type##_resize(V_##type *v, int capacity) \
     v->items   = v->dynamic; \
 } \
 \
-int V_##type##_add(V_##type *v, type item) \
+int V_##type##_add(V_##type *v, type *p_item) \
 { \
     VECTOR_ASSERT(v); \
     if (v->capacity == v->size) \
         V_##type##_resize(v, v->capacity * 2); \
-    v->items[v->size++] = item; \
+    v->items[v->size++] = *p_item; \
     return v->size-1; \
 } \
 \
