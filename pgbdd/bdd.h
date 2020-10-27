@@ -39,8 +39,6 @@ DefVectorH(rva_node);
 
 int cmpRva_node(rva_node*, rva_node*);
 
-// 
-
 // The BDD core structure stored in the Postgres Database
 typedef struct bdd {
     char     vl_len[4]; // used by Postgres memory management
@@ -61,6 +59,15 @@ typedef struct bdd_runtime {
     bdd      core;
 } bdd_runtime;
 
+typedef struct bdd_alg bdd_alg; /*forward*/
+typedef struct bdd_alg {
+    char name[32];
+    int  (*build)(bdd_alg*,bdd_runtime*,char*,int,char*,char**);
+    int  (*mk)(bdd_alg*,bdd_runtime*,rva*,int,int,char**);
+} bdd_alg;
+
+extern bdd_alg *BDD_BASE, *BDD_KAJ, *BDD_PROBBDD;
+
 int   bdd_low(bdd*,int);
 int   bdd_high(bdd*,int);
 int   bdd_is_leaf(bdd*,int);
@@ -73,7 +80,7 @@ int   rva_is_samevar(rva*, rva*);
 void bdd_free(bdd_runtime*);
 bdd* serialize_bdd(bdd*);
 
-bdd* create_bdd(char* expr, char **_errmsg, int verbose);
+bdd* create_bdd(bdd_alg*,char*,char**,int);
 void bdd_info(bdd*, pbuff*);
 bdd* relocate_bdd(bdd*);
 
@@ -88,6 +95,10 @@ void bdd_generate_dot(bdd*,pbuff*,char**);
 void bdd_generate_dotfile(bdd*,char*,char**);
 
 double bdd_probability(bdd_dictionary*, bdd*,char**, int, char**);
+
+//
+//
+//
 
 void test_bdd(void);
 

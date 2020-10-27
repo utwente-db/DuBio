@@ -137,12 +137,6 @@ static int bdd_create_node(bdd_runtime* bdd, rva* rva, int low, int high) {
 /*
  * bdd_alg is used to simulate subtyping/function inheritance
  */
-typedef struct bdd_alg bdd_alg; /*forward*/
-typedef struct bdd_alg {
-    char name[32];
-    int  (*build)(bdd_alg*,bdd_runtime*,char*,int,char*,char**);
-    int  (*mk)(bdd_alg*,bdd_runtime*,rva*,int,int,char**);
-} bdd_alg;
 
 static int bdd_mk_BASE(bdd_alg* alg, bdd_runtime* bdd, rva *v, int l, int h, char** _errmsg) {
     if ( bdd->verbose )
@@ -179,18 +173,57 @@ static int bdd_build_bdd_BASE(bdd_alg* alg, bdd_runtime* bdd, char* expr, int i,
             fprintf(stdout,"%d\n",res);
         return res;
     }
-    rva var = V_rva_get(&bdd->order,i);
+    rva* var = V_rva_getp(&bdd->order,i);
     char* newexpr = rewrite_buffer + (i*bdd->expr_bufflen); // Pretty brill:-)
     char rva_string[MAX_RVA_LEN];
-    create_rva_string(rva_string,&var);
-    bdd_replace_str(newexpr,expr,rva_string,"0");
+    create_rva_string(rva_string,var);
+    bdd_replace_str(newexpr,expr,rva_string,'0');
     int l = alg->build(alg,bdd,newexpr,i+1,rewrite_buffer,_errmsg);
-    bdd_replace_str(newexpr,expr,rva_string,"1");
+    bdd_replace_str(newexpr,expr,rva_string,'1');
     int h = alg->build(alg,bdd,newexpr,i+1,rewrite_buffer,_errmsg);
     if ( l<0 || h<0 )
         return -1;
     else
-        return alg->mk(alg,bdd,&var,l,h,_errmsg);
+        return alg->mk(alg,bdd,var,l,h,_errmsg);
+}
+
+static int bdd_build_bdd_KAJ(bdd_alg* alg, bdd_runtime* bdd, char* expr, int i, char* rewrite_buffer, char** _errmsg) {
+    if ( bdd->verbose )
+        fprintf(stdout,"BUILD{%s}[i=%d]: %s\n",alg->name,i,expr);
+    if ( i >= bdd->n ) {
+        if ( bdd->verbose )
+            fprintf(stdout,"EVAL{%s}[i=%d]: %s = ",alg->name,i,expr);
+        int res = bee_eval(expr,_errmsg);
+        if ( bdd->verbose )
+            fprintf(stdout,"%d\n",res);
+        return res;
+    }
+    rva* var = V_rva_getp(&bdd->order,i);
+    char* newexpr = rewrite_buffer + (i*bdd->expr_bufflen); // Pretty brill:-)
+    char rva_string[MAX_RVA_LEN];
+    create_rva_string(rva_string,var);
+    bdd_replace_str(newexpr,expr,rva_string,'0');
+    int l = alg->build(alg,bdd,newexpr,i+1,rewrite_buffer,_errmsg);
+    bdd_replace_str(newexpr,expr,rva_string,'1');
+    //
+    int dis = i+1;
+    while ( dis < V_rva_size(&bdd->order) ) {
+         rva* disvar = V_rva_getp(&bdd->order,dis);
+         if ( !rva_is_samevar(var,disvar) )
+             break; // break while
+         if ( var->val != disvar->val ) {
+             char dis_rva_string[MAX_RVA_LEN];
+             create_rva_string(dis_rva_string,disvar);
+             memcpy(expr,newexpr,bdd->expr_bufflen);
+             bdd_replace_str(newexpr,expr,dis_rva_string,'0');
+         }
+         dis++;
+    }
+    int h = alg->build(alg,bdd,newexpr,dis/*newvar*/,rewrite_buffer,_errmsg);
+    if ( l<0 || h<0 )
+        return -1;
+    else
+        return alg->mk(alg,bdd,var,l,h,_errmsg);
 }
 
 static rva RVA_0 = {.var = "0", .val = -1};
@@ -239,16 +272,21 @@ static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd, char** _errmsg) {
     return (res<0) ? 0 : 1;
 }
 
-bdd_alg BASE_BDD = {.name = "BASE", .build = bdd_build_bdd_BASE, .mk = bdd_mk_BASE};
-// bdd_alg KAJ_BDD =  {.name = "KAJ" , .build = bdd_build_bdd_KAJ, .mk = bdd_mk_BASE};
+bdd_alg S_BDD_BASE    = {.name = "BASE", .build = bdd_build_bdd_BASE, .mk = bdd_mk_BASE};
+bdd_alg S_BDD_KAJ     = {.name = "KAJ" , .build = bdd_build_bdd_KAJ,  .mk = bdd_mk_BASE};
+bdd_alg S_BDD_PROBBDD = {.name = "PROBBDD", .build = bdd_build_bdd_BASE, .mk = bdd_mk_BASE};
 
-bdd* create_bdd(char* expr, char** _errmsg, int verbose) {
+bdd_alg *BDD_BASE    = &S_BDD_BASE;
+bdd_alg *BDD_KAJ     = &S_BDD_KAJ;
+bdd_alg *BDD_PROBBDD = &S_BDD_PROBBDD;
+
+bdd* create_bdd(bdd_alg* alg, char* expr, char** _errmsg, int verbose) {
     bdd_runtime  bdd_struct;
     bdd_runtime* bdd_rt;
 
     if ( !(bdd_rt = bdd_init(&bdd_struct,expr,verbose,_errmsg)) )
         return NULL;
-    if ( ! bdd_start_build(&BASE_BDD,bdd_rt,_errmsg) ) {
+    if ( ! bdd_start_build(alg,bdd_rt,_errmsg) ) {
         bdd_free(bdd_rt);
         return NULL;
     }

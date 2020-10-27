@@ -34,7 +34,7 @@ bdd_in(PG_FUNCTION_ARGS)
     char *_errmsg    = NULL;
     bdd  *return_bdd = NULL;
 
-    if ( !(return_bdd = create_bdd(expr,&_errmsg,0/*verbose*/)) )
+    if ( !(return_bdd = create_bdd(BDD_BASE,expr,&_errmsg,0/*verbose*/)) )
         ereport(ERROR,(errmsg("bdd_in: %s",(_errmsg ? _errmsg : "NULL"))));
     SET_VARSIZE(return_bdd,return_bdd->bytesize);
     PG_RETURN_BDD(return_bdd);

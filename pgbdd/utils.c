@@ -101,11 +101,11 @@ void bdd_remove_spaces(char* p) {
  
 // #define TRACE_REWRITE
 
-char* bdd_replace_str(char *dst, char* src, char *find, char *replace) {
+char* bdd_replace_str(char *dst, char* src, char *find, char replace) {
     int strlen_find    = strlen(find);
 
 #ifdef TRACE_REWRITE
-    fprintf(stdout,"+ bdd_replace_str: find=\"%s\", repl=\"%s\"\n",find,replace);
+    fprintf(stdout,"+ bdd_replace_str: find=\"%s\", repl=\'%c\'\n",find,replace);
     fprintf(stdout,"+ IN: \"%s\"\n",src);
 #endif
     int delta, dst_i = 0;
@@ -114,7 +114,7 @@ char* bdd_replace_str(char *dst, char* src, char *find, char *replace) {
     while ( (cp=strstr(cp,find)) ) {
         delta = (cp - last);
         memcpy(&dst[dst_i],last,delta);
-        dst[dst_i+delta] = *replace;
+        dst[dst_i+delta] = replace;
         dst_i += (delta+1);
         last = cp = cp + strlen_find;
     }
@@ -346,21 +346,15 @@ static unsigned char bee_token_xlate[256] = {
     255,255,255,255,255,255,255,255,255,255,255,255};
 
 static int parse_tokens(char* p, char** _errmsg) {
-    char *d=p;
-
+    /* this functions assumes no spaces, they will generate an error */
     while (*p) {
-        if ( isspace(*p) )
-            p++;
-        else {
-            bee_token t = bee_token_xlate[(int)*p++];
-            if ( t == 255 ) {
-                pg_error(_errmsg,"bee:parse_tokens: invalid char (%d)",(int)*--p);
-                return -1; 
-            }
-            *d++ = t;
+        if ( (bee_token)(*p = bee_token_xlate[(int)*p]) == 255 ) {
+            pg_error(_errmsg,"bee:parse_tokens: invalid char");
+            return -1; 
         }
+        p++;
     }
-    *d = bee_eof;
+    *p = bee_eof;
     return 1;
 }
 

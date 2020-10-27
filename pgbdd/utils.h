@@ -65,7 +65,7 @@ int pg_fatal(const char*,...);
 int pg_error(char**, const char*,...);
 
 void  bdd_remove_spaces(char*);
-char* bdd_replace_str(char*,char*,char*,char*);
+char* bdd_replace_str(char*,char*,char*,char);
 
 int    bdd_atoi(char*);
 double bdd_atof(char*);

@@ -38,7 +38,7 @@ static bdd* get_test_bdd(char* expr, int verbose) {
     char* _errmsg = NULL;
     bdd*  res;
 
-    if ( !(res = create_bdd(expr,&_errmsg,verbose)) )
+    if ( !(res = create_bdd(BDD_BASE,expr,&_errmsg,verbose)) )
         pg_fatal("bdd create failed: %s",_errmsg);
     return res;
 }
@@ -62,7 +62,7 @@ static void test_timings(){
     for (int r=0; r<REPEAT; r++) {
         for (int i=0; bdd_expr[i]; i++) {
             // fprintf(stderr,"EXPR: %s\n",bdd_expr[i]);
-            if ( (test_bdd = create_bdd(bdd_expr[i],&_errmsg,0)) ) {
+            if ( (test_bdd = create_bdd(BDD_BASE,bdd_expr[i],&_errmsg,0)) ) {
                 FREE(test_bdd);
             } else {
                 fprintf(stderr,"test_timings:error: %s\n",(_errmsg ? _errmsg : "NULL"));
@@ -85,11 +85,13 @@ static void test_bdd_creation(){
     // (x0 and y1) or (not x0 and not y1) or ((x2 and y2) and y34)
     // char* expr = "(x=1 | x=2)&(y=1 | y=1) | (z=4)";
     // char* expr = "x=1 | (y=1 & x=2)";
-    char* expr = "(x=1 | x=2)";
+    // char* expr = "(x=1 | x=2)";
+    // char* expr = "(x=4 | x=2 | x=3 | x=1) & (y=2 | y=1 | y=3 )";
+    char* expr = "(x=1 | x=2 | x=3 | x=4)";
     bdd* test_bdd;
     char* _errmsg = NULL;
 
-    if ( (test_bdd = create_bdd(expr,&_errmsg,1/*verbose*/)) ) {
+    if ( (test_bdd = create_bdd(BDD_BASE,expr,&_errmsg,1/*verbose*/)) ) {
         pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
         char* dot_filename = "./DOT/test.dot";
 
