@@ -37,6 +37,71 @@ static int test_pbuff(){
 //
 //
 
+#ifdef BEE_DEBUG
+
+static void bee_create_dot(char* filename) {
+    FILE* f = fopen(filename,"w");
+    if ( f ) {
+         fprintf(f,"digraph {\n");
+         fprintf(f,"\tlabelloc=\"t\";\n");
+         fprintf(f,"\tlabel=\"Boolean Expression Evaluator (BEE) Graph. (C) J.Flokstra\"");
+         for(int i=0; i<bee_NSTATES; i++) {
+             char* statename = bee_state_STR[i];
+             switch (i) {
+              case bee_s0:
+              case bee_s1:
+              case bee_snot:
+              case bee_s0and:
+              case bee_s0or:
+              case bee_s1and:
+              case bee_s1or:
+              case bee_salways0:
+              case bee_salways1:
+              case bee_svalstart:
+                 fprintf(f,"\t%s [shape=oval,label=%s]\n",statename,statename);
+                 break;
+              case bee_sresult0:
+                 fprintf(f,"\t%s [shape=rarrow,label=%s]\n",statename,"<<b>0</b>>");
+                 break;
+              case bee_sresult1:
+                 fprintf(f,"\t%s [shape=rarrow,label=%s]\n",statename,"<<b>1</b>>");
+                 break;
+              case bee_sparopen:
+                 fprintf(f,"\t%s [shape=tripleoctagon,label=%s]\n",statename,statename);
+                 fprintf(f,"\tedge [shape=rarrow style=dotted arrowtail=dot]\n");
+                 fprintf(f,"\t%s -> %s [label=<<b>\'%s\'</b>>]\n",statename,"SVALSTART","PUSH(prev_state)");
+                 break;
+              case bee_sparclose:
+                 fprintf(f,"\t%s [shape=tripleoctagon,label=%s]\n",statename,statename);
+                 break;
+             };
+             //
+             if ( i < bee_NSTATES_STATIC ) {
+                 for (int t=0; t<bee_NTOKEN; t++) {
+                     if ( fsm[i][t] != bee_error ) {
+                         fprintf(f,"\tedge [shape=rarrow style=dashed arrowtail=dot]\n");
+                         fprintf(f,"\t%s -> %s [label=<<b>\'%s\'</b>>]\n",statename,bee_state_STR[fsm[i][t]],bee_token_STR[t]);
+                     }
+                 }
+             }
+
+         }
+        fprintf(f,"\t%s [shape=rarrow,label=%s]\n","START","<<b>START</b>>");
+        fprintf(f,"\tedge [shape=rarrow style=dotted arrowtail=dot]\n");
+        fprintf(f,"\t%s -> %s [label=<<b>\'%s\'</b>>]\n","START","SVALSTART","expression");
+        for(int i=0; i<bee_NSTATES_STATIC; i++) {
+            if (fsm[i][bee_paropen] == bee_sparopen) {
+                fprintf(f,"\tedge [shape=rarrow style=dotted arrowtail=dot]\n");
+                fprintf(f,"\t%s -> %s [label=<<b>\'%s\'</b>>]\n","SPARCLOSE",bee_state_STR[i],"POP()[T(prev_state)]");
+            }
+        }
+        fprintf(f,"}\n");
+        fclose(f);
+    }
+}
+
+#endif
+
 typedef struct bee_test {
     int  r;
     char q[256];
@@ -81,6 +146,9 @@ static void run_bee_testset() {
 }
 
 void test_utils() {
+#ifdef BEE_DEBUG
+    bee_create_dot("./DOT/bee.dot");
+#endif
     if ( 0 ) test_pbuff();
-    if ( 1 ) run_bee_testset();
+    if ( 0 ) run_bee_testset();
 }

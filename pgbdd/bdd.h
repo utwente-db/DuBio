@@ -20,8 +20,8 @@
 #define BDD_NONE -1
 
 typedef struct rva {
-    char var[MAXRVA];
-    int  val;
+    char        var[MAX_RVA_NAME];
+    uint32_t    val;
 } rva;
 
 DefVectorH(rva);

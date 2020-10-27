@@ -18,6 +18,7 @@
 #include "test_config.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "vector.h"
 #include "utils.h"
@@ -28,7 +29,7 @@
  *
  */
 
-int main(){
+int main() {
     if (0) test_vector();
     if (0) test_utils();
     if (1) test_bdd();

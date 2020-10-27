@@ -17,10 +17,12 @@
 #ifndef DICTIONARY_H
 #define DICTIONARY_H
 
-#define MAXRVA 32
+
+#define MAX_RVA_NAME    12
+#define MAX_RVA_LEN     24
 
 typedef struct dict_var {
-    char name[MAXRVA];
+    char name[MAX_RVA_NAME];
     int  offset;
     int  cardinality;
 } dict_var;
@@ -42,7 +44,7 @@ DefVectorH(dict_val);
 
 typedef struct bdd_dictionary {
     char        vl_len[4]; // used by Postgres memory management
-    char        name[MAXRVA];
+    char        name[MAX_RVA_NAME];
     int         magic;
     int         size;
     int         val_deleted;

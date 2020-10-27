@@ -59,7 +59,7 @@ bdd_dictionary* bdd_dictionary_serialize(bdd_dictionary* dict) {
 }
 
 bdd_dictionary* bdd_dictionary_create(bdd_dictionary* dict, char* name) {
-    strncpy(dict->name,name,MAXRVA);
+    strncpy(dict->name,name,MAX_RVA_NAME);
     // incomplete, randomize for time ???
     dict->magic      = rand();
     dict->size       = sizeof(bdd_dictionary);
@@ -269,11 +269,11 @@ int bdd_dictionary_delvars(bdd_dictionary* dict, char* delvars, char** errmsg) {
     do {
         while(isspace(*p)) p++;
         if (*p) {
-            char var[MAXRVA], val[MAXRVA];
+            char var[MAX_RVA_NAME], val[MAX_RVA_NAME];
 
             if ( !(
-                scantoken(var, &p,'=',MAXRVA) &&
-                scantoken(val, &p,';',MAXRVA) ) )
+                scantoken(var, &p,'=',MAX_RVA_NAME) &&
+                scantoken(val, &p,';',MAX_RVA_NAME) ) )
                 return pg_error(errmsg,"bdd_dictionary_delvars: bad syntax: %s",delvars);
             if ( varp && (strcmp(varp->name,var)!=0) ) {
                 if (dict->variables->size == dict_varcount )  
@@ -301,13 +301,13 @@ int bdd_dictionary_addvars(bdd_dictionary* dict, char* newvars, int update, char
     do {
         while(isspace(*p)) p++;
         if (*p) {
-            char var[MAXRVA], s_val[MAXRVA], s_prob[MAXRVA];
+            char var[MAX_RVA_NAME], s_val[MAX_RVA_NAME], s_prob[MAX_RVA_NAME];
 
             char* tstart = p;
             if ( !(
-                scantoken(var,   &p,'=',MAXRVA) &&
-                scantoken(s_val, &p,':',MAXRVA) &&
-                scantoken(s_prob,&p,';',MAXRVA) ) )
+                scantoken(var,   &p,'=',MAX_RVA_NAME) &&
+                scantoken(s_val, &p,':',MAX_RVA_NAME) &&
+                scantoken(s_prob,&p,';',MAX_RVA_NAME) ) )
                 return pg_error(errmsg,"bdd_dictionary_add: bad syntax: %s",tstart);
             // fprintf(stdout,"SCAN \"%s\" = \"%s\" : \"%s\"\n",var,val,prob); 
             if ( varp && (strcmp(varp->name,var)!=0) ) {

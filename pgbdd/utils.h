@@ -69,6 +69,7 @@ char* bdd_replace_str(char*,char*,char*,char*);
 
 int    bdd_atoi(char*);
 double bdd_atof(char*);
+void   fast_itoa(char *buf, uint32_t val);
 
 int bee_eval(char*,char**);
 

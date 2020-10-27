@@ -112,8 +112,21 @@ int bdd_is_leaf(bdd* bdd, int i) {
 }
 
 static int bdd_lookup(bdd_runtime* bdd, rva* rva, int low, int high) {
-    rva_node tofind = { .rva  = *rva, .low  = low, .high = high };
-    return V_rva_node_find(&bdd->core.tree,cmpRva_node,&tofind);
+    // ORIGINAL: 
+    // rva_node tofind = { .rva  = *rva, .low  = low, .high = high };
+    // return V_rva_node_find(&bdd->core.tree,cmpRva_node,&tofind);
+    // OPTIMIZED:
+    V_rva_node *tree = &bdd->core.tree;
+    for (int i=0; i<tree->size; i++) {
+        rva_node* n = &tree->items[i];
+        if ( (n->low == low) && 
+             (n->high == high) &&
+             (n->rva.val = rva->val) &&
+             (strcmp((char*)&n->rva.var,(char*)&rva->var)==0)) {
+            return i;
+        }
+    }
+    return -1;
 } 
 
 static int bdd_create_node(bdd_runtime* bdd, rva* rva, int low, int high) {
@@ -138,7 +151,7 @@ static int bdd_mk_BASE(bdd_alg* alg, bdd_runtime* bdd, rva *v, int l, int h, cha
     if ( l == h )
         return h;
     int node = bdd_lookup(bdd,v,l,h);
-    if ( !(node == -1) ) 
+    if ( node != -1 ) 
         return node; /* node already exists */ 
     node = bdd_create_node(bdd,v,l,h);
     return node;
@@ -148,8 +161,11 @@ static void create_rva_string(char* dst, rva* src) {
     char *s = src->var;
     while ( *s ) *dst++ = *s++;
     *dst++ = '=';
-    *dst   = 0;
-    sprintf(dst,"%d",src->val);
+    if ( 0 ) {
+        *dst   = 0;
+        sprintf(dst,"%d",src->val);
+    } else 
+        fast_itoa(dst,src->val);
 }
 
 static int bdd_build_bdd_BASE(bdd_alg* alg, bdd_runtime* bdd, char* expr, int i, char* rewrite_buffer, char** _errmsg) {
@@ -165,7 +181,7 @@ static int bdd_build_bdd_BASE(bdd_alg* alg, bdd_runtime* bdd, char* expr, int i,
     }
     rva var = V_rva_get(&bdd->order,i);
     char* newexpr = rewrite_buffer + (i*bdd->expr_bufflen); // Pretty brill:-)
-    char rva_string[MAXRVA];
+    char rva_string[MAX_RVA_LEN];
     create_rva_string(rva_string,&var);
     bdd_replace_str(newexpr,expr,rva_string,"0");
     int l = alg->build(alg,bdd,newexpr,i+1,rewrite_buffer,_errmsg);
