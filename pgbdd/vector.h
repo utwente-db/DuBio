@@ -25,6 +25,7 @@
 #define VECTOR_MAGIC 1234321
 
 #define VECTOR_ASSERT(V)  if ((V->magic!=VECTOR_MAGIC)||(V->size<0)||(V->size>V->capacity)||(!V->items)) vector_error("VECTOR_ASSERT FAILS")
+#define RANGE_ASSERT(V,I) if (!(((I)>=0)&&((I)<V->size))) vector_error("RANGE_ASSERT FAILS %d not in [0-%d]",I,V->size)
 
 #define VECTOR_INIT_CAPACITY 4
 
@@ -56,6 +57,7 @@ void V_##type##_quicksort(V_##type*,int,int,V_##type##_cmpfun); \
 void V_##type##_shrink2size(V_##type*); \
 int V_##type##_is_serialized(V_##type*); \
 V_##type *V_##type##_copy2(V_##type*, V_##type*); \
+int V_##type##_copy_range(V_##type*,int,int,int); \
 void V_##type##_resize(V_##type*, int); \
 
 /*
@@ -117,6 +119,18 @@ V_##type *V_##type##_serialize(void *void_dst, V_##type *src) { \
     *dst = *src; \
     memcpy(dst->fixed,src->items,src->size*sizeof(type)); \
     return V_##type##_relocate(dst); \
+} \
+\
+int V_##type##_copy_range(V_##type *v,int to,int n,int from) { \
+    VECTOR_ASSERT(v); \
+    if (1) { \
+        RANGE_ASSERT(v,from); \
+        RANGE_ASSERT(v,from+n); \
+        RANGE_ASSERT(v,to); \
+        RANGE_ASSERT(v,to+n); \
+    } \
+    memcpy(&v->items[to],&v->items[from]+sizeof(V_##type),n*sizeof(type)); \
+    return 1; \
 } \
 \
 V_##type *V_##type##_copy2(V_##type *dst, V_##type *src) { \

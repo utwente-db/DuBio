@@ -145,10 +145,81 @@ static void run_bee_testset() {
     }
 }
 
+//
+//
+//
+
+#define VAL_STAR -9999
+
+typedef enum dict_mode{DICT_ADD, DICT_DEL, DICT_UPD} dict_mode;
+
+static int parse_dictionary(dict_mode mode, char* dictionary_def, char** _errmsg) {
+    char *p = dictionary_def;
+    while ( *p ) {
+        char*  scan_var     = NULL;
+        int    scan_var_len = -1;
+        int    scan_val     = -1;
+        double scan_prob    = -1;
+        while ( *p && !isalnum(*p) )
+            p++;
+        if ( isalnum(*p) ) {
+            scan_var = p;
+            while ( isalnum(*p) )
+                p++;
+            scan_var_len = p - scan_var;
+            while ( *p && *p != '=' )
+                p++;
+            if ( !(*p++ == '=') )
+                return pg_error(_errmsg,"parse_dict: missing \'=\' in dictionay def: \"%s\"",scan_var);
+
+            while ( isspace(*p) ) p++;
+            if ( *p == '*' ) {
+                scan_val = VAL_STAR;
+            } else if ( isdigit(*p) ) {
+                if ( (scan_val = bdd_atoi(p)) < 0 )
+                    return pg_error(_errmsg,"parse_dict: bad integer value : \"%s\"",p);
+            } else 
+                return pg_error(_errmsg,"parse_dict: missing value after \'=\' in expr: \"%s\"",scan_var);
+
+            p++;
+            while (isdigit(*p) )
+                p++;
+            // 
+            scan_prob = -1;
+            if ( mode != DICT_DEL ) {
+                while ( isspace(*p) ) p++;
+                if ( !(*p++ == ':') )
+                    return pg_error(_errmsg,"parse_dict: missing \':\' in dictionay def: \"%s\"",scan_var);
+                while ( isspace(*p) ) p++;
+                char * endptr;
+                scan_prob = strtod(p, &endptr);
+                if ( p == endptr )
+                    return pg_error(_errmsg,"parse_dict: bad probability value : \"%s\"",p);
+                p = endptr;
+            }
+            while ( isspace(*p) ) p++;
+            if ( *p == ';' ) {
+                p++;
+                while ( isspace(*p) ) p++;
+            }
+        }
+        // 
+        char buff[32];
+        memcpy(buff,scan_var,scan_var_len);
+        buff[scan_var_len] = 0;
+        fprintf(stderr,"SCANNED: var=%s, val=%d, prob=%f\n",buff,scan_val,scan_prob);
+    }
+    return 1;
+}
+
 void test_utils() {
 #ifdef BEE_DEBUG
     bee_create_dot("./DOT/bee.dot");
 #endif
+    char* _errmsg;
+    if ( !parse_dictionary(DICT_ADD, "x=1:0.1;   y=4:100; q=5:0.4 ", &_errmsg) )
+        fprintf(stderr,"ERROR: %s\n",_errmsg);
+    //
     if ( 0 ) test_pbuff();
     if ( 0 ) run_bee_testset();
 }

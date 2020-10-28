@@ -26,7 +26,7 @@ static bdd_dictionary* get_test_dictionary(char* dict_vars) {
 
     if ( ! (new_dict = bdd_dictionary_create(&dict_struct,dictname)) )
         pg_fatal("unable to create dictionary %s",dictname);
-    if ( ! bdd_dictionary_addvars(new_dict,dict_vars,0/*update*/,&_errmsg))
+    if ( ! modify_dictionary(new_dict,DICT_ADD,dict_vars,&_errmsg))
         pg_fatal("error loding dictionary: %s",_errmsg);
     bdd_dictionary* res = bdd_dictionary_serialize(new_dict);
     bdd_dictionary_free(new_dict);

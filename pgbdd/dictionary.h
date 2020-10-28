@@ -64,19 +64,18 @@ typedef struct rva rva;
 bdd_dictionary* bdd_dictionary_create(bdd_dictionary*,char*);
 int bdd_dictionary_free(bdd_dictionary*);
 bdd_dictionary* bdd_dictionary_serialize(bdd_dictionary*);
-dict_var* bdd_dictionary_lookup_var(bdd_dictionary*, char*);
-int bdd_dictionary_is_serialized(bdd_dictionary* dict);
-bdd_dictionary* bdd_dictionary_relocate(bdd_dictionary* dict);
-void bdd_dictionary_print(bdd_dictionary* dict, pbuff* pbuff);
-int lookup_var_index(bdd_dictionary* dict, char* name);
+bdd_dictionary* bdd_dictionary_relocate(bdd_dictionary*);
+void bdd_dictionary_print(bdd_dictionary* dict, int all, pbuff* pbuff);
 int bdd_dictionary_sort(bdd_dictionary* dict);
-int bdd_dictionary_delvars(bdd_dictionary*, char*, char**);
-int bdd_dictionary_addvars(bdd_dictionary*,char*,int,char**);
 
-double dictionar_lookup_prob(bdd_dictionary*,rva*);
+typedef enum dict_mode{DICT_ADD, DICT_DEL, DICT_UPD} dict_mode;
+int modify_dictionary(bdd_dictionary*, dict_mode, char*, char**);
+
+double dictionary_lookup_prob(bdd_dictionary*,rva*);
 
 int test_bdd_dictionary_v0(void);
 int test_bdd_dictionary_v1(void);
+int test_bdd_dictionary_v2(void);
 
 int test_dictionary(void);
 

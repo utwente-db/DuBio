@@ -77,7 +77,7 @@ dictionary_print(PG_FUNCTION_ARGS)
     bdd_dictionary  *dict = PG_GETARG_DICTIONARY(0);
 
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
-    bdd_dictionary_print(dict, pbuff);
+    bdd_dictionary_print(dict,0/*all*/,pbuff);
     char* result = pbuff_preserve_or_alloc(pbuff);
     PG_RETURN_CSTRING(result);
 }
@@ -101,7 +101,7 @@ dictionary_add(PG_FUNCTION_ARGS)
 
     if ( !dict )
         ereport(ERROR,(errmsg("dictionary_add: %s","internal error bad dict parameter")));
-    if ( !bdd_dictionary_addvars(dict,vardefs,0/*NO UPDATE*/,&_errmsg) )
+    if ( !modify_dictionary(dict,DICT_ADD,vardefs,&_errmsg) )
         ereport(ERROR,(errmsg("%s",_errmsg)));
     if ( !(
            (return_dict = bdd_dictionary_serialize(dict))  &&
@@ -131,7 +131,7 @@ dictionary_del(PG_FUNCTION_ARGS)
 
     if ( !dict )
         ereport(ERROR,(errmsg("dictionary_del: %s","internal error bad dict parameter")));
-    if ( !bdd_dictionary_delvars(dict,vardefs,&_errmsg) )
+    if ( !modify_dictionary(dict,DICT_DEL,vardefs,&_errmsg) )
         ereport(ERROR,(errmsg("%s",_errmsg)));
     if ( !(
            (return_dict = bdd_dictionary_serialize(dict))  &&
@@ -161,7 +161,7 @@ dictionary_upd(PG_FUNCTION_ARGS)
 
     if ( !dict )
         ereport(ERROR,(errmsg("dictionary_upd: %s","internal error bad dict parameter")));
-    if ( !bdd_dictionary_addvars(dict,vardefs,1/*UPDATE*/,&_errmsg) )
+    if ( !modify_dictionary(dict,DICT_UPD,vardefs,&_errmsg) )
         ereport(ERROR,(errmsg("%s",_errmsg)));
     if ( !(
            (return_dict = bdd_dictionary_serialize(dict))  &&

@@ -544,7 +544,7 @@ static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, int i,char** 
         if ( verbose )
             fprintf(stdout,"++ is_leaf: P=%f\n",res);
     } else {
-        p_root = dictionar_lookup_prob(dict,rva);
+        p_root = dictionary_lookup_prob(dict,rva);
         if ( p_root < 0.0 ) {
             pg_error(_errmsg,"dictionary_lookup: rva[\'%s\'] not found.",rva);
             return -1.0;
