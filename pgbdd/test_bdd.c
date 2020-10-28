@@ -77,8 +77,9 @@ static void test_timings(){
     fprintf(stdout,"Time %ds/%dms, created %d bdd's (%d/s)\n", msec/1000, msec%1000,count, (int)((double)count/((double)msec/1000)));
 }
 
-
-
+//
+//
+//
 
 static void test_bdd_creation(){
     // char* expr = "((x=1 and x=1) or (not y=0 and not zzz=1)) and((xx=2 and x=3)or(not x=2 and not x=3))";
@@ -168,7 +169,7 @@ static double bdd_prob_test(char* expr, char* dict_vars, char* dotfile, int verb
 static int test_bdd_probability() {
     bdd_prob_test(
             // "(x=1|x=2)",
-            "(x=1|y=1)",
+            "( x  = 1 | y =         1)",
             "x=1:0.4; x=2:0.6 ; y=1:0.2; y=2:0.8; ",
             "./DOT/test.dot", /* filename of dotfile or NULL */
             1 /* verbose */,

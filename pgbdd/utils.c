@@ -87,18 +87,6 @@ int pg_fatal(const char *fmt,...)
  *
  */
 
-void bdd_remove_spaces(char* p) {
-    char *d=p;
-
-    while (*p) {
-        if ( isspace(*p) )
-            p++;
-        else
-            *d++ = *p++; 
-    }
-    *d = 0;
-}
- 
 // #define TRACE_REWRITE
 
 char* bdd_replace_str(char *dst, char* src, char *find, char replace) {
@@ -430,5 +418,6 @@ static int bee_eval_fsm(char* t, char** _errmsg) {
 }
 
 int bee_eval(char* boolean_expr, char** _errmsg) {
+    // fprintf(stdout,"EVAL: %s\n",boolean_expr);
     return (parse_tokens(boolean_expr,_errmsg)!=-1) ? bee_eval_fsm(boolean_expr,_errmsg) : -1;
 }

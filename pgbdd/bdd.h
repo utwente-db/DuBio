@@ -56,7 +56,7 @@ typedef struct bdd_runtime {
     int      mk_calls;
     int      check_calls;
 #endif
-    int      expr_bufflen;
+    int      len_expr;
     int      n;
     V_rva order;
     //
@@ -88,11 +88,7 @@ bdd* create_bdd(bdd_alg*,char*,char**,int);
 void bdd_info(bdd*, pbuff*);
 bdd* relocate_bdd(bdd*);
 
-int create_rva(rva*,char*,int,char**);
 void bdd_print_V_rva(V_rva*, pbuff*);
-
-int bdd_set_default_order(V_rva*,char*,char**);
-
 void bdd_print_tree(V_rva_node*, pbuff*);
 
 void bdd_generate_dot(bdd*,pbuff*,char**);

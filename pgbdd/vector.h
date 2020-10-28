@@ -17,6 +17,11 @@
 #ifndef VECTOR_H
 #define VECTOR_H
 
+/*
+ * + implement delete with a memcpy()
+ *
+ */
+
 #define VECTOR_MAGIC 1234321
 
 #define VECTOR_ASSERT(V)  if ((V->magic!=VECTOR_MAGIC)||(V->size<0)||(V->size>V->capacity)||(!V->items)) vector_error("VECTOR_ASSERT FAILS")
@@ -33,6 +38,7 @@ typedef struct V_##type { \
 } V_##type; \
 typedef int (*V_##type##_cmpfun)(type*,type*); \
 V_##type *V_##type##_init(V_##type*); \
+V_##type *V_##type##_init_estsz(V_##type*,int); \
 V_##type *V_##type##_relocate(V_##type*); \
 void V_##type##_free(V_##type*); \
 void V_##type##_reset(V_##type*); \
@@ -61,6 +67,15 @@ V_##type *V_##type##_init(V_##type *v) \
 { \
     v->magic   = VECTOR_MAGIC; \
     v->capacity = VECTOR_INIT_CAPACITY; \
+    v->size = 0; \
+    v->items   = v->dynamic = MALLOC(sizeof(type) * v->capacity); \
+    return v; \
+} \
+\
+V_##type *V_##type##_init_estsz(V_##type *v, int est_sz) \
+{ \
+    v->magic   = VECTOR_MAGIC; \
+    v->capacity = (est_sz>VECTOR_INIT_CAPACITY)?est_sz:VECTOR_INIT_CAPACITY; \
     v->size = 0; \
     v->items   = v->dynamic = MALLOC(sizeof(type) * v->capacity); \
     return v; \

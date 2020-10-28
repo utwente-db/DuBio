@@ -25,6 +25,10 @@
 #include "dictionary.h"
 #include "bdd.h"
 
+/*
+ * TODO: 
+ */
+
 //
 
 DefVectorC(rva);
@@ -62,11 +66,6 @@ static bdd_runtime* bdd_init(bdd_runtime* bdd, char* expr, int verbose, char** _
     bdd->check_calls = 0;
 #endif
     bdd->core.expr  = expr;
-    if ( !bdd_set_default_order(&bdd->order,bdd->core.expr,_errmsg))  
-        return NULL;
-    V_rva_node_init(&bdd->core.tree);
-    bdd->n     = V_rva_size(&bdd->order);
-    //
     return bdd;
 }
 
@@ -139,6 +138,101 @@ static int bdd_create_node(bdd_runtime* bdd, rva* rva, int low, int high) {
 }
 
 /*
+ *
+ */
+
+#define is_rva_char(C) (isalnum(C)||C=='=')
+
+static int analyze_expr(char* expr, int* p_length, int* p_n_rva, int* p_n_spaces, char** _errmsg) {
+    char c;
+    char *p = expr;
+
+    int length, n_rva, n_spaces;
+    length = n_rva = n_spaces= 0;
+    while ( (c=*p++) ) {
+        length++;
+        if ( isspace(c) )
+            n_spaces++;
+        else
+            if ( c == '=' ) 
+                n_rva++;
+    }
+    *p_length   = length;
+    *p_n_rva    = n_rva;
+    *p_n_spaces = n_spaces;
+    //
+    return 1;
+}
+
+static void bdd_strcpy_nospaces(char* dst, char* p, int max) {
+    int cnt = 0;
+    while (*p) {
+        if ( isspace(*p) )
+            p++;
+        else {
+            if ( ++cnt > max )
+                pg_fatal(":bdd_strcpy_nospaces: output string too large");
+            *dst++ = *p++;
+        }
+    }
+    *dst = 0;
+}
+
+static int create_new_rva(rva* res, char* var, int var_len, char* val, char** _errmsg) {
+    if ( var_len > MAX_RVA_NAME )
+        return pg_error(_errmsg,"rva_name too long (max=%d) / %s",MAX_RVA_NAME, var);   
+    memcpy(res->var,var,var_len);
+    res->var[var_len] = 0;
+    if ( strcmp(res->var,"not")==0||strcmp(res->var,"and")==0||strcmp(res->var,"or")==0 )
+        return pg_error(_errmsg, "bdd-expr: do not use and/or/not keywords but use '&|!': %s",var);
+    if ( (res->val = bdd_atoi(val)) == BDD_NONE )
+        return pg_error(_errmsg,"bad rva string, bad value %s= %s",res->var,val);   
+    return 1;
+}
+
+static int bdd_set_default_order(V_rva* order, char* expr, char** _errmsg) {
+    char *p = expr;
+    
+    while ( *p ) {
+        while ( *p && !isalnum(*p) )
+            p++;
+        if ( isalnum(*p) ) {
+            char* start = p;
+            while ( isalnum(*p) )
+                p++;
+            int len = p-start;;
+            while ( *p && *p != '=' )
+                p++;
+            if ( !(*p++ == '=') )
+                return pg_error(_errmsg,"missing \'=\' in expr: \"%s\"",start);
+            while ( isspace(*p) ) 
+                p++;
+            if ( !isdigit(*p) ) 
+                return pg_error(_errmsg,"missing value after \'=\' in expr: \"%s\"",start);
+            rva new_rva;
+            if ( !create_new_rva(&new_rva,start,len,p,_errmsg) )
+                return 0;  
+            V_rva_add(order,&new_rva);
+            while (isdigit(*p) )
+                p++;
+        }
+    }
+    // now sort the result string and make result unique
+    if ( V_rva_size(order) > 0) {
+        V_rva_quicksort(order,0,order->size-1,cmpRva);
+        rva* last = V_rva_getp(order,0);
+        for(int i=1; i<V_rva_size(order); i++) {
+            rva* curstr = V_rva_getp(order,i);
+            if ( cmpRva(last,curstr)==0 )
+                V_rva_delete(order,i--); // remove i'th element and decrease i
+            else
+                last = curstr;
+        }
+    }
+    return 1;
+}
+
+/*
  * bdd_alg is used to simulate subtyping/function inheritance
  */
 
@@ -187,7 +281,7 @@ static int bdd_build_bdd_BASE(bdd_alg* alg, bdd_runtime* bdd, char* expr, int i,
         return res;
     }
     rva* var = V_rva_getp(&bdd->order,i);
-    char* newexpr = rewrite_buffer + (i*bdd->expr_bufflen); // Pretty brill:-)
+    char* newexpr = rewrite_buffer + (i*bdd->len_expr); // Pretty brill:-)
     char rva_string[MAX_RVA_LEN];
     create_rva_string(rva_string,var);
     bdd_replace_str(newexpr,expr,rva_string,'0');
@@ -218,7 +312,7 @@ static int bdd_build_bdd_KAJ(bdd_alg* alg, bdd_runtime* bdd, char* expr, int i, 
         return res;
     }
     rva* var = V_rva_getp(&bdd->order,i);
-    char* newexpr = rewrite_buffer + (i*bdd->expr_bufflen); // Pretty brill:-)
+    char* newexpr = rewrite_buffer + (i*bdd->len_expr); // Pretty brill:-)
     char rva_string[MAX_RVA_LEN];
     create_rva_string(rva_string,var);
     bdd_replace_str(newexpr,expr,rva_string,'0');
@@ -233,7 +327,7 @@ static int bdd_build_bdd_KAJ(bdd_alg* alg, bdd_runtime* bdd, char* expr, int i, 
          if ( var->val != disvar->val ) {
              char dis_rva_string[MAX_RVA_LEN];
              create_rva_string(dis_rva_string,disvar);
-             memcpy(expr,newexpr,bdd->expr_bufflen);
+             memcpy(expr,newexpr,bdd->len_expr);
              bdd_replace_str(newexpr,expr,dis_rva_string,'0');
          }
          dis++;
@@ -254,8 +348,17 @@ static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd, char** _errmsg) {
     if ( bdd->verbose )
         fprintf(stdout,"BDD start_build\n");
 #endif
+    int len_expr, n_rva, n_spaces;
+    if ( !analyze_expr(bdd->core.expr,&len_expr,&n_rva,&n_spaces,_errmsg) )
+        return 0;
+    // fprintf(stdout,"analyze: len_expr = %d, n_rva = %d, n_spaces = %d\n",len_expr,n_rva,n_spaces);
+    bdd->len_expr = len_expr - n_spaces + 1;
+    V_rva_init_estsz(&bdd->order,n_rva);
+    if ( !bdd_set_default_order(&bdd->order,bdd->core.expr,_errmsg))
+        return 0;
+    bdd->n     = V_rva_size(&bdd->order);
+    V_rva_node_init_estsz(&bdd->core.tree, bdd->n+2);
     //
-    V_rva_node_reset(&bdd->core.tree);
     bdd_create_node(bdd,&RVA_0,BDD_NONE,BDD_NONE);
     bdd_create_node(bdd,&RVA_1,BDD_NONE,BDD_NONE);
 #ifdef BDD_VERBOSE
@@ -266,15 +369,14 @@ static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd, char** _errmsg) {
         fprintf(stdout,"/--------------------------------\n");
     }
 #endif
-    bdd->expr_bufflen = strlen(bdd->core.expr)+1;
-    char* rewrite_buffer = (char*)MALLOC(((bdd->n+1) * bdd->expr_bufflen));
+    char* rewrite_buffer = (char*)MALLOC(((bdd->n+1) * bdd->len_expr));
     // the last buffer is for the expression self
-    char* exprbuff       = rewrite_buffer + (bdd->n*bdd->expr_bufflen);
-    memcpy(exprbuff,bdd->core.expr,bdd->expr_bufflen);
+    char* exprbuff = rewrite_buffer + (bdd->n*bdd->len_expr);
+    bdd_strcpy_nospaces(exprbuff,bdd->core.expr,bdd->len_expr);
+    // memcpy(exprbuff,bdd->core.expr,bdd->len_expr);
     // Remove all spaces from the buffer! This will result in final expressions
     // with only characters 01&|!(). This way we can build an extremely fast
     // expression evaluator
-    bdd_remove_spaces(exprbuff);
     //
     int res = alg->build(alg,bdd,exprbuff,0,rewrite_buffer,_errmsg);
     //
@@ -310,7 +412,7 @@ bdd* create_bdd(bdd_alg* alg, char* expr, char** _errmsg, int verbose) {
     if ( !(bdd_rt = bdd_init(&bdd_struct,expr,verbose,_errmsg)) )
         return NULL;
     if ( ! bdd_start_build(alg,bdd_rt,_errmsg) ) {
-        bdd_free(bdd_rt);
+        // bdd_free(bdd_rt); // something may be wrong because of error
         return NULL;
     }
     bdd* res = serialize_bdd(&bdd_rt->core);
@@ -353,59 +455,6 @@ bdd* relocate_bdd(bdd* tbr) {
 //
 //
 //
-
-int create_rva(rva* res, char* val, int len, char** _errmsg) {
-    char* p = val;
-    char* d = res->var;
-    while ( *p && isspace(*p) ) p++;
-    while (*p && !isspace(*p) && *p != '=')
-        *d++ = *p++;
-    if ( *p && isspace(*p) )
-        while ( *p && isspace(*p) ) p++;
-    *d = 0;
-    if ( *p != '=' ) {
-        if ( strcmp(res->var,"not")==0||strcmp(res->var,"and")==0||strcmp(res->var,"or")==0 )
-            return pg_error(_errmsg, "bdd-expr: do not use and/or/not keywords but use '&|!': %s",val);
-        else 
-            return pg_error(_errmsg,"bad rva string, \'no\' = | %s",val);
-    }
-    if ( (res->val = bdd_atoi(++p)) == BDD_NONE )
-        return pg_error(_errmsg,"bad rva string, bad value | %s",val);
-    return 1;
-}
-
-#define is_rva_char(C) (isalnum(C)||C=='=')
-
-int bdd_set_default_order(V_rva* order, char* expr, char** _errmsg) {
-    char *p = expr;
-    V_rva_init(order);
-    do {
-        while (*p && !is_rva_char(*p)) p++;
-        if ( *p) {
-            char* start=p; 
-
-            // incomplete, alg does not allow space around = now
-            while (*p && is_rva_char(*p)) p++; 
-            rva s;
-            if ( !create_rva(&s,start,p-start,_errmsg) )
-                return 0;
-            V_rva_add(order,&s);
-        }
-    } while (*p);
-    // now sort the result string and make result unique
-    if ( V_rva_size(order) > 0) {
-        V_rva_quicksort(order,0,order->size-1,cmpRva);
-        rva* last = V_rva_getp(order,0);
-        for(int i=1; i<V_rva_size(order); i++) {
-            rva* curstr = V_rva_getp(order,i);
-            if ( cmpRva(last,curstr)==0 )
-                V_rva_delete(order,i--); // remove i'th element and decrease i
-            else
-                last = curstr;
-        }
-    }
-    return 1;
-}
 
 void bdd_print_V_rva(V_rva* v, pbuff* pbuff) {
     bprintf(pbuff,"{");
