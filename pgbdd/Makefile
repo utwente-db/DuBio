@@ -24,6 +24,7 @@ HEADERS      = pg_config.h bdd.h dictionary.h utils.h vector.h
 run:    $(TEST-PACKAGE)
 	# lldb ./$(TEST-PACKAGE)
 	./$(TEST-PACKAGE)
+	# ./DOT/VIEWDOT ./DOT/test.dot
 
 $(TEST-PACKAGE): test_config.h $(TEST-PACKAGE).o $(TEST-OBJECTS) $(HEADERS)
 	$(CC) $(CFLAGS) -o $@ $(TEST-PACKAGE).o $(TEST-OBJECTS)

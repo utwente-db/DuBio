@@ -31,3 +31,12 @@ select op(bdd('x=1'),'&',bdd('y=2'));
 select op('!',op(bdd('x=1'),'&',bdd('y=2')));
 
 -- select dot(op('!',op(bdd('x=1'),'&',bdd('y=2'))),'/tmp/prettybrilliant.dot');
+
+-- and finally some constant examples
+select bdd('0');
+select bdd('!0');
+select op('!',op(bdd('0'),'&',bdd('1')));
+select bdd('(x=1|x=2)&(!1)');
+select prob(dictionary('empty'),bdd('0'));
+select prob(dictionary('empty'),bdd('!(0&0)'));
+

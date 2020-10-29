@@ -19,9 +19,11 @@
 
 #define BDD_NONE -1
 
+#define SIMPLIFY_CONSTANT /* Simplify constant expressions to '1' or '0' */ 
+
 typedef struct rva {
     char        var[MAX_RVA_NAME];
-    uint32_t    val;
+    int         val;
 } rva;
 
 DefVectorH(rva);
@@ -48,8 +50,6 @@ typedef struct bdd {
     // because serialized tree grows in memory do not define attributes here!!!
 } bdd;
 
-// #define BDD_VERBOSE
-
 typedef struct bdd_runtime {
 #ifdef BDD_VERBOSE
     int      verbose;
@@ -74,7 +74,8 @@ extern bdd_alg *BDD_BASE, *BDD_KAJ, *BDD_PROBBDD;
 
 int   bdd_low(bdd*,int);
 int   bdd_high(bdd*,int);
-int   bdd_is_leaf(bdd*,int);
+
+#define IS_LEAF(N)      (((N)->low==-1)&&((N)->high==-1))
 
 rva*  bdd_rva(bdd*,int);
 int   rva_is_samevar(rva*, rva*);

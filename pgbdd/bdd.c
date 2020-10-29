@@ -110,10 +110,6 @@ int bdd_high(bdd* bdd, int i) {
     return V_rva_node_getp(&bdd->tree,i)->high;
 }
 
-int bdd_is_leaf(bdd* bdd, int i) {
-    return (i==0)||(i==1); // incomplete, check row is cleaner
-}
-
 static int bdd_lookup(bdd_runtime* bdd, rva* rva, int low, int high) {
     // ORIGINAL: 
     // rva_node tofind = { .rva  = *rva, .low  = low, .high = high };
@@ -190,7 +186,7 @@ static int create_new_rva(rva* res, char* var, int var_len, char* val, char** _e
     return 1;
 }
 
-static int bdd_set_default_order(V_rva* order, char* expr, char** _errmsg) {
+static int compute_default_order(V_rva* order, char* expr, char** _errmsg) {
     char *p = expr;
     
     while ( *p ) {
@@ -198,23 +194,35 @@ static int bdd_set_default_order(V_rva* order, char* expr, char** _errmsg) {
             p++;
         if ( isalnum(*p) ) {
             char* start = p;
-            while ( isalnum(*p) )
-                p++;
-            int len = p-start;;
-            while ( *p && *p != '=' )
-                p++;
-            if ( !(*p++ == '=') )
-                return pg_error(_errmsg,"missing \'=\' in expr: \"%s\"",start);
-            while ( isspace(*p) ) 
-                p++;
-            if ( !isdigit(*p) ) 
-                return pg_error(_errmsg,"missing value after \'=\' in expr: \"%s\"",start);
-            rva new_rva;
-            if ( !create_new_rva(&new_rva,start,len,p,_errmsg) )
-                return 0;  
-            V_rva_add(order,&new_rva);
-            while (isdigit(*p) )
-                p++;
+            //
+            if ( isdigit(*p) ) {
+                if ( (*p=='0') || (*p=='1') ) {
+                    if ( isalnum(p[1]) )
+                        return pg_error(_errmsg,"varnames cannot start with a digit: \"%s\"",p);
+                    else {
+                        p++;
+                    }
+                } else 
+                    return pg_error(_errmsg,"varnames cannot start with a digit: \"%s\"",p);
+            } else {
+                while ( isalnum(*p) )
+                    p++;
+                int len = p-start;;
+                while ( *p && *p != '=' )
+                    p++;
+                if ( !(*p++ == '=') )
+                    return pg_error(_errmsg,"missing \'=\' in expr: \"%s\"",start);
+                while ( isspace(*p) ) 
+                    p++;
+                if ( !isdigit(*p) ) 
+                    return pg_error(_errmsg,"missing value after \'=\' in expr: \"%s\"",start);
+                rva new_rva;
+                if ( !create_new_rva(&new_rva,start,len,p,_errmsg) )
+                    return 0;  
+                V_rva_add(order,&new_rva);
+                while (isdigit(*p) )
+                    p++;
+            }
         }
     }
     // now sort the result string and make result unique
@@ -354,13 +362,11 @@ static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd, char** _errmsg) {
     // fprintf(stdout,"analyze: len_expr = %d, n_rva = %d, n_spaces = %d\n",len_expr,n_rva,n_spaces);
     bdd->len_expr = len_expr - n_spaces + 1;
     V_rva_init_estsz(&bdd->order,n_rva);
-    if ( !bdd_set_default_order(&bdd->order,bdd->core.expr,_errmsg))
+    if ( !compute_default_order(&bdd->order,bdd->core.expr,_errmsg))
         return 0;
     bdd->n     = V_rva_size(&bdd->order);
     V_rva_node_init_estsz(&bdd->core.tree, bdd->n+2);
     //
-    bdd_create_node(bdd,&RVA_0,BDD_NONE,BDD_NONE);
-    bdd_create_node(bdd,&RVA_1,BDD_NONE,BDD_NONE);
 #ifdef BDD_VERBOSE
     bdd->mk_calls = 0;
     if ( bdd->verbose ) {
@@ -378,7 +384,22 @@ static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd, char** _errmsg) {
     // with only characters 01&|!(). This way we can build an extremely fast
     // expression evaluator
     //
+    bdd_create_node(bdd,&RVA_0,BDD_NONE,BDD_NONE);
+    bdd_create_node(bdd,&RVA_1,BDD_NONE,BDD_NONE);
     int res = alg->build(alg,bdd,exprbuff,0,rewrite_buffer,_errmsg);
+    if ( V_rva_node_size(&bdd->core.tree) == 2 ) {
+        // there have no nodes been created, expression is constant
+        V_rva_node_reset(&bdd->core.tree);
+        if ( res >= 0 ) { // no errors
+            if ( res == 0 ) 
+                bdd_create_node(bdd,&RVA_0,BDD_NONE,BDD_NONE);
+            else
+                bdd_create_node(bdd,&RVA_1,BDD_NONE,BDD_NONE);
+#ifdef SIMPLIFY_CONSTANT
+            bdd->core.expr = bdd->core.tree.items[0].rva.var;
+#endif
+        }
+    }
     //
     FREE(rewrite_buffer);
     //
@@ -500,17 +521,17 @@ void bdd_generate_dot(bdd* bdd, pbuff* pbuff, char** extra) {
     bprintf(pbuff,"\tlabelloc=\"t\";\n");
     bprintf(pbuff,"\tlabel=\"bdd(\'%s\')\";\n",bdd->expr);
     for(int i=0; i<V_rva_node_size(tree); i++) {
-        rva_node row = V_rva_node_get(tree,i);
-        if ( i<2 ) {
+        rva_node *row = V_rva_node_getp(tree,i);
+        if ( IS_LEAF(row) ) {
             bprintf(pbuff,"\tnode [shape=square]\n");
-            generate_label(pbuff,i,&row.rva,(extra ? extra[i] : NULL));
+            generate_label(pbuff,i,&row->rva,(extra ? extra[i] : NULL));
         } else {
             bprintf(pbuff,"\tnode [shape=circle]\n");
-            generate_label(pbuff,i,&row.rva,(extra ? extra[i] : NULL));
+            generate_label(pbuff,i,&row->rva,(extra ? extra[i] : NULL));
             bprintf(pbuff,"\tedge [shape=rarrow style=dashed]\n");
-            bprintf(pbuff,"\t%d -> %d\n",i,row.low);
+            bprintf(pbuff,"\t%d -> %d\n",i,row->low);
             bprintf(pbuff,"\tedge [shape=rarrow style=bold]\n");
-            bprintf(pbuff,"\t%d -> %d\n",i,row.high);
+            bprintf(pbuff,"\t%d -> %d\n",i,row->high);
         }
     }
     bprintf(pbuff,"}\n");
@@ -539,29 +560,35 @@ static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, int i,char** 
     if (verbose )
         fprintf(stdout,"+ bdd_probability(node=%d,\'%s=%d\')\n",i,rva->var,rva->val);
     double p_root;
-    if ( bdd_is_leaf(bdd,i) ) {
-        res = p_root = (i==0) ? 0.0 : 1.0;
+    rva_node *node = V_rva_node_getp(&bdd->tree,i);
+    if ( IS_LEAF(node) ) {
+        // is a '0' or '1' leaf
+        res = p_root = (node->rva.var[0] == '0') ? 0.0 : 1.0;
+#ifdef BDD_VERBOSE
         if ( verbose )
             fprintf(stdout,"++ is_leaf: P=%f\n",res);
+#endif
     } else {
         p_root = dictionary_lookup_prob(dict,rva);
         if ( p_root < 0.0 ) {
             pg_error(_errmsg,"dictionary_lookup: rva[\'%s\'] not found.",rva);
             return -1.0;
         }
-        int low  = bdd_low(bdd,i);
-        int high = bdd_high(bdd,i);
+#ifdef BDD_VERBOSE
         if ( verbose )
-            fprintf(stdout,"++ is_node(low=%d, high=%d)\n",low,high);
-        double p_l = bdd_probability_node(dict,bdd,low,extra,verbose,_errmsg);
-        double p_h = bdd_probability_node(dict,bdd,high,extra,verbose,_errmsg);
+            fprintf(stdout,"++ is_node(low=%d, high=%d)\n",node->low,node->high);
+#endif
+        double p_l = bdd_probability_node(dict,bdd,node->low,extra,verbose,_errmsg);
+        double p_h = bdd_probability_node(dict,bdd,node->high,extra,verbose,_errmsg);
         if ( p_l < 0.0 || p_h < 0.0 )
             return -1.0;
         res = (p_root * p_h) + p_l;
-        if ( ! rva_is_samevar(rva,bdd_rva(bdd,low)) )
+        if ( ! rva_is_samevar(rva,bdd_rva(bdd,node->low)) )
             res = res - p_root*p_l;
+#ifdef BDD_VERBOSE
         if ( verbose )
             fprintf(stdout,"+ bdd_probability(node=%d,\'%s=%d\') p_root=%f, P=%f\n",i,rva->var,rva->val,p_root,res);
+#endif
    }
    if ( extra )
        sprintf(extra[i],"<i>(%.2f)<br/>%.2f</i>",p_root,res);

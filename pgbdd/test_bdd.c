@@ -17,6 +17,8 @@
 
 #include "test_config.h"
 
+#define BDD_VERBOSE
+
 #include "bdd.c"
 
 static bdd_dictionary* get_test_dictionary(char* dict_vars) {
@@ -90,7 +92,8 @@ static void test_bdd_creation(){
     // char* expr = "x=1 | (y=1 & x=2)";
     // char* expr = "(x=1 | x=2)";
     // char* expr = "(x=4 | x=2 | x=3 | x=1) & (y=2 | y=1 | y=3 )";
-    char* expr = "(x=1 | x=2 | x=3 | x=4)";
+    // char* expr = "(x=1 | x=2 | x=3 | x=4)";
+    char* expr = "(0 & (x=1 | x=2))";
     bdd* test_bdd;
     char* _errmsg = NULL;
 
@@ -169,7 +172,7 @@ static double bdd_prob_test(char* expr, char* dict_vars, char* dotfile, int verb
 static int test_bdd_probability() {
     bdd_prob_test(
             // "(x=1|x=2)",
-            "( x  = 1 | y =         1)",
+            "( x=1 | y=1)",
             "x=1:0.4; x=2:0.6 ; y=1:0.2; y=2:0.8; ",
             "./DOT/test.dot", /* filename of dotfile or NULL */
             1 /* verbose */,
