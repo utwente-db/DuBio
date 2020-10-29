@@ -40,3 +40,5 @@ select bdd('(x=1|x=2)&(!1)');
 select prob(dictionary('empty'),bdd('0'));
 select prob(dictionary('empty'),bdd('!(0&0)'));
 
+select alg_bdd('base','(x=1&((y=1|y=2)&x=2))');
+select alg_bdd('kaj' ,'(x=1&((y=1|y=2)&x=2))');

@@ -16,6 +16,13 @@ function bdd_in(expression cstring) returns bdd
 comment on function bdd_in(cstring) is
 'Create a bdd expression from argument string.';
 
+create 
+function alg_bdd(alg cstring, expression cstring) returns bdd
+     as '$libdir/pgbdd', 'alg_bdd'
+     language C immutable strict;
+
+comment on function alg_bdd(cstring,cstring) is
+'Create a bdd expression from argument algorithm and string.';
 
 create 
 function bdd_out(dict bdd) returns cstring

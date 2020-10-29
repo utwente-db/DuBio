@@ -72,6 +72,8 @@ typedef struct bdd_alg {
 
 extern bdd_alg *BDD_BASE, *BDD_KAJ, *BDD_PROBBDD;
 
+bdd_alg* bdd_algorithm(char*, char** _errmsg);
+
 int   bdd_low(bdd*,int);
 int   bdd_high(bdd*,int);
 

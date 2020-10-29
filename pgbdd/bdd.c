@@ -137,8 +137,6 @@ static int bdd_create_node(bdd_runtime* bdd, rva* rva, int low, int high) {
  *
  */
 
-#define is_rva_char(C) (isalnum(C)||C=='=')
-
 static int analyze_expr(char* expr, int* p_length, int* p_n_rva, int* p_n_spaces, char** _errmsg) {
     char c;
     char *p = expr;
@@ -391,13 +389,17 @@ static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd, char** _errmsg) {
         // there have no nodes been created, expression is constant
         V_rva_node_reset(&bdd->core.tree);
         if ( res >= 0 ) { // no errors
-            if ( res == 0 ) 
+            if ( res == 0 ) {
                 bdd_create_node(bdd,&RVA_0,BDD_NONE,BDD_NONE);
-            else
+#ifdef SIMPLIFY_CONSTANT
+                bdd->core.expr = "0";
+#endif
+            } else {
                 bdd_create_node(bdd,&RVA_1,BDD_NONE,BDD_NONE);
 #ifdef SIMPLIFY_CONSTANT
-            bdd->core.expr = bdd->core.tree.items[0].rva.var;
+                bdd->core.expr = "1";
 #endif
+            }
         }
     }
     //
@@ -426,6 +428,17 @@ bdd_alg *BDD_KAJ     = &S_BDD_KAJ;
 bdd_alg S_BDD_PROBBDD = {.name = "PROBBDD", .build = bdd_build_bdd_BASE, .mk = bdd_mk_BASE};
 bdd_alg *BDD_PROBBDD = &S_BDD_PROBBDD;
 
+bdd_alg* bdd_algorithm(char* alg_name, char** _errmsg) {
+    if ( (strcmp(alg_name,"base")==0) || (strcmp(alg_name,"default")==0) )
+        return BDD_BASE;
+    else if ( strcmp(alg_name,"kaj") == 0)
+        return BDD_KAJ;
+    else {
+        pg_error(_errmsg,"bdd_algorithm: unknown algorithm: \'%s\'",alg_name);
+        return NULL;
+    }
+}
+
 bdd* create_bdd(bdd_alg* alg, char* expr, char** _errmsg, int verbose) {
     bdd_runtime  bdd_struct;
     bdd_runtime* bdd_rt;
@@ -433,7 +446,7 @@ bdd* create_bdd(bdd_alg* alg, char* expr, char** _errmsg, int verbose) {
     if ( !(bdd_rt = bdd_init(&bdd_struct,expr,verbose,_errmsg)) )
         return NULL;
     if ( ! bdd_start_build(alg,bdd_rt,_errmsg) ) {
-        // bdd_free(bdd_rt); // something may be wrong because of error
+        // something may be wrong because of error, do not free bdd_rt !!!
         return NULL;
     }
     bdd* res = serialize_bdd(&bdd_rt->core);

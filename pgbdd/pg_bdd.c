@@ -58,6 +58,29 @@ bdd_out(PG_FUNCTION_ARGS)
     PG_RETURN_CSTRING(result);
 }
 
+PG_FUNCTION_INFO_V1(alg_bdd);
+/**
+ * <code>bdd_in(expression cstring) returns bdd</code>
+ * Create an expression from argument string.
+ *
+ */
+Datum
+alg_bdd(PG_FUNCTION_ARGS)
+{       
+    char *alg_name   = PG_GETARG_CSTRING(0);
+    bdd_alg *alg     = NULL;
+    char *expr       = PG_GETARG_CSTRING(1);
+    char *_errmsg    = NULL;
+    bdd  *return_bdd = NULL;
+
+    
+    if ( !(alg = bdd_algorithm(alg_name,&_errmsg)) )
+        ereport(ERROR,(errmsg("bdd_in: %s",(_errmsg ? _errmsg : "NULL"))));
+    if ( !(return_bdd = create_bdd(alg,expr,&_errmsg,0/*verbose*/)) )
+        ereport(ERROR,(errmsg("bdd_in: %s",(_errmsg ? _errmsg : "NULL"))));
+    SET_VARSIZE(return_bdd,return_bdd->bytesize);
+    PG_RETURN_BDD(return_bdd);
+}
 
 PG_FUNCTION_INFO_V1(bdd_pg_tostring);
 /**

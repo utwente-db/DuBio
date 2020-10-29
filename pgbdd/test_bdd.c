@@ -93,11 +93,11 @@ static void test_bdd_creation(){
     // char* expr = "(x=1 | x=2)";
     // char* expr = "(x=4 | x=2 | x=3 | x=1) & (y=2 | y=1 | y=3 )";
     // char* expr = "(x=1 | x=2 | x=3 | x=4)";
-    char* expr = "(0 & (x=1 | x=2))";
+    char* expr = "(x=1&((y=1|y=2)&x=2))";
     bdd* test_bdd;
     char* _errmsg = NULL;
 
-    if ( (test_bdd = create_bdd(BDD_BASE,expr,&_errmsg,1/*verbose*/)) ) {
+    if ( (test_bdd = create_bdd(BDD_KAJ,expr,&_errmsg,1/*verbose*/)) ) {
         pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
         char* dot_filename = "./DOT/test.dot";
 
