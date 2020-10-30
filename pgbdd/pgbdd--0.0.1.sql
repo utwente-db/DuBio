@@ -135,12 +135,12 @@ comment on function print(dictionary) is
 'create a serialised string representation of dictionary.';
 
 create 
-function debu(dict dictionary) returns cstring
+function debug(dict dictionary) returns cstring
      as '$libdir/pgbdd', 'dictionary_debug'
      language C immutable strict;
 
-comment on function debu(dictionary) is
-'create a serialised string representation of dictionary structure.';
+comment on function debug(dictionary) is
+'create a serialised string representation of internal dictionary structure.';
 
 create 
 function prob(dict dictionary, bdd bdd) returns double precision
