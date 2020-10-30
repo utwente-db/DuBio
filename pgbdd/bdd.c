@@ -196,12 +196,14 @@ static int create_new_rva(rva* res, char* var, int var_len, char* val, char** _e
 }
 
 static int add_to_order(V_rva* order, rva* new_rva) {
+// #define KEEP_ORDER_SORTED
 #ifdef KEEP_ORDER_SORTED
-    int index = V_rva_bsearch(order,cmpRva,0,order->size-1,new_rva);
+    int index = V_rva_bsearch(order,cmpRva,new_rva);
     if ( index < 0 ) {
         index = -(index + VECTOR_BSEARCH_NEG_OFFSET);
-        if ( (V_rva_insert_at(order,index,new_rva)<0) ? 0 : 1;
-    }
+        return (V_rva_insert_at(order,index,new_rva)<0) ? 0 : 1;
+    } else
+        return 1; // OK, already in order
 #else
     return (V_rva_add(order,new_rva)<0) ? 0 : 1;
 #endif
@@ -250,7 +252,7 @@ static int compute_default_order(V_rva* order, char* expr, char** _errmsg) {
 #ifndef KEEP_ORDER_SORTED
     // order was not kept sorted and uniq so we have to do this manually
     if ( V_rva_size(order) > 1) {
-        V_rva_quicksort(order,0,order->size-1,cmpRva);
+        V_rva_quicksort(order,cmpRva);
         rva* last = V_rva_getp(order,0);
         for(int i=1; i<V_rva_size(order); i++) {
             rva* curstr = V_rva_getp(order,i);

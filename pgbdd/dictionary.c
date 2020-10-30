@@ -132,7 +132,7 @@ static int lookup_var_index(bdd_dictionary* dict, char* name) {
 
     strcpy(tofind.name, name);
     if ( dict->var_sorted )
-        return V_dict_var_bsearch(dict->variables,cmpDict_var,0,dict->variables->size-1,&tofind);
+        return V_dict_var_bsearch(dict->variables,cmpDict_var,&tofind);
     else
         return V_dict_var_find(dict->variables,cmpDict_var,&tofind);
 }
@@ -143,7 +143,7 @@ static dict_var* bdd_dictionary_lookup_var(bdd_dictionary* dict, char* name) {
 }
 
 int bdd_dictionary_sort(bdd_dictionary* dict) {
-    V_dict_var_quicksort(dict->variables,0,dict->variables->size-1,cmpDict_var);
+    V_dict_var_quicksort(dict->variables,cmpDict_var);
     dict->var_sorted = 1;
     return 1;
 }

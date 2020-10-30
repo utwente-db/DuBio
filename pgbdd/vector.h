@@ -68,8 +68,8 @@ void V_##type##_delete(V_##type*, int); \
 int V_##type##_insert_at(V_##type*,int,type*); \
 V_##type *V_##type##_serialize(void*, V_##type*); \
 int V_##type##_find(V_##type*, V_##type##_cmpfun, type*); \
-int V_##type##_bsearch(V_##type*, V_##type##_cmpfun, int, int, type*); \
-void V_##type##_quicksort(V_##type*,int,int,V_##type##_cmpfun); \
+int V_##type##_bsearch(V_##type*, V_##type##_cmpfun,type*); \
+void V_##type##_quicksort(V_##type*,V_##type##_cmpfun); \
 void V_##type##_shrink2size(V_##type*); \
 int V_##type##_is_serialized(V_##type*); \
 int V_##type##_copy_range(V_##type*,int,int,int); \
@@ -235,7 +235,7 @@ int V_##type##_find(V_##type *v, V_##type##_cmpfun f, type* val) { \
     return -1; \
 } \
 \
-int V_##type##_bsearch(V_##type *v, V_##type##_cmpfun f, int l, int r, type *x) \
+static int V_##type##_do_bsearch(V_##type *v, V_##type##_cmpfun f, int l, int r, type *x) \
 { \
     VECTOR_ASSERT(v); \
     if (r >= l) { \
@@ -244,13 +244,18 @@ int V_##type##_bsearch(V_##type *v, V_##type##_cmpfun f, int l, int r, type *x) 
         if (cmp==0) \
             return mid; \
         else if (cmp>0) \
-            return V_##type##_bsearch(v, f, l, mid - 1, x); \
-        return V_##type##_bsearch(v, f, mid + 1, r, x); \
+            return V_##type##_do_bsearch(v, f, l, mid - 1, x); \
+        return V_##type##_do_bsearch(v, f, mid + 1, r, x); \
     } \
     return -VECTOR_BSEARCH_NEG_OFFSET - l; \
 } \
 \
-void V_##type##_quicksort(V_##type *v,int first,int last, V_##type##_cmpfun f){ \
+int V_##type##_bsearch(V_##type *v, V_##type##_cmpfun f, type *x) \
+{ \
+    return V_##type##_do_bsearch(v,f,0,v->size-1,x); \
+} \
+\
+static void V_##type##_do_quicksort(V_##type *v,int first,int last, V_##type##_cmpfun f){ \
    int i, j, pivot; \
    type temp; \
    \
@@ -274,9 +279,14 @@ void V_##type##_quicksort(V_##type *v,int first,int last, V_##type##_cmpfun f){ 
       temp=v->items[pivot]; \
       v->items[pivot]=v->items[j]; \
       v->items[j]=temp; \
-      V_##type##_quicksort(v,first,j-1,f); \
-      V_##type##_quicksort(v,j+1,last,f); \
+      V_##type##_do_quicksort(v,first,j-1,f); \
+      V_##type##_do_quicksort(v,j+1,last,f); \
    } \
+} \
+\
+void V_##type##_quicksort(V_##type *v, V_##type##_cmpfun f) \
+{ \
+    V_##type##_do_quicksort(v,0,v->size-1,f); \
 } \
 \
 void V_##type##_free(V_##type *v) \
