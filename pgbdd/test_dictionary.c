@@ -36,8 +36,8 @@ int test_bdd_dictionary_v0() {
         bdd_dictionary_lookup_var(new_dict,"x");
         bdd_dictionary_print(new_dict,0/*all*/,pbuff);
         // pbuff_flush(pbuff,stdout);
-        bdd_dictionary* relocate_dict = (bdd_dictionary*)MALLOC(new_dict->size);
-        memcpy(relocate_dict,new_dict,new_dict->size);
+        bdd_dictionary* relocate_dict = (bdd_dictionary*)MALLOC(new_dict->bytesize);
+        memcpy(relocate_dict,new_dict,new_dict->bytesize);
         bdd_dictionary_relocate(relocate_dict);
         bdd_dictionary_free(new_dict);
         FREE(new_dict);

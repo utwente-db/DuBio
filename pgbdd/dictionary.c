@@ -49,7 +49,7 @@ bdd_dictionary* bdd_dictionary_serialize(bdd_dictionary* dict) {
         if ( !(res  = (bdd_dictionary*)MALLOC(newsize)) )
             return NULL;
         *res = *dict;
-        res->size = newsize;
+        res->bytesize = newsize;
         res->var_offset = 0;
         res->variables  = V_dict_var_serialize((void*)(&res->buff[res->var_offset]),dict->variables);
         res->val_offset = varsize;
@@ -62,7 +62,7 @@ bdd_dictionary* bdd_dictionary_create(bdd_dictionary* dict, char* name) {
     strncpy(dict->name,name,MAX_RVA_NAME);
     // incomplete, randomize for time ???
     dict->magic      = rand();
-    dict->size       = sizeof(bdd_dictionary);
+    dict->bytesize   = sizeof(bdd_dictionary);
     dict->var_sorted = 0;
     dict->var_offset = 0;
     dict->val_deleted= 0;
@@ -97,7 +97,10 @@ int bdd_dictionary_free(bdd_dictionary* dict) {
 void bdd_dictionary_print(bdd_dictionary* dict, int all, pbuff* pbuff) {
     // bprintf(pbuff,"Dictionary(name=\"%s\")[\n",dict->name);
     if ( all ) {
-        bprintf(pbuff,"# size=%d\n",dict->size);
+
+        bprintf(pbuff,"# variables[size/cap]= [%d/%d]\n",dict->variables->size,dict->variables->capacity);
+        bprintf(pbuff,"# values[size/cap]   = [%d/%d]\n",dict->values->size,dict->values->capacity);
+        bprintf(pbuff,"# bytesize=%d\n",dict->bytesize);
         bprintf(pbuff,"# sorted=%d\n",dict->var_sorted);
         bprintf(pbuff,"# val_deleted=%d\n",dict->val_deleted);
         bprintf(pbuff,"# serialized=%d\n",bdd_dictionary_is_serialized(dict));
@@ -106,7 +109,7 @@ void bdd_dictionary_print(bdd_dictionary* dict, int all, pbuff* pbuff) {
     if ( all ) {
         for(int i=0; i<V_dict_var_size(dict->variables); i++) {
             dict_var* varp = V_dict_var_getp(dict->variables,i);
-            bprintf(pbuff,"(%d)\t\"%s\"\t o(%d)\t c(%d)\n",i,varp->name,varp->offset,varp->card);
+            bprintf(pbuff,"(%d)\t\"%s\"\t off(%d)\t card(%d)\n",i,varp->name,varp->offset,varp->card);
         }
         bprintf(pbuff,"+ Values:\n");
         for(int i=0; i<V_dict_val_size(dict->values); i++) {
@@ -148,7 +151,7 @@ int bdd_dictionary_sort(bdd_dictionary* dict) {
     return 1;
 }
 
-static dict_var* new_var(bdd_dictionary* dict, char* name) {
+static dict_var* add_variable(bdd_dictionary* dict, char* name) {
     dict_var newvar = { .offset=V_dict_val_size(dict->values), .card=0 };
     strcpy(newvar.name,name);
 
@@ -157,7 +160,7 @@ static dict_var* new_var(bdd_dictionary* dict, char* name) {
     return (index<0) ? NULL : V_dict_var_getp(dict->variables,index);
 }
 
-static dict_val* new_val(bdd_dictionary* dict, int value, double prob) {
+static dict_val* add_value(bdd_dictionary* dict, int value, double prob) {
     dict_val newval = { .value = value, .prob = prob };
 
     int index = V_dict_val_add(dict->values,&newval);
@@ -284,7 +287,7 @@ int modify_dictionary(bdd_dictionary* dict, dict_mode mode, char* dictionary_def
             varp = bdd_dictionary_lookup_var(dict,varname);
             if ( varp == NULL ) {
                 if (mode == DICT_ADD) {
-                    if ( !(varp = new_var(dict,varname)) ) {
+                    if ( !(varp = add_variable(dict,varname)) ) {
                         return pg_error(_errmsg,"modify_dictionary:error creating var \"%s\"",varname);
                     }
                 } else
@@ -303,12 +306,12 @@ int modify_dictionary(bdd_dictionary* dict, dict_mode mode, char* dictionary_def
                         int prev_offset    = varp->offset;
                         varp->offset       = V_dict_val_size(dict->values);
                         for (int i =0; i<varp->card; i++) {
-                        if ( !new_val(dict,dict->values->items[prev_offset+i].value,dict->values->items[prev_offset+i].prob)  )
+                        if ( !add_value(dict,dict->values->items[prev_offset+i].value,dict->values->items[prev_offset+i].prob)  )
                             return pg_error(_errmsg,"modify_dictionary:add: internal error reorganzing values");
                         }
                         dict->val_deleted += varp->card; // 'hole' size
                     }
-                    if ( !new_val(dict,scan_val,scan_prob)  )
+                    if ( !add_value(dict,scan_val,scan_prob)  )
                         return pg_error(_errmsg,"modify_dictionary:add: internal error %s=%f ",varname,scan_var,scan_prob);
                     varp->card++;
                 } else {

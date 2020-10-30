@@ -46,7 +46,7 @@ typedef struct bdd_dictionary {
     char        vl_len[4]; // used by Postgres memory management
     char        name[MAX_RVA_NAME];
     int         magic;
-    int         size;
+    int         bytesize;
     int         val_deleted;
     int         var_sorted; // when sorted use binary search to find var
     int         var_offset; // first in buff so is always 0 :-)

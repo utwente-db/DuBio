@@ -202,10 +202,10 @@ void pbuff_flush(pbuff* pbuff, FILE* out) {
 int bprintf(pbuff* pbuff, const char *fmt,...)
 {
     va_list ap;
-    char buffer[1024];
+    char buffer[MAX_BPRINTF];
 
     va_start(ap, fmt);
-    vsnprintf(buffer,1024,fmt,ap);
+    vsnprintf(buffer,MAX_BPRINTF,fmt,ap);
     va_end(ap);
     //
     int size = strlen(buffer);
@@ -328,8 +328,6 @@ static int parse_tokens(char* p, char** _errmsg) {
     *p = bee_eof;
     return 1;
 }
-
-#define BEE_STACKMAX    1024
 
 typedef struct bee_state_stack {
     int        sp;

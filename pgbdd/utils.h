@@ -39,7 +39,9 @@ void dp_print(const char *fmt,...);
  * Buffer print functions, all printing should go to buffers
  */
 
-#define DEFAULT_PBUFF_SIZE      1024
+#define MAX_BPRINTF             1024 /* max # printed chars in 1 bprintf() */
+
+#define DEFAULT_PBUFF_SIZE      1024 /* initial PBUFF size without alloc */
 
 typedef struct pbuff {
     int   size;
@@ -76,6 +78,8 @@ char* bdd_replace_str(char*,char*,char*,char);
 /* 
  * The fast boolean expression evaluator (BEE)
  */
+
+#define BEE_STACKMAX 1024 /* max stackdepth for boolean expressions */
 
 int bee_eval(char*,char**);
 

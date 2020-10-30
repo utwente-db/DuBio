@@ -126,7 +126,6 @@ function upd(dict dictionary, vardef cstring) returns dictionary
 comment on function upd(dictionary, cstring) is
 'Update the var=val:prob variable definitions in the dictionary.';
 
-
 create 
 function print(dict dictionary) returns cstring
      as '$libdir/pgbdd', 'dictionary_print'
@@ -135,6 +134,13 @@ function print(dict dictionary) returns cstring
 comment on function print(dictionary) is
 'create a serialised string representation of dictionary.';
 
+create 
+function debu(dict dictionary) returns cstring
+     as '$libdir/pgbdd', 'dictionary_debug'
+     language C immutable strict;
+
+comment on function debu(dictionary) is
+'create a serialised string representation of dictionary structure.';
 
 create 
 function prob(dict dictionary, bdd bdd) returns double precision

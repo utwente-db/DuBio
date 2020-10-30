@@ -63,4 +63,4 @@ select print(dict) from Dict WHERE name = 'mydict';
 update Dict
 set dict=del(dict,'y=0 ; y=1 ; ')
 where name='mydict';
-select print(dict) from Dict WHERE name = 'mydict';
+select xxx(dict) from Dict WHERE name = 'mydict';

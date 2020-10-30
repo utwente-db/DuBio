@@ -36,7 +36,7 @@ dictionary_in(PG_FUNCTION_ARGS)
     bdd_dictionary* return_dict = bdd_dictionary_serialize(new_dict);
     bdd_dictionary_free(new_dict);
     bdd_dictionary_sort(return_dict); // INCOMPLETE ???
-    SET_VARSIZE(return_dict,return_dict->size);
+    SET_VARSIZE(return_dict,return_dict->bytesize);
     PG_RETURN_DICTIONARY(return_dict);
 }
 
@@ -82,6 +82,25 @@ dictionary_print(PG_FUNCTION_ARGS)
     PG_RETURN_CSTRING(result);
 }
 
+PG_FUNCTION_INFO_V1(dictionary_debug);
+/**
+ * <code>dictionary_debug(dictionary dictionary) returns text</code>
+ * Create a text representation of the dictionary internals
+ *
+ * @param fcinfo Params as described_below
+ * <br><code>mystr dictionary</code> A dictionary object
+ * @return <code>cstring</code> the string representation of the dictionary
+ */
+Datum
+dictionary_debug(PG_FUNCTION_ARGS)
+{
+    bdd_dictionary  *dict = PG_GETARG_DICTIONARY(0);
+
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    bdd_dictionary_print(dict,1/*all*/,pbuff);
+    char* result = pbuff_preserve_or_alloc(pbuff);
+    PG_RETURN_CSTRING(result);
+}
 
 PG_FUNCTION_INFO_V1(dictionary_add);
 /**
@@ -108,7 +127,7 @@ dictionary_add(PG_FUNCTION_ARGS)
            bdd_dictionary_free(dict) &&
            bdd_dictionary_sort(return_dict) ))
         ereport(ERROR,(errmsg("dictionary_add: %s","internal error serialize/free/sort")));
-    SET_VARSIZE(return_dict,return_dict->size);
+    SET_VARSIZE(return_dict,return_dict->bytesize);
     PG_RETURN_DICTIONARY(return_dict);
 }
 
@@ -138,7 +157,7 @@ dictionary_del(PG_FUNCTION_ARGS)
            bdd_dictionary_free(dict) &&
            bdd_dictionary_sort(return_dict) ))
         ereport(ERROR,(errmsg("dictionary_del: %s","internal error serialize/free/sort")));
-    SET_VARSIZE(return_dict,return_dict->size);
+    SET_VARSIZE(return_dict,return_dict->bytesize);
     PG_RETURN_DICTIONARY(return_dict);
 }
 
@@ -168,7 +187,7 @@ dictionary_upd(PG_FUNCTION_ARGS)
            bdd_dictionary_free(dict) &&
            bdd_dictionary_sort(return_dict) ))
         ereport(ERROR,(errmsg("dictionary_upd: %s","internal error serialize/free/sort")));
-    SET_VARSIZE(return_dict,return_dict->size);
+    SET_VARSIZE(return_dict,return_dict->bytesize);
     PG_RETURN_DICTIONARY(return_dict);
 }
 
