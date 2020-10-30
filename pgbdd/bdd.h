@@ -70,17 +70,20 @@ typedef struct bdd_alg {
     int  (*mk)(bdd_alg*,bdd_runtime*,rva*,int,int,char**);
 } bdd_alg;
 
-extern bdd_alg *BDD_BASE, *BDD_KAJ, *BDD_PROBBDD;
+extern bdd_alg *BDD_DEFAULT, *BDD_BASE, *BDD_KAJ, *BDD_PROBBDD;
 
 bdd_alg* bdd_algorithm(char*, char** _errmsg);
 
-int   bdd_low(bdd*,int);
-int   bdd_high(bdd*,int);
 
-#define IS_LEAF(N)      (((N)->low==-1)&&((N)->high==-1))
+#define bdd_node(BDDP,I) (V_rva_node_getp(&(BDDP)->tree,I))
+#define bdd_rva(BDDP,I)  (&bdd_node(BDDP,I)->rva)
 
-rva*  bdd_rva(bdd*,int);
-int   rva_is_samevar(rva*, rva*);
+#define IS_LEAF(N)       (((N)->low==-1)&&((N)->high==-1))
+
+#define bdd_low(BDDP,I)  (bdd_node(BDDP,I)->low)
+#define bdd_high(BDDP,I) (bdd_node(BDDP,I)->high)
+
+int   is_samevar(rva*, rva*);
 
 //
 

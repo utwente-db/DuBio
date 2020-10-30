@@ -23,6 +23,7 @@
  */
 
 #define VECTOR_MAGIC 1234321
+#define VECTOR_BSEARCH_NEG_OFFSET 10
 
 #define VECTOR_ASSERT(V)  if ((V->magic!=VECTOR_MAGIC)||(V->size<0)||(V->size>V->capacity)||(!V->items)) vector_error("VECTOR_ASSERT FAILS")
 #define RANGE_ASSERT(V,I) if (!(((I)>=0)&&((I)<V->size))) vector_error("RANGE_ASSERT FAILS %d not in [0-%d]",I,V->size)
@@ -50,6 +51,7 @@ type V_##type##_get(V_##type*, int); \
 type* V_##type##_getp(V_##type*, int); \
 void V_##type##_set(V_##type*, int, type); \
 void V_##type##_delete(V_##type*, int); \
+int V_##type##_insert_at(V_##type*,int,type*); \
 V_##type *V_##type##_serialize(void*, V_##type*); \
 int V_##type##_find(V_##type*, V_##type##_cmpfun, type*); \
 int V_##type##_bsearch(V_##type*, V_##type##_cmpfun, int, int, type*); \
@@ -125,11 +127,11 @@ int V_##type##_copy_range(V_##type *v,int to,int n,int from) { \
     VECTOR_ASSERT(v); \
     if (1) { \
         RANGE_ASSERT(v,from); \
-        RANGE_ASSERT(v,from+n); \
+        RANGE_ASSERT(v,from+n-1); \
         RANGE_ASSERT(v,to); \
-        RANGE_ASSERT(v,to+n); \
+        RANGE_ASSERT(v,to+n-1); \
     } \
-    memcpy(&v->items[to],&v->items[from]+sizeof(V_##type),n*sizeof(type)); \
+    memmove(&(v->items[to]),&(v->items[from]),n*sizeof(type)); \
     return 1; \
 } \
 \
@@ -207,11 +209,19 @@ void V_##type##_delete(V_##type *v, int index) \
     VECTOR_ASSERT(v); \
     if (index < 0 || index >= v->size) \
         vector_error("delete index out of range %d / [%d,%d]",index,0,v->size); \
-    for (int i = index; i < v->size - 1; i++) \
-        v->items[i] = v->items[i + 1]; \
+    memmove(&(v->items[index]),&(v->items[index+1]),(v->size-index-1)*sizeof(type)); \
     v->size--; \
-    if (v->size > 0 && v->size == (v->capacity/4)) \
-        V_##type##_resize(v, v->capacity / 2); \
+} \
+\
+int V_##type##_insert_at(V_##type *v, int index, type *p_item) \
+{ \
+    VECTOR_ASSERT(v); \
+    if (v->capacity == v->size) \
+        V_##type##_resize(v, v->capacity * 2); \
+    memmove(&(v->items[index+1]),&(v->items[index]),(v->size-index)*sizeof(type)); \
+    v->items[index] = *p_item; \
+    v->size++; \
+    return index; \
 } \
 \
 int V_##type##_find(V_##type *v, V_##type##_cmpfun f, type* val) { \
@@ -235,7 +245,7 @@ int V_##type##_bsearch(V_##type *v, V_##type##_cmpfun f, int l, int r, type *x) 
             return V_##type##_bsearch(v, f, l, mid - 1, x); \
         return V_##type##_bsearch(v, f, mid + 1, r, x); \
     } \
-    return -1; \
+    return -VECTOR_BSEARCH_NEG_OFFSET - l; \
 } \
 \
 void V_##type##_quicksort(V_##type *v,int first,int last, V_##type##_cmpfun f){ \

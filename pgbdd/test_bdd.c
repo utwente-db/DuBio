@@ -40,7 +40,7 @@ static bdd* get_test_bdd(char* expr, int verbose) {
     char* _errmsg = NULL;
     bdd*  res;
 
-    if ( !(res = create_bdd(BDD_BASE,expr,&_errmsg,verbose)) )
+    if ( !(res = create_bdd(BDD_DEFAULT,expr,&_errmsg,verbose)) )
         pg_fatal("bdd create failed: %s",_errmsg);
     return res;
 }
@@ -65,7 +65,7 @@ static void test_timings(){
     for (int r=0; r<REPEAT; r++) {
         for (int i=0; bdd_expr[i]; i++) {
             // fprintf(stderr,"EXPR: %s\n",bdd_expr[i]);
-            if ( (test_bdd = create_bdd(BDD_BASE,bdd_expr[i],&_errmsg,0)) ) {
+            if ( (test_bdd = create_bdd(BDD_DEFAULT,bdd_expr[i],&_errmsg,0)) ) {
                 count++;
                 FREE(test_bdd);
             } else {
@@ -92,7 +92,7 @@ static void test_bdd_creation(){
     // char* expr = "x=1 | (y=1 & x=2)";
     // char* expr = "(x=1 | x=2)";
     // char* expr = "(x=4 | x=2 | x=3 | x=1) & (y=2 | y=1 | y=3 )";
-    // char* expr = "(x=1 | x=2 | x=3 | x=4)";
+    // char* expr = "(x=8|x=2|x=4|x=3|x=9|x=6|x=7|x=1|x=5)";
     char* expr = "(x=1&((y=1|y=2)&x=2))";
     bdd* test_bdd;
     char* _errmsg = NULL;
@@ -172,7 +172,8 @@ static double bdd_prob_test(char* expr, char* dict_vars, char* dotfile, int verb
 static int test_bdd_probability() {
     bdd_prob_test(
             // "(x=1|x=2)",
-            "( x=1 | y=1)",
+            // "( x=1 | y=1)",
+            "(x=1&((y=1|y=2)&x=2))",
             "x=1:0.4; x=2:0.6 ; y=1:0.2; y=2:0.8; ",
             "./DOT/test.dot", /* filename of dotfile or NULL */
             1 /* verbose */,
@@ -180,6 +181,7 @@ static int test_bdd_probability() {
        );
     return 1;
 }
+// (x=1&((y=1|y=2)&x=2))
 
 //
 //

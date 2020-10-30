@@ -72,16 +72,33 @@ DefVectorC(IV);
 static int cmpIVi(IV *l, IV *r) { return l->i - r->i; }
 static int cmpIVv(IV *l, IV *r) { return l->v<r->v?-1:(l->v==r->v?0:1); }
 
+static void print_IV(V_IV* v_iv) {
+    fprintf(stdout,"V_IV[0-%d]:\n",V_IV_size(v_iv));
+    for (int i=0; i<V_IV_size(v_iv); i++ ) {
+        IV* ivp = V_IV_getp(v_iv,i);
+        fprintf(stdout,"[%2d]: <%d, %f>\n",i,ivp->i,ivp->v);
+    }
+}
+
 static void test_IV(){
     fprintf(stdout,"Test \"V_IV\" start\n");
     V_IV svv;
     V_IV* vv = V_IV_init(&svv);
-    for (int i=0; i<33; i++) {
+    for (int i=0; i<20; i++) {
         IV iv;
         iv.i = i;
         iv.v = (float)(i+((i%2==0)?8000:9000));
         V_IV_add(vv,&iv);
     }
+    //
+    print_IV(&svv);
+    // V_IV_copy_range(&svv,5,10,10);
+    V_IV_delete(&svv,5);
+    print_IV(&svv);
+    IV iiv = { .i=55, .v=5500 };
+    V_IV_insert_at(&svv,5,&iiv);
+    print_IV(&svv);
+    exit(0);
     //
     void* buff = MALLOC(V_IV_bytesize(vv));
     V_IV* vc = V_IV_serialize(buff,vv);
@@ -117,6 +134,6 @@ static void test_IV(){
 //
 
 void test_vector(){
-    test_int();
-    test_IV();
+    if (0) test_int();
+    if (1) test_IV();
 }

@@ -94,20 +94,8 @@ void bdd_info(bdd* bdd, pbuff* pbuff) {
     bdd_print_tree(&bdd->tree,pbuff);
 }
 
-int rva_is_samevar(rva* l, rva* r) {
+int is_samevar(rva* l, rva* r) {
     return strcmp(l->var,r->var) == 0;
-}
-
-rva* bdd_rva(bdd* bdd, int i) {
-    return &V_rva_node_getp(&bdd->tree,i)->rva;
-}
-
-int bdd_low(bdd* bdd, int i) {
-    return V_rva_node_getp(&bdd->tree,i)->low;
-}
-
-int bdd_high(bdd* bdd, int i) {
-    return V_rva_node_getp(&bdd->tree,i)->high;
 }
 
 static int bdd_lookup(bdd_runtime* bdd, rva* rva, int low, int high) {
@@ -328,7 +316,7 @@ static int bdd_build_bdd_KAJ(bdd_alg* alg, bdd_runtime* bdd, char* expr, int i, 
     int dis = i+1;
     while ( dis < V_rva_size(&bdd->order) ) {
          rva* disvar = V_rva_getp(&bdd->order,dis);
-         if ( !rva_is_samevar(var,disvar) )
+         if ( !is_samevar(var,disvar) )
              break; // break while
          if ( var->val != disvar->val ) {
              char dis_rva_string[MAX_RVA_LEN];
@@ -427,6 +415,8 @@ bdd_alg *BDD_KAJ     = &S_BDD_KAJ;
 
 bdd_alg S_BDD_PROBBDD = {.name = "PROBBDD", .build = bdd_build_bdd_BASE, .mk = bdd_mk_BASE};
 bdd_alg *BDD_PROBBDD = &S_BDD_PROBBDD;
+
+bdd_alg *BDD_DEFAULT = &S_BDD_BASE;
 
 bdd_alg* bdd_algorithm(char* alg_name, char** _errmsg) {
     if ( (strcmp(alg_name,"base")==0) || (strcmp(alg_name,"default")==0) )
@@ -567,13 +557,11 @@ void bdd_generate_dotfile(bdd* bdd, char* dotfile, char** extra) {
 
 static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, int i,char** extra,int verbose,char** _errmsg) {
     rva *rva = bdd_rva(bdd,i);
-    double res;
-
     // incomplete: highly unefficient, store already computed results
     if (verbose )
         fprintf(stdout,"+ bdd_probability(node=%d,\'%s=%d\')\n",i,rva->var,rva->val);
-    double p_root;
-    rva_node *node = V_rva_node_getp(&bdd->tree,i);
+    double p_root, res;
+    rva_node *node = bdd_node(bdd,i);
     if ( IS_LEAF(node) ) {
         // is a '0' or '1' leaf
         res = p_root = (node->rva.var[0] == '0') ? 0.0 : 1.0;
@@ -587,16 +575,24 @@ static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, int i,char** 
             pg_error(_errmsg,"dictionary_lookup: rva[\'%s\'] not found.",rva);
             return -1.0;
         }
+        int low = node->low;
+        int high = node->high;
+#define MAURICE_NEW
+#ifdef MAURICE_NEW
+        while ( is_samevar(bdd_rva(bdd,high),rva) ) {
+            high = bdd_low(bdd,high);
+        }
+#endif
 #ifdef BDD_VERBOSE
         if ( verbose )
-            fprintf(stdout,"++ is_node(low=%d, high=%d)\n",node->low,node->high);
+            fprintf(stdout,"++ is_node(low=%d, high=%d)\n",low,high);
 #endif
-        double p_l = bdd_probability_node(dict,bdd,node->low,extra,verbose,_errmsg);
-        double p_h = bdd_probability_node(dict,bdd,node->high,extra,verbose,_errmsg);
+        double p_l = bdd_probability_node(dict,bdd,low,extra,verbose,_errmsg);
+        double p_h = bdd_probability_node(dict,bdd,high,extra,verbose,_errmsg);
         if ( p_l < 0.0 || p_h < 0.0 )
             return -1.0;
         res = (p_root * p_h) + p_l;
-        if ( ! rva_is_samevar(rva,bdd_rva(bdd,node->low)) )
+        if ( ! is_samevar(rva,bdd_rva(bdd,low)) )
             res = res - p_root*p_l;
 #ifdef BDD_VERBOSE
         if ( verbose )
