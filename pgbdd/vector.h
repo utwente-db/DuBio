@@ -18,15 +18,29 @@
 #define VECTOR_H
 
 /*
- * + implement delete with a memcpy()
  *
+ */
+
+
+/* 
+ * check for memory problems with functions:
+ * V_TYPE_init()       err= NULL
+ * V_TYPE_init_estsz() err= NULL
+ * V_TYPE_add()        err= -1
+ * V_TYPE_insert_at()  err= -1
  */
 
 #define VECTOR_MAGIC 1234321
 #define VECTOR_BSEARCH_NEG_OFFSET 10
 
+// #define VECTOR_OPTIMIZE
+#ifdef  VECTOR_OPTIMIZE
+#define VECTOR_ASSERT(V)
+#define RANGE_ASSERT(V,I)
+#else
 #define VECTOR_ASSERT(V)  if ((V->magic!=VECTOR_MAGIC)||(V->size<0)||(V->size>V->capacity)||(!V->items)) vector_error("VECTOR_ASSERT FAILS")
-#define RANGE_ASSERT(V,I) if (!(((I)>=0)&&((I)<V->size))) vector_error("RANGE_ASSERT FAILS %d not in [0-%d]",I,V->size)
+#define RANGE_ASSERT(V,I) if (((I)<0)&&((I)>=V->size)) vector_error("RANGE_ASSERT FAILS %d not in [0-%d]",I,V->size)
+#endif
 
 #define VECTOR_INIT_CAPACITY 4
 
@@ -58,9 +72,7 @@ int V_##type##_bsearch(V_##type*, V_##type##_cmpfun, int, int, type*); \
 void V_##type##_quicksort(V_##type*,int,int,V_##type##_cmpfun); \
 void V_##type##_shrink2size(V_##type*); \
 int V_##type##_is_serialized(V_##type*); \
-V_##type *V_##type##_copy2(V_##type*, V_##type*); \
 int V_##type##_copy_range(V_##type*,int,int,int); \
-void V_##type##_resize(V_##type*, int); \
 
 /*
  *
@@ -73,6 +85,7 @@ V_##type *V_##type##_init(V_##type *v) \
     v->capacity = VECTOR_INIT_CAPACITY; \
     v->size = 0; \
     v->items   = v->dynamic = MALLOC(sizeof(type) * v->capacity); \
+    if ( !v->items ) return NULL; \
     return v; \
 } \
 \
@@ -82,6 +95,7 @@ V_##type *V_##type##_init_estsz(V_##type *v, int est_sz) \
     v->capacity = (est_sz>VECTOR_INIT_CAPACITY)?est_sz:VECTOR_INIT_CAPACITY; \
     v->size = 0; \
     v->items   = v->dynamic = MALLOC(sizeof(type) * v->capacity); \
+    if ( !v->items ) return NULL; \
     return v; \
 } \
 \
@@ -102,7 +116,6 @@ void V_##type##_reset(V_##type *v) { \
 void V_##type##_shrink2size(V_##type *v) { \
     VECTOR_ASSERT(v); \
     v->capacity = v->size; \
-    /* do not realloc, could be an option */ \
 } \
  \
 int V_##type##_bytesize(V_##type *v) { \
@@ -125,23 +138,12 @@ V_##type *V_##type##_serialize(void *void_dst, V_##type *src) { \
 \
 int V_##type##_copy_range(V_##type *v,int to,int n,int from) { \
     VECTOR_ASSERT(v); \
-    if (1) { \
-        RANGE_ASSERT(v,from); \
-        RANGE_ASSERT(v,from+n-1); \
-        RANGE_ASSERT(v,to); \
-        RANGE_ASSERT(v,to+n-1); \
-    } \
+    RANGE_ASSERT(v,from); \
+    RANGE_ASSERT(v,from+n-1); \
+    RANGE_ASSERT(v,to); \
+    RANGE_ASSERT(v,to+n-1); \
     memmove(&(v->items[to]),&(v->items[from]),n*sizeof(type)); \
     return 1; \
-} \
-\
-V_##type *V_##type##_copy2(V_##type *dst, V_##type *src) { \
-    VECTOR_ASSERT(src); \
-    *dst = *src; \
-    dst->items   = dst->dynamic = MALLOC(sizeof(type) * src->capacity); \
-    memcpy(dst->items,src->items,src->size*sizeof(type)); \
-    VECTOR_ASSERT(dst); \
-    return dst; \
 } \
 \
 int V_##type##_size(V_##type *v) \
@@ -150,33 +152,34 @@ int V_##type##_size(V_##type *v) \
     return v->size; \
 } \
 \
-void V_##type##_resize(V_##type *v, int capacity) \
+static int V_##type##_resize(V_##type *v, int capacity) \
 { \
     VECTOR_ASSERT(v); \
     if ( !v->dynamic ) { \
         /* vector is serialized, special case */ \
         if ( capacity <= v-> capacity ) { \
             v->capacity = capacity; /* do not realloc, could be an option */ \
-            return; \
+            return 1; \
         } else { \
             /* malloc a new array but do not free old */ \
             if ( !(v->dynamic = MALLOC(sizeof(type) * capacity))) \
-                vector_error("malloc return NULL"); \
+                return 0; \
             memcpy(v->dynamic,v->items,v->size*sizeof(type)); \
         } \
     } else { \
         if ( !(v->dynamic = REALLOC(v->dynamic, sizeof(type) * capacity))) \
-            vector_error("realloc return NULL"); \
+            return 0; \
     } \
     v->capacity = capacity; \
     v->items   = v->dynamic; \
+    return 1; \
 } \
 \
 int V_##type##_add(V_##type *v, type *p_item) \
 { \
     VECTOR_ASSERT(v); \
     if (v->capacity == v->size) \
-        V_##type##_resize(v, v->capacity * 2); \
+        if (!V_##type##_resize(v, v->capacity * 2)) return -1; \
     v->items[v->size++] = *p_item; \
     return v->size-1; \
 } \
@@ -184,6 +187,7 @@ int V_##type##_add(V_##type *v, type *p_item) \
 void V_##type##_set(V_##type *v, int index, type item) \
 { \
     VECTOR_ASSERT(v); \
+    RANGE_ASSERT(v,index); \
     if (index >= 0 && index < v->size) \
         v->items[index] = item; \
 } \
@@ -191,6 +195,7 @@ void V_##type##_set(V_##type *v, int index, type item) \
 type V_##type##_get(V_##type *v, int index) \
 { \
     VECTOR_ASSERT(v); \
+    RANGE_ASSERT(v,index); \
     if (index < 0 || index >= v->size) \
         vector_error("vector_get index out of range %d / [%d,%d]",index,0,v->size); \
     return v->items[index]; \
@@ -199,6 +204,7 @@ type V_##type##_get(V_##type *v, int index) \
 type* V_##type##_getp(V_##type *v, int index) \
 { \
     VECTOR_ASSERT(v); \
+    RANGE_ASSERT(v,index); \
     if (index < 0 || index >= v->size) \
         vector_error("vector_getp index out of range %d / [%d,%d]",index,0,v->size); \
     return &(v->items[index]); \
@@ -207,6 +213,7 @@ type* V_##type##_getp(V_##type *v, int index) \
 void V_##type##_delete(V_##type *v, int index) \
 { \
     VECTOR_ASSERT(v); \
+    RANGE_ASSERT(v,index); \
     if (index < 0 || index >= v->size) \
         vector_error("delete index out of range %d / [%d,%d]",index,0,v->size); \
     memmove(&(v->items[index]),&(v->items[index+1]),(v->size-index-1)*sizeof(type)); \
@@ -216,8 +223,9 @@ void V_##type##_delete(V_##type *v, int index) \
 int V_##type##_insert_at(V_##type *v, int index, type *p_item) \
 { \
     VECTOR_ASSERT(v); \
+    RANGE_ASSERT(v,index); \
     if (v->capacity == v->size) \
-        V_##type##_resize(v, v->capacity * 2); \
+        if (!V_##type##_resize(v, v->capacity * 2)) return -1; \
     memmove(&(v->items[index+1]),&(v->items[index]),(v->size-index)*sizeof(type)); \
     v->items[index] = *p_item; \
     v->size++; \

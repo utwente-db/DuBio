@@ -205,7 +205,7 @@ int bprintf(pbuff* pbuff, const char *fmt,...)
     char buffer[1024];
 
     va_start(ap, fmt);
-    vsprintf(buffer, fmt, ap);
+    vsnprintf(buffer,1024,fmt,ap);
     va_end(ap);
     //
     int size = strlen(buffer);

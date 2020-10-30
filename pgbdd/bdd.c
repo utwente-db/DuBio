@@ -195,6 +195,18 @@ static int create_new_rva(rva* res, char* var, int var_len, char* val, char** _e
     return 1;
 }
 
+static int add_to_order(V_rva* order, rva* new_rva) {
+#ifdef KEEP_ORDER_SORTED
+    int index = V_rva_bsearch(order,cmpRva,0,order->size-1,new_rva);
+    if ( index < 0 ) {
+        index = -(index + VECTOR_BSEARCH_NEG_OFFSET);
+        if ( (V_rva_insert_at(order,index,new_rva)<0) ? 0 : 1;
+    }
+#else
+    return (V_rva_add(order,new_rva)<0) ? 0 : 1;
+#endif
+}
+
 static int compute_default_order(V_rva* order, char* expr, char** _errmsg) {
     char *p = expr;
     
@@ -227,15 +239,17 @@ static int compute_default_order(V_rva* order, char* expr, char** _errmsg) {
                     return pg_error(_errmsg,"missing value after \'=\' in expr: \"%s\"",start);
                 rva new_rva;
                 if ( !create_new_rva(&new_rva,start,len,p,_errmsg) )
-                    return 0;  
-                V_rva_add(order,&new_rva);
+                    return 0;
+                if ( !add_to_order(order,&new_rva) )
+                    return 0;
                 while (isdigit(*p) )
                     p++;
             }
         }
     }
-    // now sort the result string and make result unique
-    if ( V_rva_size(order) > 0) {
+#ifndef KEEP_ORDER_SORTED
+    // order was not kept sorted and uniq so we have to do this manually
+    if ( V_rva_size(order) > 1) {
         V_rva_quicksort(order,0,order->size-1,cmpRva);
         rva* last = V_rva_getp(order,0);
         for(int i=1; i<V_rva_size(order); i++) {
@@ -246,6 +260,7 @@ static int compute_default_order(V_rva* order, char* expr, char** _errmsg) {
                 last = curstr;
         }
     }
+#endif
     return 1;
 }
 
@@ -264,8 +279,7 @@ static int bdd_mk_BASE(bdd_alg* alg, bdd_runtime* bdd, rva *v, int l, int h, cha
     int node = bdd_lookup(bdd,v,l,h);
     if ( node != -1 ) 
         return node; /* node already exists */ 
-    node = bdd_create_node(bdd,v,l,h);
-    return node;
+    return bdd_create_node(bdd,v,l,h);
 } 
 
 static void create_rva_string(char* dst, rva* src) {
@@ -334,6 +348,7 @@ static int bdd_build_bdd_KAJ(bdd_alg* alg, bdd_runtime* bdd, char* expr, int i, 
     create_rva_string(rva_string,var);
     bdd_replace_str(newexpr,expr,rva_string,'0');
     int l = alg->build(alg,bdd,newexpr,i+1,rewrite_buffer,_errmsg);
+    if ( l<0 ) return -1;
     bdd_replace_str(newexpr,expr,rva_string,'1');
     //
     int dis = i+1;
@@ -350,7 +365,7 @@ static int bdd_build_bdd_KAJ(bdd_alg* alg, bdd_runtime* bdd, char* expr, int i, 
          dis++;
     }
     int h = alg->build(alg,bdd,newexpr,dis/*newvar*/,rewrite_buffer,_errmsg);
-    if ( l<0 || h<0 )
+    if ( h<0 )
         return -1;
     else
         return alg->mk(alg,bdd,var,l,h,_errmsg);
@@ -370,12 +385,13 @@ static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd, char** _errmsg) {
         return 0;
     // fprintf(stdout,"analyze: len_expr = %d, n_rva = %d, n_spaces = %d\n",len_expr,n_rva,n_spaces);
     bdd->len_expr = len_expr - n_spaces + 1;
-    V_rva_init_estsz(&bdd->order,n_rva);
+    if ( !V_rva_init_estsz(&bdd->order,n_rva) )
+        return pg_error(_errmsg,"bdd_start_build: error creating order vector");
     if ( !compute_default_order(&bdd->order,bdd->core.expr,_errmsg))
         return 0;
     bdd->n     = V_rva_size(&bdd->order);
-    V_rva_node_init_estsz(&bdd->core.tree, bdd->n+2);
-    //
+    if ( !V_rva_node_init_estsz(&bdd->core.tree, bdd->n+2) )
+        return pg_error(_errmsg,"bdd_start_build: error creating tree");
 #ifdef BDD_VERBOSE
     bdd->mk_calls = 0;
     if ( bdd->verbose ) {
@@ -393,20 +409,20 @@ static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd, char** _errmsg) {
     // with only characters 01&|!(). This way we can build an extremely fast
     // expression evaluator
     //
-    bdd_create_node(bdd,&RVA_0,BDD_NONE,BDD_NONE);
-    bdd_create_node(bdd,&RVA_1,BDD_NONE,BDD_NONE);
+    if (bdd_create_node(bdd,&RVA_0,BDD_NONE,BDD_NONE)<0) return 0;
+    if (bdd_create_node(bdd,&RVA_1,BDD_NONE,BDD_NONE)<0) return 0;
     int res = alg->build(alg,bdd,exprbuff,0,rewrite_buffer,_errmsg);
-    if ( V_rva_node_size(&bdd->core.tree) == 2 ) {
-        // there have no nodes been created, expression is constant
+    if ( (res>=0) && V_rva_node_size(&bdd->core.tree) == 2 ) {
+        // there have no nodes been created, expression is constant, no errors
         V_rva_node_reset(&bdd->core.tree);
         if ( res >= 0 ) { // no errors
             if ( res == 0 ) {
-                bdd_create_node(bdd,&RVA_0,BDD_NONE,BDD_NONE);
+                if (bdd_create_node(bdd,&RVA_0,BDD_NONE,BDD_NONE)<0) return 0;
 #ifdef SIMPLIFY_CONSTANT
                 bdd->core.expr = "0";
 #endif
             } else {
-                bdd_create_node(bdd,&RVA_1,BDD_NONE,BDD_NONE);
+                if (bdd_create_node(bdd,&RVA_1,BDD_NONE,BDD_NONE)<0) return 0;
 #ifdef SIMPLIFY_CONSTANT
                 bdd->core.expr = "1";
 #endif

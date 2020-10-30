@@ -25,7 +25,8 @@ int test_bdd_dictionary_v0() {
     char* errmsg;
 
     char* input = "x=0 : 0.6; x=1 : 0.2; x=2 : 0.1; x=3 : 0.1; y=3 : 0.5; y=1 : 0.2; y=2 : 0.3; q=8 : 1.0; ";
-    dict = bdd_dictionary_create(&dict_struct,"XYZ");
+    if ( !(dict = bdd_dictionary_create(&dict_struct,"XYZ") ))
+        return 0;;
     if (modify_dictionary(dict,DICT_ADD,input,&errmsg)) {
         bdd_dictionary_print(dict,0/*all*/,pbuff);
         // pbuff_flush(pbuff,stdout);
@@ -63,7 +64,8 @@ static void td(bdd_dictionary *d,dict_mode mode,char* modifiers) {
 
 int test_bdd_dictionary_v1() {
     bdd_dictionary dict_struct, *d;
-    d = bdd_dictionary_create(&dict_struct,"mydict");
+    if ( !(d = bdd_dictionary_create(&dict_struct,"mydict")))
+        return 0;
     //
     td(d,DICT_ADD,"x=1:0.6; x=2:0.4");
     td(d,DICT_ADD,"y=1:1.0;");

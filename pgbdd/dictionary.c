@@ -69,7 +69,10 @@ bdd_dictionary* bdd_dictionary_create(bdd_dictionary* dict, char* name) {
     dict->variables  = V_dict_var_init((V_dict_var*)(&dict->buff[dict->var_offset]));
     dict->val_offset = sizeof(V_dict_var);
     dict->values     = V_dict_val_init((V_dict_val*)(&dict->buff[dict->val_offset]));
-    return dict;
+    if ( (dict->variables == NULL) || (dict->values == NULL) )
+        return NULL;
+    else
+        return dict;
 }
 
 bdd_dictionary* bdd_dictionary_relocate(bdd_dictionary* dict) {
@@ -151,14 +154,14 @@ static dict_var* new_var(bdd_dictionary* dict, char* name) {
 
     dict->var_sorted = 0;
     int index = V_dict_var_add(dict->variables,&newvar);
-    return V_dict_var_getp(dict->variables,index);
+    return (index<0) ? NULL : V_dict_var_getp(dict->variables,index);
 }
 
 static dict_val* new_val(bdd_dictionary* dict, int value, double prob) {
     dict_val newval = { .value = value, .prob = prob };
 
     int index = V_dict_val_add(dict->values,&newval);
-    return V_dict_val_getp(dict->values,index);
+    return (index<0) ? NULL : V_dict_val_getp(dict->values,index);
 }
 
 
@@ -280,9 +283,11 @@ int modify_dictionary(bdd_dictionary* dict, dict_mode mode, char* dictionary_def
         if ( varp == NULL ) {
             varp = bdd_dictionary_lookup_var(dict,varname);
             if ( varp == NULL ) {
-                if (mode == DICT_ADD)
-                    varp = new_var(dict,varname);
-                else
+                if (mode == DICT_ADD) {
+                    if ( !(varp = new_var(dict,varname)) ) {
+                        return pg_error(_errmsg,"modify_dictionary:error creating var \"%s\"",varname);
+                    }
+                } else
                     return pg_error(_errmsg,"modify_dictionary:upd/del: unknown var \"%s\"",varname);
             } 
         }
