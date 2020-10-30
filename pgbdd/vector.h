@@ -33,8 +33,8 @@
 #define VECTOR_MAGIC 1234321
 #define VECTOR_BSEARCH_NEG_OFFSET 10
 
-// #define VECTOR_OPTIMIZE
-#ifdef  VECTOR_OPTIMIZE
+// #define BDD_OPTIMIZE
+#ifdef  BDD_OPTIMIZE
 #define VECTOR_ASSERT(V)
 #define RANGE_ASSERT(V,I)
 #else

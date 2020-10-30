@@ -75,7 +75,12 @@ extern bdd_alg *BDD_DEFAULT, *BDD_BASE, *BDD_KAJ, *BDD_PROBBDD;
 bdd_alg* bdd_algorithm(char*, char** _errmsg);
 
 
+#ifdef BDD_OPTIMIZE
+#define bdd_node(PBDD,I) (&(PBDD)->tree.items[I])
+#else
 #define bdd_node(PBDD,I) (V_rva_node_getp(&(PBDD)->tree,I))
+#endif
+
 #define bdd_rva(PBDD,I)  (&bdd_node(PBDD,I)->rva)
 
 #define IS_LEAF(N)       (((N)->low==-1)&&((N)->high==-1))
@@ -83,7 +88,8 @@ bdd_alg* bdd_algorithm(char*, char** _errmsg);
 #define bdd_low(PBDD,I)  (bdd_node(PBDD,I)->low)
 #define bdd_high(PBDD,I) (bdd_node(PBDD,I)->high)
 
-int   is_samevar(rva*, rva*);
+#define IS_SAMEVAR(L,R)  (strcmp((L)->var,(R)->var)==0)
+
 
 //
 

@@ -117,10 +117,6 @@ void bdd_info(bdd* bdd, pbuff* pbuff) {
     bdd_print_tree(&bdd->tree,pbuff);
 }
 
-int is_samevar(rva* l, rva* r) {
-    return strcmp(l->var,r->var) == 0;
-}
-
 static int bdd_lookup(bdd_runtime* bdd, rva* rva, int low, int high) {
     // ORIGINAL: 
     // rva_node tofind = { .rva  = *rva, .low  = low, .high = high };
@@ -356,7 +352,7 @@ static int bdd_build_bdd_KAJ(bdd_alg* alg, bdd_runtime* bdd, char* expr, int i, 
     int dis = i+1;
     while ( dis < V_rva_size(&bdd->order) ) {
          rva* disvar = V_rva_getp(&bdd->order,dis);
-         if ( !is_samevar(var,disvar) )
+         if ( !IS_SAMEVAR(var,disvar) )
              break; // break while
          if ( var->val != disvar->val ) {
              char dis_rva_string[MAX_RVA_LEN];
@@ -597,7 +593,7 @@ static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, int i,char** 
         int high = node->high;
 #define MAURICE_NEW
 #ifdef MAURICE_NEW
-        while ( is_samevar(bdd_rva(bdd,high),rva) ) {
+        while ( IS_SAMEVAR(bdd_rva(bdd,high),rva) ) {
             high = bdd_low(bdd,high);
         }
 #endif
@@ -610,7 +606,7 @@ static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, int i,char** 
         if ( p_l < 0.0 || p_h < 0.0 )
             return -1.0;
         res = (p_root * p_h) + p_l;
-        if ( ! is_samevar(rva,bdd_rva(bdd,low)) )
+        if ( ! IS_SAMEVAR(rva,bdd_rva(bdd,low)) )
             res = res - p_root*p_l;
 #ifdef BDD_VERBOSE
         if ( verbose )

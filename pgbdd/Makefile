@@ -2,12 +2,12 @@
 # Makefile for Postgres pgbdd extension and test environment
 #
 
-# PG_CFLAGS  = -Ofast # switch on for large speedup
-
 MYEXT      = pgbdd
 EXTENSION  = $(MYEXT)
 MODULE_big = $(MYEXT)
 DATA       = pgbdd--0.0.1.sql
+
+# PG_CFLAGS  = -Ofast -DBDD_OPTIMIZE # switch off costly checks & optimize
 
 SRCBASE    = TAG_dictionary.c TAG_bdd.c TAG_utils.c TAG_vector.c
 

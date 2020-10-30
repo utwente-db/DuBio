@@ -181,7 +181,6 @@ static int test_bdd_probability() {
        );
     return 1;
 }
-// (x=1&((y=1|y=2)&x=2))
 
 //
 //
