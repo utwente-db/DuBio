@@ -39,15 +39,15 @@ void dp_print(const char *fmt,...);
  * Buffer print functions, all printing should go to buffers
  */
 
-#define MAX_BPRINTF             1024 /* max # printed chars in 1 bprintf() */
-
-#define DEFAULT_PBUFF_SIZE      1024 /* initial PBUFF size without alloc */
+#define PBUFF_MAX_BPRINTF       1024 /* max # printed chars in 1 bprintf() */
+#define PBUFF_MAX_TOTAL       130000 /* max # printed chars in 1 buffer()  */
+#define PBUFF_INITIAL_SIZE      1024 /* initial PBUFF size without alloc */
 
 typedef struct pbuff {
     int   size;
     int   capacity;
     char* buffer;
-    char  fast_buffer[DEFAULT_PBUFF_SIZE];
+    char  fast_buffer[PBUFF_INITIAL_SIZE];
 } pbuff;
 
 pbuff* pbuff_init(pbuff*);

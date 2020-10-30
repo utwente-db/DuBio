@@ -162,7 +162,7 @@ void fast_itoa(char *dst, uint32_t val)
 
 pbuff* pbuff_init(pbuff* pbuff) {
     pbuff->size     = 0;
-    pbuff->capacity = DEFAULT_PBUFF_SIZE;
+    pbuff->capacity = PBUFF_INITIAL_SIZE;
     pbuff->buffer   = pbuff->fast_buffer;
     pbuff->buffer[0]= 0;
     return pbuff;
@@ -199,17 +199,28 @@ void pbuff_flush(pbuff* pbuff, FILE* out) {
     pbuff->buffer[0] = 0;
 }
 
+static const char overflow_message[] = "[*PRINTBUFFER OVERFLOW*]\n";
+
 int bprintf(pbuff* pbuff, const char *fmt,...)
 {
     va_list ap;
-    char buffer[MAX_BPRINTF];
+    char buffer[PBUFF_MAX_BPRINTF];
 
     va_start(ap, fmt);
-    vsnprintf(buffer,MAX_BPRINTF,fmt,ap);
+    vsnprintf(buffer,PBUFF_MAX_BPRINTF,fmt,ap);
     va_end(ap);
     //
     int size = strlen(buffer);
     if ( (pbuff->size+size+1) > pbuff->capacity) {
+        if ( pbuff->capacity > PBUFF_MAX_TOTAL) {
+            // buffer is at its maximum size
+            if ( !(pbuff->size > pbuff->capacity) ) { // alreay overflowing
+                strcpy(&pbuff->buffer[pbuff->size -strlen(overflow_message)-1],
+                       overflow_message);
+                pbuff->size = pbuff->capacity + 1;
+            }
+            return 1;
+        }
         pbuff->capacity *= 2;
         if ( pbuff->buffer == pbuff->fast_buffer )  {
             if ( !(pbuff->buffer = (char*)MALLOC(pbuff->capacity)) )
