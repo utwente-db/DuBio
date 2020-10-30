@@ -103,7 +103,7 @@ void bdd_dictionary_print(bdd_dictionary* dict, int all, pbuff* pbuff) {
     if ( all ) {
         for(int i=0; i<V_dict_var_size(dict->variables); i++) {
             dict_var* varp = V_dict_var_getp(dict->variables,i);
-            bprintf(pbuff,"(%d)\t\"%s\"\t o(%d)\t c(%d)\n",i,varp->name,varp->offset,varp->cardinality);
+            bprintf(pbuff,"(%d)\t\"%s\"\t o(%d)\t c(%d)\n",i,varp->name,varp->offset,varp->card);
         }
         bprintf(pbuff,"+ Values:\n");
         for(int i=0; i<V_dict_val_size(dict->values); i++) {
@@ -114,7 +114,7 @@ void bdd_dictionary_print(bdd_dictionary* dict, int all, pbuff* pbuff) {
     if ( 1 ) {
         for(int i=0; i<V_dict_var_size(dict->variables); i++) {
             dict_var* varp = V_dict_var_getp(dict->variables,i);
-            for(int j=varp->offset; j<(varp->offset+varp->cardinality); j++) {
+            for(int j=varp->offset; j<(varp->offset+varp->card); j++) {
                 dict_val* valp = V_dict_val_getp(dict->values,j);
                 bprintf(pbuff,"%s=%d:%f; ",varp->name,valp->value,valp->prob);
             }
@@ -146,7 +146,7 @@ int bdd_dictionary_sort(bdd_dictionary* dict) {
 }
 
 static dict_var* new_var(bdd_dictionary* dict, char* name) {
-    dict_var newvar = { .offset=V_dict_val_size(dict->values), .cardinality=0 };
+    dict_var newvar = { .offset=V_dict_val_size(dict->values), .card=0 };
     strcpy(newvar.name,name);
 
     dict->var_sorted = 0;
@@ -164,7 +164,7 @@ static dict_val* new_val(bdd_dictionary* dict, int value, double prob) {
 
 static int get_var_value_index(bdd_dictionary* dict, dict_var* varp, int val) {
     if ( val >= 0 ) {
-        for(int i=varp->offset; i<(varp->offset+varp->cardinality); i++) {
+        for(int i=varp->offset; i<(varp->offset+varp->card); i++) {
             dict_val* valp = V_dict_val_getp(dict->values,i);
             if (  val == valp->value )
                 return i;
@@ -173,7 +173,7 @@ static int get_var_value_index(bdd_dictionary* dict, dict_var* varp, int val) {
     return -1;
 }
 
-double dictionary_lookup_prob(bdd_dictionary* dict,rva* rva) {
+double lookup_probability(bdd_dictionary* dict,rva* rva) {
     int val_index;
 
     dict_var* varp = bdd_dictionary_lookup_var(dict,rva->var);
@@ -192,13 +192,13 @@ double dictionary_lookup_prob(bdd_dictionary* dict,rva* rva) {
 static int normalize_var(bdd_dictionary* dict, dict_var* varp) { 
     double total = 0.0;
 
-    for(int i=varp->offset; i<(varp->offset+varp->cardinality); i++) {
+    for(int i=varp->offset; i<(varp->offset+varp->card); i++) {
         dict_val* valp = V_dict_val_getp(dict->values,i);
         total += valp->prob;
     }
     if ( total<(1.0-0.0001) || total>(1.0+0.0001) ) {
         double factor = 1.0/total;
-        for(int i=varp->offset; i<(varp->offset+varp->cardinality); i++) {
+        for(int i=varp->offset; i<(varp->offset+varp->card); i++) {
             dict_val* valp = V_dict_val_getp(dict->values,i);
             valp->prob *= factor;
         }
@@ -294,18 +294,18 @@ int modify_dictionary(bdd_dictionary* dict, dict_mode mode, char* dictionary_def
                     // first check if the varp values are at tail of 'values',
                     // if not create a value 'hole' and copy all varp val/prob
                     // values to end of 'values' and add the new value.
-                    if (!((varp->offset+varp->cardinality)==V_dict_val_size(dict->values))) {
+                    if (!((varp->offset+varp->card)==V_dict_val_size(dict->values))) {
                         int prev_offset    = varp->offset;
                         varp->offset       = V_dict_val_size(dict->values);
-                        for (int i =0; i<varp->cardinality; i++) {
+                        for (int i =0; i<varp->card; i++) {
                         if ( !new_val(dict,dict->values->items[prev_offset+i].value,dict->values->items[prev_offset+i].prob)  )
                             return pg_error(_errmsg,"modify_dictionary:add: internal error reorganzing values");
                         }
-                        dict->val_deleted += varp->cardinality; // 'hole' size
+                        dict->val_deleted += varp->card; // 'hole' size
                     }
                     if ( !new_val(dict,scan_val,scan_prob)  )
                         return pg_error(_errmsg,"modify_dictionary:add: internal error %s=%f ",varname,scan_var,scan_prob);
-                    varp->cardinality++;
+                    varp->card++;
                 } else {
                     return pg_error(_errmsg,"modify_dictionary:add: variable/value %s=%d does not exist ",varname,scan_val);
                 }
@@ -320,7 +320,7 @@ int modify_dictionary(bdd_dictionary* dict, dict_mode mode, char* dictionary_def
         } else { // mode == DICT_DEL
             if ( scan_val == VALUE_WILDCARD ) {
                 // delete entire var
-                dict->val_deleted += varp->cardinality;
+                dict->val_deleted += varp->card;
                 int var_index = lookup_var_index(dict,varname);
                 V_dict_var_delete(dict->variables,var_index);
                 varp = NULL; // to prevent normalization
@@ -329,14 +329,14 @@ int modify_dictionary(bdd_dictionary* dict, dict_mode mode, char* dictionary_def
                 if ( (vvi=get_var_value_index(dict,varp,scan_val)) < 0)
                     return pg_error(_errmsg,"modify_dictionary:del: variable/value %s=%d does not exits ",varname,scan_val);
                 dict->val_deleted++;
-                if ( --varp->cardinality == 0) { // delete entire var
-                    dict->val_deleted += varp->cardinality;
+                if ( --varp->card == 0) { // delete entire var
+                    dict->val_deleted += varp->card;
                     int var_index = lookup_var_index(dict,varname);
                     V_dict_var_delete(dict->variables,var_index);
                     varp = NULL; // to prevent normalization
                 } else {
-                    // V_dict_val_copy_range(dict->values,vvi,varp->offset+varp->cardinality-vvi-1,vvi+1);
-                    for(int i=vvi; i<(varp->offset+varp->cardinality); i++) {
+                    // V_dict_val_copy_range(dict->values,vvi,varp->offset+varp->card-vvi-1,vvi+1);
+                    for(int i=vvi; i<(varp->offset+varp->card); i++) {
                         dict->values->items[i] = dict->values->items[i+1]; // INCOMPLETE: UGLY!!!!
                     }
                 }

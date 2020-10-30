@@ -75,28 +75,25 @@ extern bdd_alg *BDD_DEFAULT, *BDD_BASE, *BDD_KAJ, *BDD_PROBBDD;
 bdd_alg* bdd_algorithm(char*, char** _errmsg);
 
 
-#define bdd_node(BDDP,I) (V_rva_node_getp(&(BDDP)->tree,I))
-#define bdd_rva(BDDP,I)  (&bdd_node(BDDP,I)->rva)
+#define bdd_node(PBDD,I) (V_rva_node_getp(&(PBDD)->tree,I))
+#define bdd_rva(PBDD,I)  (&bdd_node(PBDD,I)->rva)
 
 #define IS_LEAF(N)       (((N)->low==-1)&&((N)->high==-1))
 
-#define bdd_low(BDDP,I)  (bdd_node(BDDP,I)->low)
-#define bdd_high(BDDP,I) (bdd_node(BDDP,I)->high)
+#define bdd_low(PBDD,I)  (bdd_node(PBDD,I)->low)
+#define bdd_high(PBDD,I) (bdd_node(PBDD,I)->high)
 
 int   is_samevar(rva*, rva*);
 
 //
 
-void bdd_free(bdd_runtime*);
-bdd* serialize_bdd(bdd*);
-
 bdd* create_bdd(bdd_alg*,char*,char**,int);
-void bdd_info(bdd*, pbuff*);
+void bdd_free(bdd_runtime*);
+
+bdd* serialize_bdd(bdd*);
 bdd* relocate_bdd(bdd*);
 
-void bdd_print_V_rva(V_rva*, pbuff*);
-void bdd_print_tree(V_rva_node*, pbuff*);
-
+void bdd_info(bdd*, pbuff*);
 void bdd_generate_dot(bdd*,pbuff*,char**);
 void bdd_generate_dotfile(bdd*,char*,char**);
 

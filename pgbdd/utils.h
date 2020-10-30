@@ -17,9 +17,9 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-//
-//
-//
+/*
+ * Debugging functions for use 'in' the posgres engine
+ */
 
 extern FILE* _debug_file;
 
@@ -35,12 +35,11 @@ void dp_print(const char *fmt,...);
  * DP("+ dictionary_add() - 0\n"); // can be any printf style print
  */
 
-//
-//
-//
+/*
+ * Buffer print functions, all printing should go to buffers
+ */
 
 #define DEFAULT_PBUFF_SIZE      1024
-// #define DEFAULT_PBUFF_SIZE      16
 
 typedef struct pbuff {
     int   size;
@@ -56,21 +55,33 @@ void   pbuff_free(pbuff*);
 void   pbuff_flush(pbuff*, FILE*);
 int    bprintf(pbuff* pbuff, const char *fmt,...);
 
-//
-//
-//
+/*
+ * Handling of errors and fatalities!
+ *
+ */
 
 int pg_fatal(const char*,...);
-
 int pg_error(char**, const char*,...);
 
-char* bdd_replace_str(char*,char*,char*,char);
+/*
+ * String and numeric utility functions
+ */
 
 int    bdd_atoi(char*);
 double bdd_atof(char*);
 void   fast_itoa(char *buf, uint32_t val);
 
+char* bdd_replace_str(char*,char*,char*,char);
+
+/* 
+ * The fast boolean expression evaluator (BEE)
+ */
+
 int bee_eval(char*,char**);
+
+/*
+ * The test function of this file!
+ */
 
 void test_utils(void);
 

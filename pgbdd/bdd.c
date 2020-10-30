@@ -74,7 +74,30 @@ void bdd_free(bdd_runtime* bdd) {
     V_rva_node_free(&bdd->core.tree);
 }
 
+static void bdd_print_row(rva_node* row, pbuff* pbuff) {
+    if ( row->rva.val < 0 )
+        bprintf(pbuff,"[\"%s\"]\n",row->rva.var);
+    else
+        bprintf(pbuff,"[\"%s=%d\",%d,%d]\n",row->rva.var,row->rva.val,row->low,row->high);
+}
+
+static void bdd_print_tree(V_rva_node* tree, pbuff* pbuff) {
+    for(int i=0; i<V_rva_node_size(tree); i++) {
+        bprintf(pbuff,"\t%d:\t",i);
+        bdd_print_row(V_rva_node_getp(tree,i),pbuff);
+    }
+}
+
 #ifdef BDD_VERBOSE
+static void bdd_print_V_rva(V_rva* v, pbuff* pbuff) {
+    bprintf(pbuff,"{");
+    for(int i=0; i<V_rva_size(v); i++) {
+        rva* rva = V_rva_getp(v,i);
+        bprintf(pbuff,"%s=%d ",rva->var,rva->val);
+    }
+    bprintf(pbuff,"}");
+}
+
 static void bdd_print(bdd_runtime* bdd, pbuff* pbuff) {
     bprintf(pbuff,"+ expr     = %s\n",bdd->core.expr);
     bprintf(pbuff,"+ order    = ");
@@ -480,32 +503,9 @@ bdd* relocate_bdd(bdd* tbr) {
 //
 //
 
-void bdd_print_V_rva(V_rva* v, pbuff* pbuff) {
-    bprintf(pbuff,"{");
-    for(int i=0; i<V_rva_size(v); i++) {
-        rva* rva = V_rva_getp(v,i);
-        bprintf(pbuff,"%s=%d ",rva->var,rva->val);
-    }
-    bprintf(pbuff,"}");
-}
-
 /*
  *
  */
-
-static void bdd_print_row(rva_node* row, pbuff* pbuff) {
-    if ( row->rva.val < 0 )
-        bprintf(pbuff,"[\"%s\"]\n",row->rva.var);
-    else
-        bprintf(pbuff,"[\"%s=%d\",%d,%d]\n",row->rva.var,row->rva.val,row->low,row->high);
-}
-
-void bdd_print_tree(V_rva_node* tree, pbuff* pbuff) {
-    for(int i=0; i<V_rva_node_size(tree); i++) {
-        bprintf(pbuff,"\t%d:\t",i);
-        bdd_print_row(V_rva_node_getp(tree,i),pbuff);
-    }
-}
 
 static void generate_label(pbuff* pbuff, int i, rva* base, char* extra) {
     if ( base->val < 0 )
@@ -570,7 +570,7 @@ static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, int i,char** 
             fprintf(stdout,"++ is_leaf: P=%f\n",res);
 #endif
     } else {
-        p_root = dictionary_lookup_prob(dict,rva);
+        p_root = lookup_probability(dict,rva);
         if ( p_root < 0.0 ) {
             pg_error(_errmsg,"dictionary_lookup: rva[\'%s\'] not found.",rva);
             return -1.0;

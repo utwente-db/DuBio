@@ -82,20 +82,10 @@ int pg_fatal(const char *fmt,...)
  *
  *
  */
-/*
- *
- *
- */
-
-// #define TRACE_REWRITE
 
 char* bdd_replace_str(char *dst, char* src, char *find, char replace) {
     int strlen_find    = strlen(find);
 
-#ifdef TRACE_REWRITE
-    fprintf(stdout,"+ bdd_replace_str: find=\"%s\", repl=\'%c\'\n",find,replace);
-    fprintf(stdout,"+ IN: \"%s\"\n",src);
-#endif
     int delta, dst_i = 0;
     char *cp, *last;
     last = cp = src;
@@ -109,9 +99,6 @@ char* bdd_replace_str(char *dst, char* src, char *find, char replace) {
     delta = strlen(last);
     memcpy(&dst[dst_i],last,delta);
     dst[dst_i+delta] = 0;
-#ifdef TRACE_REWRITE
-    fprintf(stdout,"+ OUT:\"%s\"\n",dst);
-#endif
     return dst;
 } 
 
@@ -168,6 +155,10 @@ void fast_itoa(char *dst, uint32_t val)
     size_t res_len =  10 - (size_t)(res - buf);
     memcpy(dst,res,res_len+1);
 }
+
+/*
+ *
+ */
 
 pbuff* pbuff_init(pbuff* pbuff) {
     pbuff->size     = 0;
@@ -282,7 +273,6 @@ typedef unsigned char bee_token;
 
 #ifdef BEE_DEBUG
 
-/*
 static char *bee_state_STR[bee_NSTATES] = {
         "bee_s0", "bee_s1", "bee_snot", "bee_s0and", "bee_s0or", "bee_s1and",
         "bee_s1or", "bee_salways0", "bee_salways1", "bee_svalstart",
@@ -290,13 +280,6 @@ static char *bee_state_STR[bee_NSTATES] = {
         "bee_sparclose" };
 
 static char *bee_token_STR[bee_NTOKEN] = {"0","1","!","&","|","(",")","E"};
-*/
-
-static char *bee_state_STR[bee_NSTATES] = {
-        "S0", "S1", "SNOT", "S0AND", "S0OR", "S1AND",
-        "S1OR", "SALWAYS0", "SALWAYS1", "SVALSTART",
-        "SRESULT0", "SRESULT1", "SPAROPEN", "ERROR", 
-        "SPARCLOSE" };
 
 static char *bee_token_STR[bee_NTOKEN] = {"0","1","NOT","AND","OR","(",")","END"};
 
@@ -418,6 +401,5 @@ static int bee_eval_fsm(char* t, char** _errmsg) {
 }
 
 int bee_eval(char* boolean_expr, char** _errmsg) {
-    // fprintf(stdout,"EVAL: %s\n",boolean_expr);
     return (parse_tokens(boolean_expr,_errmsg)!=-1) ? bee_eval_fsm(boolean_expr,_errmsg) : -1;
 }

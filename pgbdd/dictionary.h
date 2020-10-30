@@ -24,7 +24,7 @@
 typedef struct dict_var {
     char name[MAX_RVA_NAME];
     int  offset;
-    int  cardinality;
+    int  card;
 } dict_var;
 
 DefVectorH(dict_var);
@@ -59,7 +59,6 @@ typedef struct bdd_dictionary {
 #define BDD_DICTIONARY_BASESIZE (sizeof(bdd_dictionary)-(sizeof(V_dict_var)+sizeof(V_dict_val)))
 
 //
-typedef struct rva rva;
 
 bdd_dictionary* bdd_dictionary_create(bdd_dictionary*,char*);
 int bdd_dictionary_free(bdd_dictionary*);
@@ -71,11 +70,12 @@ int bdd_dictionary_sort(bdd_dictionary* dict);
 typedef enum dict_mode{DICT_ADD, DICT_DEL, DICT_UPD} dict_mode;
 int modify_dictionary(bdd_dictionary*, dict_mode, char*, char**);
 
-double dictionary_lookup_prob(bdd_dictionary*,rva*);
+typedef struct rva rva; /* forward */
+
+double lookup_probability(bdd_dictionary*,rva*);
 
 int test_bdd_dictionary_v0(void);
 int test_bdd_dictionary_v1(void);
-int test_bdd_dictionary_v2(void);
 
 int test_dictionary(void);
 
