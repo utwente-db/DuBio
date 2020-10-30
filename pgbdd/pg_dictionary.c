@@ -32,7 +32,7 @@ dictionary_in(PG_FUNCTION_ARGS)
 
     char *dictname = PG_GETARG_CSTRING(0);
     if ( !(new_dict = bdd_dictionary_create(&new_dict_struct,dictname)) )
-        return vector_error("DICTIONARY CREATE[%s] faileds",dictname);
+        ereport(ERROR,(errmsg("dictionary_in: dictionary create \'%s\' failed",dictname)));
     bdd_dictionary* return_dict = bdd_dictionary_serialize(new_dict);
     bdd_dictionary_free(new_dict);
     bdd_dictionary_sort(return_dict); // INCOMPLETE ???

@@ -20,8 +20,8 @@
 #include <string.h>
 #include <ctype.h>
 
-#include "vector.h"
 #include "utils.h"
+#include "vector.h"
 #include "dictionary.h"
 #include "bdd.h"
 

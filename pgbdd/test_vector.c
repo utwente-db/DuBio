@@ -17,7 +17,13 @@
 
 #include "test_config.h"
 
-#include "vector.c"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+
+#include "utils.h"
+#include "vector.h"
 
 DefVectorH(int);
 DefVectorC(int);
@@ -44,12 +50,12 @@ static void test_int(){
     for(int i=0; i<V_int_size(vc); i++) {
         // fprintf(stdout,"v[%d]=%d ",i,V_int_get(vc,i));
         if ( V_int_get(vc,i) != V_int_get(&vv,i) )
-            vector_error("Should not happen 1");
+            pg_fatal("Should not happen 1");
     }
     // putc('\n', stdout);
     int tofind = 9;
     if ( V_int_find(vc,cmpInt,&tofind) != V_int_bsearch(vc,cmpInt,0,vc->size-1,&tofind) )
-        vector_error("Should not happen-2");
+        pg_fatal("Should not happen-2");
     V_int_free(&vv);
     V_int_free(vc);
     FREE(buff);
@@ -108,7 +114,7 @@ static void test_IV(){
     V_IV_quicksort(vv,0,vv->size-1,cmpIVi);
     for(int i=0; i<vv->size; i++) {
         if ( V_IV_get(vv,i).i < last )
-            vector_error("Should not happen, not sorted");
+            pg_fatal("Should not happen, not sorted");
         last = V_IV_get(vv,i).i;
     }
     //
@@ -116,11 +122,11 @@ static void test_IV(){
     V_IV_quicksort(vc,0,vc->size-1,cmpIVv);
     for(int i=0; i<vc->size; i++) {
         if ( V_IV_get(vc,i).v < last )
-            vector_error("Should not happen, not sorted");
+            pg_fatal("Should not happen, not sorted");
         lastf = V_IV_get(vv,i).v;
         int fi = V_IV_bsearch(vv,cmpIVi,0,vv->size-1,V_IV_getp(vc,i));
         if ( V_IV_get(vv,fi).v != V_IV_get(vc,i).v )
-            vector_error("Should not happen-9 fi=%d [%f <> %f]",fi,vv->items[fi].v,vc->items[i].v);
+            pg_fatal("Should not happen-9 fi=%d [%f <> %f]",fi,vv->items[fi].v,vc->items[i].v);
     }
     //
     V_IV_free(vv);

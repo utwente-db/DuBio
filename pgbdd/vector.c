@@ -15,22 +15,3 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdarg.h>
-#include <stdnoreturn.h>
-
-#include "vector.h"
-
-int vector_error(const char *fmt,...)
-{
-    va_list ap;
-    fprintf(stderr,"vector_error:");
-    va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
-    va_end(ap);
-    putc('\n', stderr);
-    if (1) exit(EXIT_FAILURE);
-    return 0;
-}

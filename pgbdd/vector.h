@@ -38,8 +38,8 @@
 #define VECTOR_ASSERT(V)
 #define RANGE_ASSERT(V,I)
 #else
-#define VECTOR_ASSERT(V)  if ((V->magic!=VECTOR_MAGIC)||(V->size<0)||(V->size>V->capacity)||(!V->items)) vector_error("VECTOR_ASSERT FAILS")
-#define RANGE_ASSERT(V,I) if (((I)<0)&&((I)>=V->size)) vector_error("RANGE_ASSERT FAILS %d not in [0-%d]",I,V->size)
+#define VECTOR_ASSERT(V)  if ((V->magic!=VECTOR_MAGIC)||(V->size<0)||(V->size>V->capacity)||(!V->items)) pg_fatal("VECTOR_ASSERT FAILS")
+#define RANGE_ASSERT(V,I) if (((I)<0)&&((I)>=V->size)) pg_fatal("RANGE_ASSERT FAILS %d not in [0-%d]",I,V->size)
 #endif
 
 #define VECTOR_INIT_CAPACITY 4
@@ -196,8 +196,6 @@ type V_##type##_get(V_##type *v, int index) \
 { \
     VECTOR_ASSERT(v); \
     RANGE_ASSERT(v,index); \
-    if (index < 0 || index >= v->size) \
-        vector_error("vector_get index out of range %d / [%d,%d]",index,0,v->size); \
     return v->items[index]; \
 } \
 \
@@ -205,8 +203,6 @@ type* V_##type##_getp(V_##type *v, int index) \
 { \
     VECTOR_ASSERT(v); \
     RANGE_ASSERT(v,index); \
-    if (index < 0 || index >= v->size) \
-        vector_error("vector_getp index out of range %d / [%d,%d]",index,0,v->size); \
     return &(v->items[index]); \
 } \
 \
@@ -214,8 +210,6 @@ void V_##type##_delete(V_##type *v, int index) \
 { \
     VECTOR_ASSERT(v); \
     RANGE_ASSERT(v,index); \
-    if (index < 0 || index >= v->size) \
-        vector_error("delete index out of range %d / [%d,%d]",index,0,v->size); \
     memmove(&(v->items[index]),&(v->items[index+1]),(v->size-index-1)*sizeof(type)); \
     v->size--; \
 } \
@@ -294,9 +288,6 @@ void V_##type##_free(V_##type *v) \
     }  \
     v->items = NULL; \
 }
-
-
-int vector_error(const char*,...);
 
 void test_vector(void);
 

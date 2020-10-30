@@ -23,8 +23,8 @@
 #include <stdarg.h>
 #include <stdnoreturn.h>
 
-#include "vector.h"
 #include "utils.h"
+#include "vector.h"
 
 //
 //

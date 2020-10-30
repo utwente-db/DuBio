@@ -20,8 +20,8 @@
 #include <string.h>
 #include <ctype.h>
 
-#include "vector.h"
 #include "utils.h"
+#include "vector.h"
 #include "dictionary.h"
 #include "bdd.h"
 
@@ -81,7 +81,7 @@ bdd_dictionary* bdd_dictionary_relocate(bdd_dictionary* dict) {
     dict->values     = (V_dict_val*)(&dict->buff[dict->val_offset]);
     V_dict_val_relocate(dict->values);
     if ( !bdd_dictionary_is_serialized(dict) ) 
-        vector_error("bdd_dictionary_relocate: dictionary was not serialized");
+        pg_fatal("bdd_dictionary_relocate: dictionary was not serialized");
     return dict;
 }
 
