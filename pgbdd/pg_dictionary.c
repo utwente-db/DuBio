@@ -33,11 +33,11 @@ dictionary_in(PG_FUNCTION_ARGS)
     char *dictname = PG_GETARG_CSTRING(0);
     if ( !(new_dict = bdd_dictionary_create(&new_dict_struct,dictname)) )
         ereport(ERROR,(errmsg("dictionary_in: dictionary create \'%s\' failed",dictname)));
-    bdd_dictionary* return_dict = bdd_dictionary_serialize(new_dict);
+    bdd_dictionary* storage_dict = bdd_dictionary_serialize(new_dict);
     bdd_dictionary_free(new_dict);
-    bdd_dictionary_sort(return_dict); // INCOMPLETE ???
-    SET_VARSIZE(return_dict,return_dict->bytesize);
-    PG_RETURN_DICTIONARY(return_dict);
+    bdd_dictionary_sort(storage_dict); // INCOMPLETE ???
+    SET_VARSIZE(storage_dict,storage_dict->bytesize);
+    PG_RETURN_DICTIONARY(storage_dict);
 }
 
 
@@ -113,22 +113,19 @@ PG_FUNCTION_INFO_V1(dictionary_add);
 Datum
 dictionary_add(PG_FUNCTION_ARGS)
 {
-    bdd_dictionary  *dict    = PG_GETARG_DICTIONARY(0);
-    char            *vardefs = PG_GETARG_CSTRING(1);
-    bdd_dictionary  *return_dict = NULL;
-    char            *_errmsg     = NULL;
+    bdd_dictionary  *dict         = PG_GETARG_DICTIONARY(0);
+    char            *vardefs      = PG_GETARG_CSTRING(1);
+    bdd_dictionary  *storage_dict = NULL;
+    char            *_errmsg      = NULL;
 
     if ( !dict )
         ereport(ERROR,(errmsg("dictionary_add: %s","internal error bad dict parameter")));
     if ( !modify_dictionary(dict,DICT_ADD,vardefs,&_errmsg) )
         ereport(ERROR,(errmsg("%s",_errmsg)));
-    if ( !(
-           (return_dict = bdd_dictionary_serialize(dict))  &&
-           bdd_dictionary_free(dict) &&
-           bdd_dictionary_sort(return_dict) ))
+    if ( !(storage_dict = dictionary_prepare2store(dict)) )
         ereport(ERROR,(errmsg("dictionary_add: %s","internal error serialize/free/sort")));
-    SET_VARSIZE(return_dict,return_dict->bytesize);
-    PG_RETURN_DICTIONARY(return_dict);
+    SET_VARSIZE(storage_dict,storage_dict->bytesize);
+    PG_RETURN_DICTIONARY(storage_dict);
 }
 
 
@@ -143,22 +140,19 @@ PG_FUNCTION_INFO_V1(dictionary_del);
 Datum
 dictionary_del(PG_FUNCTION_ARGS)
 {
-    bdd_dictionary  *dict    = PG_GETARG_DICTIONARY(0);
-    char            *vardefs = PG_GETARG_CSTRING(1);
-    bdd_dictionary  *return_dict = NULL;
-    char            *_errmsg     = NULL;
+    bdd_dictionary  *dict         = PG_GETARG_DICTIONARY(0);
+    char            *vardefs      = PG_GETARG_CSTRING(1);
+    bdd_dictionary  *storage_dict = NULL;
+    char            *_errmsg      = NULL;
 
     if ( !dict )
         ereport(ERROR,(errmsg("dictionary_del: %s","internal error bad dict parameter")));
     if ( !modify_dictionary(dict,DICT_DEL,vardefs,&_errmsg) )
         ereport(ERROR,(errmsg("%s",_errmsg)));
-    if ( !(
-           (return_dict = bdd_dictionary_serialize(dict))  &&
-           bdd_dictionary_free(dict) &&
-           bdd_dictionary_sort(return_dict) ))
-        ereport(ERROR,(errmsg("dictionary_del: %s","internal error serialize/free/sort")));
-    SET_VARSIZE(return_dict,return_dict->bytesize);
-    PG_RETURN_DICTIONARY(return_dict);
+    if ( !(storage_dict = dictionary_prepare2store(dict)) )
+        ereport(ERROR,(errmsg("dictionary_add: %s","internal error serialize/free/sort")));
+    SET_VARSIZE(storage_dict,storage_dict->bytesize);
+    PG_RETURN_DICTIONARY(storage_dict);
 }
 
 
@@ -173,22 +167,17 @@ PG_FUNCTION_INFO_V1(dictionary_upd);
 Datum
 dictionary_upd(PG_FUNCTION_ARGS)
 {
-    bdd_dictionary  *dict    = PG_GETARG_DICTIONARY(0);
-    char            *vardefs = PG_GETARG_CSTRING(1);
-    bdd_dictionary  *return_dict = NULL;
-    char            *_errmsg     = NULL;
+    bdd_dictionary  *dict         = PG_GETARG_DICTIONARY(0);
+    char            *vardefs      = PG_GETARG_CSTRING(1);
+    bdd_dictionary  *storage_dict = NULL;
+    char            *_errmsg      = NULL;
 
     if ( !dict )
         ereport(ERROR,(errmsg("dictionary_upd: %s","internal error bad dict parameter")));
     if ( !modify_dictionary(dict,DICT_UPD,vardefs,&_errmsg) )
         ereport(ERROR,(errmsg("%s",_errmsg)));
-    if ( !(
-           (return_dict = bdd_dictionary_serialize(dict))  &&
-           bdd_dictionary_free(dict) &&
-           bdd_dictionary_sort(return_dict) ))
-        ereport(ERROR,(errmsg("dictionary_upd: %s","internal error serialize/free/sort")));
-    SET_VARSIZE(return_dict,return_dict->bytesize);
-    PG_RETURN_DICTIONARY(return_dict);
+    if ( !(storage_dict = dictionary_prepare2store(dict)) )
+        ereport(ERROR,(errmsg("dictionary_add: %s","internal error serialize/free/sort")));
+    SET_VARSIZE(storage_dict,storage_dict->bytesize);
+    PG_RETURN_DICTIONARY(storage_dict);
 }
-
-

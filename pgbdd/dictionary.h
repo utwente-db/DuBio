@@ -42,11 +42,14 @@ DefVectorH(dict_val);
 
 //
 
+#define MAX_VAL_DELETED 128   /* reorganize above this max number */
+
 typedef struct bdd_dictionary {
     char        vl_len[4]; // used by Postgres memory management
     char        name[MAX_RVA_NAME];
     int         magic;
     int         bytesize;
+    int         n_justcopy;
     int         val_deleted;
     int         var_sorted; // when sorted use binary search to find var
     int         var_offset; // first in buff so is always 0 :-)
@@ -62,7 +65,7 @@ typedef struct bdd_dictionary {
 
 bdd_dictionary* bdd_dictionary_create(bdd_dictionary*,char*);
 int bdd_dictionary_free(bdd_dictionary*);
-bdd_dictionary* bdd_dictionary_serialize(bdd_dictionary*);
+bdd_dictionary* dictionary_prepare2store(bdd_dictionary*);
 bdd_dictionary* bdd_dictionary_relocate(bdd_dictionary*);
 void bdd_dictionary_print(bdd_dictionary* dict, int all, pbuff* pbuff);
 int bdd_dictionary_sort(bdd_dictionary* dict);

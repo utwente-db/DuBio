@@ -43,6 +43,8 @@
 #endif
 
 #define VECTOR_INIT_CAPACITY 4
+#define VECTOR_MAX_INCREASE  4096
+#define VECTOR_INCREASE(N)   ((N<=VECTOR_MAX_INCREASE)?N:VECTOR_MAX_INCREASE)
 
 #define DefVectorH(type) \
 typedef struct V_##type { \
@@ -179,7 +181,7 @@ int V_##type##_add(V_##type *v, type *p_item) \
 { \
     VECTOR_ASSERT(v); \
     if (v->capacity == v->size) \
-        if (!V_##type##_resize(v, v->capacity * 2)) return -1; \
+        if (!V_##type##_resize(v, v->capacity+VECTOR_INCREASE(v->capacity))) return -1; \
     v->items[v->size++] = *p_item; \
     return v->size-1; \
 } \
@@ -219,7 +221,7 @@ int V_##type##_insert_at(V_##type *v, int index, type *p_item) \
     VECTOR_ASSERT(v); \
     RANGE_ASSERT(v,index); \
     if (v->capacity == v->size) \
-        if (!V_##type##_resize(v, v->capacity * 2)) return -1; \
+        if (!V_##type##_resize(v, v->capacity+VECTOR_INCREASE(v->capacity))) return -1; \
     memmove(&(v->items[index+1]),&(v->items[index]),(v->size-index)*sizeof(type)); \
     v->items[index] = *p_item; \
     v->size++; \
@@ -292,6 +294,7 @@ void V_##type##_quicksort(V_##type *v, V_##type##_cmpfun f) \
 void V_##type##_free(V_##type *v) \
 { \
     VECTOR_ASSERT(v); \
+    if (0) memset(v->items,0,sizeof(V_##type)+v->capacity*sizeof(type)); \
     if ( v->dynamic ) { \
         FREE(v->dynamic); \
         v->dynamic = NULL; \

@@ -63,9 +63,12 @@ static void td(bdd_dictionary *d,dict_mode mode,char* modifiers) {
 }
 
 int test_bdd_dictionary_v1() {
-    bdd_dictionary dict_struct, *d;
-    if ( !(d = bdd_dictionary_create(&dict_struct,"mydict")))
+    bdd_dictionary dict_struct, *first_dict, *d;
+    if ( !(first_dict = bdd_dictionary_create(&dict_struct,"mydict")))
         return 0;
+    if ( !(d = bdd_dictionary_serialize(first_dict)))
+        return 0;
+    bdd_dictionary_free(first_dict);
     //
     td(d,DICT_ADD,"x=1:0.6; x=2:0.4");
     td(d,DICT_ADD,"y=1:1.0;");
@@ -79,13 +82,16 @@ int test_bdd_dictionary_v1() {
     td(d,DICT_DEL,"x=*");
     td(d,DICT_ADD,"x=1:0.6; x=2:0.4");
     //
-    if ( 0 ) {
+    if ( 1 && !(d = dictionary_prepare2store(d)))
+        return 0;
+    if ( 1 ) {
         pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
         bdd_dictionary_print(d,1/*all*/,pbuff);
         pbuff_flush(pbuff,stdout);
     }
     //
     bdd_dictionary_free(d);
+    FREE(d);
     //
     return 1;
 }

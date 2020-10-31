@@ -32,23 +32,34 @@ int cmpDict_var(dict_var* l, dict_var* r) {  return strcmp(l->name,r->name); }
 DefVectorC(dict_val);
 
 static int bdd_dictionary_is_serialized(bdd_dictionary* dict) {
-     return V_dict_var_is_serialized(dict->variables) &&
-            V_dict_val_is_serialized(dict->values);
+    if (  V_dict_var_is_serialized(dict->variables) &&
+          V_dict_val_is_serialized(dict->values) ) {
+        if ( (((void*)dict->variables > (void*)dict) && ((void*)(dict->variables+0) <= (void*)(dict+dict->bytesize))) &&
+              (((void*)dict->values > (void*)dict) && ((void*)(dict->values+0) <= (void*)(dict+dict->bytesize))))
+             return 1;
+        else 
+             pg_fatal("bdd_dictionary_is_serialized: UNEXPECTED");
+    }
+    return 0;
 }
 
-bdd_dictionary* bdd_dictionary_serialize(bdd_dictionary* dict) {
+static bdd_dictionary* bdd_dictionary_serialize(bdd_dictionary* dict) {
     bdd_dictionary* res = NULL;
 
-    if ( 0 /* INCOMPLETE */ && bdd_dictionary_is_serialized(dict) ) {
-        // fprintf(stdout,"DICT[%s]: SERIALIZED\n",dict->name);
+    if ( bdd_dictionary_is_serialized(dict) ) {
+        if ( !(res  = (bdd_dictionary*)MALLOC(dict->bytesize)) )
+            return NULL;
+        memcpy(res,dict,dict->bytesize);
+        if ( !bdd_dictionary_relocate(res) )
+            pg_fatal("bdd_dictionary_serialize: relocate error");
+        res->n_justcopy++;
     } else {
-        // fprintf(stdout,"DICT[%s]: NOT SERIALIZED\n",dict->name);
         int varsize = V_dict_var_bytesize(dict->variables);
         int valsize = V_dict_val_bytesize(dict->values);
         int newsize = BDD_DICTIONARY_BASESIZE + varsize + valsize;
         if ( !(res  = (bdd_dictionary*)MALLOC(newsize)) )
             return NULL;
-        *res = *dict;
+        memcpy(res,dict,BDD_DICTIONARY_BASESIZE);
         res->bytesize = newsize;
         res->var_offset = 0;
         res->variables  = V_dict_var_serialize((void*)(&res->buff[res->var_offset]),dict->variables);
@@ -58,15 +69,50 @@ bdd_dictionary* bdd_dictionary_serialize(bdd_dictionary* dict) {
     return res;
 }
 
+bdd_dictionary* dictionary_prepare2store(bdd_dictionary* dict) {
+    bdd_dictionary *res = NULL;
+
+    if ( bdd_dictionary_sort(dict) && (res=bdd_dictionary_serialize(dict))) {
+        /* check if the values Array must be reorganized. During the update
+         * of the dictionary value holes may have been created. Reserializing
+         * the values from the old 'dict' to the new 'res' dict may remove
+         * these holes.
+         */
+        if ( dict->val_deleted > MAX_VAL_DELETED ) {
+            int newcnt = 0;
+            for(int i=0; i<V_dict_var_size(dict->variables); i++) {
+                dict_var* old_varp = V_dict_var_getp(dict->variables,i);
+                dict_var* new_varp = V_dict_var_getp( res->variables,i);
+                
+                new_varp->offset = newcnt;
+                for(int j=old_varp->offset; j<(old_varp->offset+old_varp->card); j++) {
+                    dict_val* valp = V_dict_val_getp(dict->values,j);
+                    V_dict_val_set(res->values,newcnt++,*valp);
+                }
+            }
+            res->values->size = newcnt; // ugly but it works
+            // incomplete, check if capacity should be decreased
+        }
+        /* The dict was the parameter from Postgres. It was serialized in the
+         * beginning but may have been enlarged. The next free statement free's
+         * only these new enlargements which were 'outside' the serialized dict.
+         * Do not remove 'dict' itself, this is pfreed() by Postgres.
+         */
+        bdd_dictionary_free(dict);
+    }
+    return res;
+}
+
 bdd_dictionary* bdd_dictionary_create(bdd_dictionary* dict, char* name) {
     strncpy(dict->name,name,MAX_RVA_NAME);
     // incomplete, randomize for time ???
-    dict->magic      = rand();
-    dict->bytesize   = sizeof(bdd_dictionary);
-    dict->var_sorted = 0;
-    dict->var_offset = 0;
-    dict->val_deleted= 0;
-    dict->variables  = V_dict_var_init((V_dict_var*)(&dict->buff[dict->var_offset]));
+    dict->magic       = rand();
+    dict->bytesize    = sizeof(bdd_dictionary);
+    dict->var_sorted  = 0;
+    dict->var_offset  = 0;
+    dict->val_deleted = 0;
+    dict->n_justcopy  = 0;
+    dict->variables   = V_dict_var_init((V_dict_var*)(&dict->buff[dict->var_offset]));
     dict->val_offset = sizeof(V_dict_var);
     dict->values     = V_dict_val_init((V_dict_val*)(&dict->buff[dict->val_offset]));
     if ( (dict->variables == NULL) || (dict->values == NULL) )
@@ -102,6 +148,7 @@ void bdd_dictionary_print(bdd_dictionary* dict, int all, pbuff* pbuff) {
         bprintf(pbuff,"# values[size/cap]   = [%d/%d]\n",dict->values->size,dict->values->capacity);
         bprintf(pbuff,"# bytesize=%d\n",dict->bytesize);
         bprintf(pbuff,"# sorted=%d\n",dict->var_sorted);
+        bprintf(pbuff,"# n_justcopy=%d\n",dict->n_justcopy);
         bprintf(pbuff,"# val_deleted=%d\n",dict->val_deleted);
         bprintf(pbuff,"# serialized=%d\n",bdd_dictionary_is_serialized(dict));
         bprintf(pbuff,"# magic#=%d\n",dict->magic);
@@ -146,8 +193,10 @@ static dict_var* bdd_dictionary_lookup_var(bdd_dictionary* dict, char* name) {
 }
 
 int bdd_dictionary_sort(bdd_dictionary* dict) {
-    V_dict_var_quicksort(dict->variables,cmpDict_var);
-    dict->var_sorted = 1;
+    if ( !dict->var_sorted ) {
+        V_dict_var_quicksort(dict->variables,cmpDict_var);
+        dict->var_sorted = 1;
+    }
     return 1;
 }
 
@@ -155,9 +204,14 @@ static dict_var* add_variable(bdd_dictionary* dict, char* name) {
     dict_var newvar = { .offset=V_dict_val_size(dict->values), .card=0 };
     strcpy(newvar.name,name);
 
-    dict->var_sorted = 0;
+    dict->var_sorted = 0; // INCOMPLETE, MAYBE KEEP SORTED LIKE BDD
     int index = V_dict_var_add(dict->variables,&newvar);
     return (index<0) ? NULL : V_dict_var_getp(dict->variables,index);
+}
+
+static void del_variable(bdd_dictionary* dict, int var_index) {
+     // dict->var_sorted is unchanged!
+     V_dict_var_delete(dict->variables,var_index);
 }
 
 static dict_val* add_value(bdd_dictionary* dict, int value, double prob) {
@@ -330,7 +384,7 @@ int modify_dictionary(bdd_dictionary* dict, dict_mode mode, char* dictionary_def
                 // delete entire var
                 dict->val_deleted += varp->card;
                 int var_index = lookup_var_index(dict,varname);
-                V_dict_var_delete(dict->variables,var_index);
+                del_variable(dict,var_index);
                 varp = NULL; // to prevent normalization
             } else {
                 // delete one rva
@@ -340,7 +394,7 @@ int modify_dictionary(bdd_dictionary* dict, dict_mode mode, char* dictionary_def
                 if ( --varp->card == 0) { // delete entire var
                     dict->val_deleted += varp->card;
                     int var_index = lookup_var_index(dict,varname);
-                    V_dict_var_delete(dict->variables,var_index);
+                    del_variable(dict,var_index);
                     varp = NULL; // to prevent normalization
                 } else {
                     // V_dict_val_copy_range(dict->values,vvi,varp->offset+varp->card-vvi-1,vvi+1);
