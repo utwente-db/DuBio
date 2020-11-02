@@ -18,7 +18,7 @@ create extension pgbdd;
 create table Dict (name varchar(20), dict dictionary);
 
 -- create the 'mydict' dictionary
-insert into Dict(name,dict) VALUES('mydict',dictionary('mydict'));
+insert into Dict(name,dict) VALUES('mydict',dictionary(''));
 
 -- insert the first variable/value/prob pairs (vvp) in the 'mydict' dictionary
 update Dict

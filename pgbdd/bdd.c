@@ -25,10 +25,6 @@
 #include "dictionary.h"
 #include "bdd.h"
 
-/*
- * TODO: 
- */
-
 //
 
 DefVectorC(rva);
@@ -263,7 +259,7 @@ static int compute_default_order(V_rva* order, char* expr, char** _errmsg) {
 }
 
 /*
- * bdd_alg is used to simulate subtyping/function inheritance
+ * The BASE build()/mk() algorithms
  */
 
 static int bdd_mk_BASE(bdd_alg* alg, bdd_runtime* bdd, rva *v, int l, int h, char** _errmsg) {
@@ -323,6 +319,10 @@ static int bdd_build_bdd_BASE(bdd_alg* alg, bdd_runtime* bdd, char* expr, int i,
         return alg->mk(alg,bdd,var,l,h,_errmsg);
 }
 
+/*
+ * Kaj's algorithm
+ */
+
 static int bdd_build_bdd_KAJ(bdd_alg* alg, bdd_runtime* bdd, char* expr, int i, char* rewrite_buffer, char** _errmsg) {
 #ifdef BDD_VERBOSE
     if ( bdd->verbose )
@@ -368,6 +368,92 @@ static int bdd_build_bdd_KAJ(bdd_alg* alg, bdd_runtime* bdd, char* expr, int i, 
     else
         return alg->mk(alg,bdd,var,l,h,_errmsg);
 }
+
+/*
+ * The ROBDD algorithms
+ */
+
+static void bdd_check_ROBDD(bdd_alg* alg, bdd_runtime* bdd_rt, int root, rva* iv, int l, int h, char** _errmsg) {
+    bdd* bdd = &bdd_rt->core;
+#ifdef BDD_VERBOSE
+    if ( bdd_rt->verbose )
+        fprintf(stdout,"CHECK{%s}[root=%d, l=%d, h=%d]\n",alg->name,root,l,h);
+    bdd_rt->check_calls++;
+#endif
+    int low_branch  = 1;
+    int high_branch = 1;
+    if ( root != 0 && root != 1 ) {
+        high_branch = bdd_high(bdd,root);
+        low_branch  = bdd_low(bdd,root);
+    } else
+        return;
+    if ( IS_LEAF_I(bdd,bdd_high(bdd,root) ) &&
+         IS_LEAF_I(bdd,bdd_low(bdd,root) ) &&
+         IS_LAST_ADDED(bdd,root)  ) {
+        DELETE_LAST_ELEMENT(bdd);
+    } else if (IS_LEAF_I(bdd,bdd_high(bdd,root) ) &&
+               IS_LEAF_I(bdd,bdd_low(bdd,root) ) ) {
+        return;
+    } else if (IS_LAST_ADDED(bdd,root) ) {
+        if (IS_LAST_ADDED(bdd,h) )
+            return;
+        DELETE_LAST_ELEMENT(bdd);
+        if ( high_branch > low_branch ) {
+            bdd_check_ROBDD(alg,bdd_rt,high_branch,iv,l,h,_errmsg);
+            bdd_check_ROBDD(alg,bdd_rt, low_branch,iv,l,h,_errmsg);
+        } else {
+            bdd_check_ROBDD(alg,bdd_rt, low_branch,iv,l,h,_errmsg);
+            bdd_check_ROBDD(alg,bdd_rt,high_branch,iv,l,h,_errmsg);
+        }
+    }
+}
+
+static int bdd_mk_ROBDD(bdd_alg* alg, bdd_runtime* bdd_rt, rva *iv, int l, int h, char** _errmsg) {
+    bdd* bdd = &bdd_rt->core;
+#ifdef BDD_VERBOSE
+    if ( bdd_rt->verbose )
+        fprintf(stdout,"MK{%s}[v=\"%s=%d\", l=%d, h=%d]\n",alg->name,iv->var,iv->val,l,h);
+    bdd_rt->mk_calls++;
+#endif
+    int flag = 0;
+    if ( l == h ) return l;
+    else {
+        int index = bdd_lookup(bdd_rt,iv,l,h);
+        if ( index >= 0 ) 
+            return index;
+        if ( h != 0 && h != 1 && flag == 0) {
+            while ( IS_SAMEVAR(&(bdd_node(bdd,h)->rva),iv) ) {
+                int aux = h;
+                h = bdd_low(bdd,h);
+                if ( aux == LAST_ADDED(bdd) ) {
+                    int subtree  = bdd_high(bdd,aux);
+                    if ( aux != l )
+                        DELETE_LAST_ELEMENT(bdd);
+                    // INCOMPLETE, is this parameter order OK
+                    bdd_check_ROBDD(alg,bdd_rt,subtree,iv,l,h,_errmsg);
+                }
+                if ( h!=0 && h!=1 )
+                    aux = h;
+                else
+                    flag = -1;
+            }
+        }
+    }
+    if ( l == h ) return l;
+    else {
+        int index = bdd_lookup(bdd_rt,iv,l,h);
+        if ( index >= 0 )
+            return index;
+        else 
+            return bdd_create_node(bdd_rt,iv,l,h);
+    }
+} 
+
+/*
+ *
+ *
+ *
+ */
 
 static rva RVA_0 = {.var = "0", .val = -1};
 static rva RVA_1 = {.var = "1", .val = -1};
@@ -450,8 +536,8 @@ bdd_alg *BDD_BASE    = &S_BDD_BASE;
 bdd_alg S_BDD_KAJ     = {.name = "KAJ" , .build = bdd_build_bdd_KAJ,  .mk = bdd_mk_BASE};
 bdd_alg *BDD_KAJ     = &S_BDD_KAJ;
 
-bdd_alg S_BDD_PROBBDD = {.name = "PROBBDD", .build = bdd_build_bdd_BASE, .mk = bdd_mk_BASE};
-bdd_alg *BDD_PROBBDD = &S_BDD_PROBBDD;
+bdd_alg S_BDD_ROBDD = {.name = "ROBDD", .build = bdd_build_bdd_BASE, .mk = bdd_mk_ROBDD};
+bdd_alg *BDD_ROBDD = &S_BDD_ROBDD;
 
 bdd_alg *BDD_DEFAULT = &S_BDD_BASE;
 
@@ -460,6 +546,8 @@ bdd_alg* bdd_algorithm(char* alg_name, char** _errmsg) {
         return BDD_BASE;
     else if ( strcmp(alg_name,"kaj") == 0)
         return BDD_KAJ;
+    else if ( strcmp(alg_name,"robdd") == 0)
+        return BDD_ROBDD;
     else {
         pg_error(_errmsg,"bdd_algorithm: unknown algorithm: \'%s\'",alg_name);
         return NULL;

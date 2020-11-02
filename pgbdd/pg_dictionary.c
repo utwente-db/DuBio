@@ -28,14 +28,17 @@ PG_FUNCTION_INFO_V1(dictionary_in);
 Datum
 dictionary_in(PG_FUNCTION_ARGS)
 {       
-    bdd_dictionary new_dict_struct, *new_dict;
+    bdd_dictionary new_dict_struct, *dict;
+    bdd_dictionary  *storage_dict = NULL;
+    char            *_errmsg      = NULL;
 
-    char *dictname = PG_GETARG_CSTRING(0);
-    if ( !(new_dict = bdd_dictionary_create(&new_dict_struct,dictname)) )
-        ereport(ERROR,(errmsg("dictionary_in: dictionary create \'%s\' failed",dictname)));
-    bdd_dictionary* storage_dict = bdd_dictionary_serialize(new_dict);
-    bdd_dictionary_free(new_dict);
-    bdd_dictionary_sort(storage_dict); // INCOMPLETE ???
+    char *vardefs = PG_GETARG_CSTRING(0);
+    if ( !(dict = bdd_dictionary_create(&new_dict_struct)) )
+        ereport(ERROR,(errmsg("dictionary_in: dictionary create' failed")));
+    if ( !modify_dictionary(dict,DICT_ADD,vardefs,&_errmsg) )
+        ereport(ERROR,(errmsg("%s",_errmsg)));
+    if ( !(storage_dict = dictionary_prepare2store(dict)) )
+        ereport(ERROR,(errmsg("dictionary_add: %s","internal error serialize/free/sort")));
     SET_VARSIZE(storage_dict,storage_dict->bytesize);
     PG_RETURN_DICTIONARY(storage_dict);
 }
@@ -56,7 +59,7 @@ dictionary_out(PG_FUNCTION_ARGS)
     bdd_dictionary  *dict = PG_GETARG_DICTIONARY(0);
 
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
-    bprintf(pbuff,"[Dictionary(name=%s, #vars=%d, #values=%d)]",dict->name,V_dict_var_size(dict->variables),V_dict_val_size(dict->values)-dict->val_deleted);
+    bprintf(pbuff,"[Dictionary(#vars=%d, #values=%d)]",V_dict_var_size(dict->variables),V_dict_val_size(dict->values)-dict->val_deleted);
     char* result = pbuff_preserve_or_alloc(pbuff);
     PG_RETURN_CSTRING(result);
 }
@@ -100,6 +103,35 @@ dictionary_debug(PG_FUNCTION_ARGS)
     bdd_dictionary_print(dict,1/*all*/,pbuff);
     char* result = pbuff_preserve_or_alloc(pbuff);
     PG_RETURN_CSTRING(result);
+}
+
+PG_FUNCTION_INFO_V1(dictionary_merge);
+/**
+ * <code>dictionary_merge(ldict dictionary, rdict dictionary) returns new merged dictionary</code>
+ *
+ * @param fcinfo Params as described_below
+ * <br><code>mystr dictionary</code> A dictionary object
+ * @return <code>cstring</code> the string representation of the dictionary
+ */
+Datum
+dictionary_merge(PG_FUNCTION_ARGS)
+{
+    bdd_dictionary  *ldict        = PG_GETARG_DICTIONARY(0);
+    bdd_dictionary  *rdict        = PG_GETARG_DICTIONARY(1);
+    bdd_dictionary   s_merged_dict;
+    bdd_dictionary  *merged_dict  = NULL;
+    bdd_dictionary  *storage_dict = NULL;
+    char            *_errmsg      = NULL;
+
+    if ( !ldict )
+        ereport(ERROR,(errmsg("dictionary_merge: %s","internal error bad dict parameter")));
+    if ( !(merged_dict=merge_dictionary(&s_merged_dict,ldict,rdict,&_errmsg)) )
+        ereport(ERROR,(errmsg("%s",_errmsg)));
+    if ( !(storage_dict = dictionary_prepare2store(merged_dict)) )
+        ereport(ERROR,(errmsg("dictionary_merge: %s","internal error serialize/free/sort")));
+    // INCOMPLETE: should FREE merged dict! not 
+    SET_VARSIZE(storage_dict,storage_dict->bytesize);
+    PG_RETURN_DICTIONARY(storage_dict);
 }
 
 PG_FUNCTION_INFO_V1(dictionary_add);

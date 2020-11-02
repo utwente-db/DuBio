@@ -25,7 +25,7 @@ int test_bdd_dictionary_v0() {
     char* errmsg;
 
     char* input = "x=0 : 0.6; x=1 : 0.2; x=2 : 0.1; x=3 : 0.1; y=3 : 0.5; y=1 : 0.2; y=2 : 0.3; q=8 : 1.0; ";
-    if ( !(dict = bdd_dictionary_create(&dict_struct,"XYZ") ))
+    if ( !(dict = bdd_dictionary_create(&dict_struct) ))
         return 0;;
     if (modify_dictionary(dict,DICT_ADD,input,&errmsg)) {
         bdd_dictionary_print(dict,0/*all*/,pbuff);
@@ -62,9 +62,44 @@ static void td(bdd_dictionary *d,dict_mode mode,char* modifiers) {
     bdd_dictionary_print(d,0/*all*/,pbuff);pbuff_flush(pbuff,stdout);fputc('\n',stdout);
 }
 
+static void tdmerge(char* ld_add, char* rd_add) {
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    char* _errmsg;
+    bdd_dictionary ldict, *ld;
+    bdd_dictionary rdict, *rd;
+    if ( !(ld = bdd_dictionary_create(&ldict)))
+        {fprintf(stderr,"Dictionary create failed\n"); exit(0);}
+    if ( !modify_dictionary(ld,DICT_ADD,ld_add,&_errmsg) ) { 
+        fprintf(stderr,"Dictionary Error: %s",_errmsg); exit(0);
+    }
+    fprintf(stdout,"+ ld: \n");
+    bdd_dictionary_print(ld,0/*all*/,pbuff);pbuff_flush(pbuff,stdout);fputc('\n',stdout);
+    if ( !(rd = bdd_dictionary_create(&rdict)))
+        {fprintf(stderr,"Dictionary create failed\n"); exit(0);}
+    if ( !modify_dictionary(rd,DICT_ADD,rd_add,&_errmsg) ) { 
+        fprintf(stderr,"Dictionary Error: %s",_errmsg); exit(0);
+    }
+    fprintf(stdout,"+ rd: \n");
+    bdd_dictionary_print(rd,0/*all*/,pbuff);pbuff_flush(pbuff,stdout);fputc('\n',stdout);
+    //
+    bdd_dictionary mdict, *md;
+    if ( !(md = merge_dictionary(&mdict,ld,rd,&_errmsg))) {
+        fprintf(stderr,"Dictionary merge:error: %s",_errmsg); exit(0); }
+    fprintf(stdout,"+ md: \n");
+    bdd_dictionary_print(md,0/*all*/,pbuff);pbuff_flush(pbuff,stdout);fputc('\n',stdout);
+}
+
+int test_bdd_dictionary_v2() {
+    tdmerge("y=1:1.0;","x=2:1.0;y=2:1.0");
+    tdmerge("p=1:1.0;r=1:1.0","q=2:1.0;s=2:1.0");
+    tdmerge("p=1:1.0;r=1:1.0;q=2:1.0;s=2:1.0","p=3:1.0;r=4:1.0;q=8:1.0;s=9:1.0");
+    tdmerge("p=1:1.0;r=4:1.0;q=2:1.0;s=2:1.0","p=3:1.0;r=4:0.5;r=5:0.5;s=9:1.0");
+    return 1;
+}
+
 int test_bdd_dictionary_v1() {
     bdd_dictionary dict_struct, *first_dict, *d;
-    if ( !(first_dict = bdd_dictionary_create(&dict_struct,"mydict")))
+    if ( !(first_dict = bdd_dictionary_create(&dict_struct)))
         return 0;
     if ( !(d = bdd_dictionary_serialize(first_dict)))
         return 0;
@@ -97,7 +132,8 @@ int test_bdd_dictionary_v1() {
 }
 
 int test_dictionary() {
-    test_bdd_dictionary_v0();
-    test_bdd_dictionary_v1();
+    if (0) test_bdd_dictionary_v0();
+    if (0) test_bdd_dictionary_v1();
+    if (1) test_bdd_dictionary_v2();
     return 1;
 }

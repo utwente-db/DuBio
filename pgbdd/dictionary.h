@@ -46,7 +46,6 @@ DefVectorH(dict_val);
 
 typedef struct bdd_dictionary {
     char        vl_len[4]; // used by Postgres memory management
-    char        name[MAX_RVA_NAME];
     int         magic;
     int         bytesize;
     int         n_justcopy;
@@ -63,12 +62,13 @@ typedef struct bdd_dictionary {
 
 //
 
-bdd_dictionary* bdd_dictionary_create(bdd_dictionary*,char*);
+bdd_dictionary* bdd_dictionary_create(bdd_dictionary*);
 int bdd_dictionary_free(bdd_dictionary*);
 bdd_dictionary* dictionary_prepare2store(bdd_dictionary*);
 bdd_dictionary* bdd_dictionary_relocate(bdd_dictionary*);
 void bdd_dictionary_print(bdd_dictionary* dict, int all, pbuff* pbuff);
 int bdd_dictionary_sort(bdd_dictionary* dict);
+bdd_dictionary* merge_dictionary(bdd_dictionary*,bdd_dictionary*,bdd_dictionary*,char** _errmsg);
 
 typedef enum dict_mode{DICT_ADD, DICT_DEL, DICT_UPD} dict_mode;
 int modify_dictionary(bdd_dictionary*, dict_mode, char*, char**);
@@ -79,6 +79,7 @@ double lookup_probability(bdd_dictionary*,rva*);
 
 int test_bdd_dictionary_v0(void);
 int test_bdd_dictionary_v1(void);
+int test_bdd_dictionary_v2(void);
 
 int test_dictionary(void);
 

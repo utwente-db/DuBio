@@ -70,7 +70,7 @@ typedef struct bdd_alg {
     int  (*mk)(bdd_alg*,bdd_runtime*,rva*,int,int,char**);
 } bdd_alg;
 
-extern bdd_alg *BDD_DEFAULT, *BDD_BASE, *BDD_KAJ, *BDD_PROBBDD;
+extern bdd_alg *BDD_DEFAULT, *BDD_BASE, *BDD_KAJ, *BDD_ROBDD;
 
 bdd_alg* bdd_algorithm(char*, char** _errmsg);
 
@@ -83,13 +83,21 @@ bdd_alg* bdd_algorithm(char*, char** _errmsg);
 
 #define bdd_rva(PBDD,I)  (&bdd_node(PBDD,I)->rva)
 
-#define IS_LEAF(N)       (((N)->low==-1)&&((N)->high==-1))
+#define IS_LEAF(N)         (((N)->low==-1)&&((N)->high==-1))
+#define IS_LEAF_I(PBDD,NI) (IS_LEAF(bdd_node(PBDD,NI)))
 
 #define bdd_low(PBDD,I)  (bdd_node(PBDD,I)->low)
 #define bdd_high(PBDD,I) (bdd_node(PBDD,I)->high)
 
-#define IS_SAMEVAR(L,R)  (strcmp((L)->var,(R)->var)==0)
+#define IS_SAMEVAR(L,R)          (strcmp((L)->var,(R)->var)==0)
+#define IS_SAMEVAR_I(PBDD,LI,RI) (IS_SAMEVAR(&(bdd_node(PBDD,LI)->rva),&(bdd_node(PBDD,RI)->rva)))
 
+/*
+ * Macros for Probdd
+ */
+#define LAST_ADDED(PBDD)          ((PBDD)->tree.size -1)
+#define IS_LAST_ADDED(PBDD,I)     ((I)==LAST_ADDED(PBDD))
+#define DELETE_LAST_ELEMENT(PBDD) V_rva_node_delete(&(PBDD)->tree,LAST_ADDED(PBDD))
 
 //
 

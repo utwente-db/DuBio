@@ -22,12 +22,11 @@
 #include "bdd.c"
 
 static bdd_dictionary* get_test_dictionary(char* dict_vars) {
-    char* dictname = "Test";
     bdd_dictionary dict_struct, *new_dict;
     char* _errmsg = NULL;
 
-    if ( ! (new_dict = bdd_dictionary_create(&dict_struct,dictname)) )
-        pg_fatal("unable to create dictionary %s",dictname);
+    if ( ! (new_dict = bdd_dictionary_create(&dict_struct)) )
+        pg_fatal("unable to create dictionary");
     if ( ! modify_dictionary(new_dict,DICT_ADD,dict_vars,&_errmsg))
         pg_fatal("error loding dictionary: %s",_errmsg);
     bdd_dictionary* res = dictionary_prepare2store(new_dict);
@@ -89,13 +88,13 @@ static void test_bdd_creation(){
     // char* expr = "(x=1 | x=2)&(y=1 | y=1) | (z=4)";
     // char* expr = "x=1 | (y=1 & x=2)";
     // char* expr = "(x=1 | x=2)";
-    // char* expr = "(x=4 | x=2 | x=3 | x=1) & (y=2 | y=1 | y=3 )";
+    char* expr = "(x=4 | x=2 | x=3 | x=1) & (y=2 | y=1 | y=3 )";
     // char* expr = "(x=8|x=2|x=4|x=3|x=9|x=6|x=7|x=1|x=5)";
-    char* expr = "(x=1&((y=1|y=2)&x=2))";
+    // char* expr = "(x=1&((y=1|y=2)&x=2))";
     bdd* test_bdd;
     char* _errmsg = NULL;
 
-    if ( (test_bdd = create_bdd(BDD_KAJ,expr,&_errmsg,1/*verbose*/)) ) {
+    if ( (test_bdd = create_bdd(BDD_ROBDD,expr,&_errmsg,1/*verbose*/)) ) {
         pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
         char* dot_filename = "./DOT/test.dot";
 
@@ -184,8 +183,36 @@ static int test_bdd_probability() {
 //
 //
 
+
+static rva_node stree[] = {
+        {.rva={.var="0",.val=-1}, .low=-1, .high=-1},
+        {.rva={.var="1",.val=-1}, .low=-1, .high=-1},
+        {.rva={.var="x",.val= 9}, .low=-1, .high=-1}
+};
+
+static bdd* create_static_bdd(rva_node sn[], int n) {
+    bdd bdd_struct, *res = &bdd_struct;
+
+    V_rva_node_init(&res->tree);
+    for(int i=0; i<n; i++) {
+        V_rva_node_add(&res->tree,&sn[i]);
+    }
+    return res;
+}
+
+static int test_static_bdd() {
+    create_static_bdd(stree,3);
+    return 1;
+}
+
+
+//
+//
+//
+
 void test_bdd() {
     if (0) test_bdd_creation();
-    if (1) test_bdd_probability();
+    if (0) test_bdd_probability();
     if (0) test_timings();
+    if (1) test_static_bdd();
 }

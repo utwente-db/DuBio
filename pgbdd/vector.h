@@ -61,6 +61,7 @@ V_##type *V_##type##_relocate(V_##type*); \
 void V_##type##_free(V_##type*); \
 void V_##type##_reset(V_##type*); \
 int V_##type##_size(V_##type*);\
+int V_##type##_resize(V_##type*,int); \
 int V_##type##_bytesize(V_##type*); \
 int V_##type##_add(V_##type*, type*); \
 type V_##type##_get(V_##type*, int); \
@@ -154,7 +155,7 @@ int V_##type##_size(V_##type *v) \
     return v->size; \
 } \
 \
-static int V_##type##_resize(V_##type *v, int capacity) \
+int V_##type##_resize(V_##type *v, int capacity) \
 { \
     VECTOR_ASSERT(v); \
     if ( !v->dynamic ) { \

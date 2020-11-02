@@ -103,6 +103,14 @@ comment on type dictionary is
 'A postgres implementation of a variable/probability dictionary used by Binary Decision Diagrams.';
 
 create 
+function merge(ldict dictionary, rdict dictionary) returns dictionary
+     as '$libdir/pgbdd', 'dictionary_merge'
+     language C immutable strict;
+
+comment on function merge(dictionary, dictionary) is
+'Merge 2 dictionary into a new.';
+
+create 
 function add(dict dictionary, vardef cstring) returns dictionary
      as '$libdir/pgbdd', 'dictionary_add'
      language C immutable strict;
@@ -149,3 +157,41 @@ function prob(dict dictionary, bdd bdd) returns double precision
 
 comment on function prob(dictionary, bdd) is
 'return probability of bdd expression with rva/probabilities defined in dictionary.';
+
+
+--
+-- The operator and syntactic suhger section
+--
+
+CREATE OR REPLACE FUNCTION _op(op text, lbdd bdd) RETURNS bdd
+    AS $$ SELECT bdd(concat($1,'(',tostring($2),')')); $$
+    LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _op(lbdd bdd, op text, rbdd bdd) RETURNS bdd
+    AS $$ SELECT bdd(concat('(',tostring($1),')',$2,'(',tostring($3),')')); $$
+    LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _not(lbdd bdd) RETURNS bdd
+    AS $$ SELECT bdd(concat('!','(',tostring($1),')')); $$
+    LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _and(lbdd bdd,rbdd bdd) RETURNS bdd
+    AS $$ SELECT bdd(concat('(',tostring($1),')','&','(',tostring($2),')')); $$
+    LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _or(lbdd bdd,rbdd bdd) RETURNS bdd
+    AS $$ SELECT bdd(concat('(',tostring($1),')','|','(',tostring($2),')')); $$
+    LANGUAGE SQL;
+
+
+create operator ! (procedure = _not, rightarg = bdd); 
+create operator & (procedure = _and, leftarg = bdd, rightarg = bdd); 
+create operator | (procedure = _or , leftarg = bdd, rightarg = bdd); 
+
+create operator + (procedure=merge,leftarg=dictionary,rightarg=dictionary); 
+
+CREATE AGGREGATE sum (dictionary)
+(   
+    sfunc = merge,
+    stype = dictionary
+);

@@ -31,6 +31,10 @@ int cmpDict_var(dict_var* l, dict_var* r) {  return strcmp(l->name,r->name); }
 
 DefVectorC(dict_val);
 
+//
+//
+//
+
 static int bdd_dictionary_is_serialized(bdd_dictionary* dict) {
     if (  V_dict_var_is_serialized(dict->variables) &&
           V_dict_val_is_serialized(dict->values) ) {
@@ -38,7 +42,7 @@ static int bdd_dictionary_is_serialized(bdd_dictionary* dict) {
               (((void*)dict->values > (void*)dict) && ((void*)(dict->values+0) <= (void*)(dict+dict->bytesize))))
              return 1;
         else 
-             pg_fatal("bdd_dictionary_is_serialized: UNEXPECTED");
+             pg_fatal("bdd_dictionary_is_serialized: unexpected vectors outside dict");
     }
     return 0;
 }
@@ -103,8 +107,7 @@ bdd_dictionary* dictionary_prepare2store(bdd_dictionary* dict) {
     return res;
 }
 
-bdd_dictionary* bdd_dictionary_create(bdd_dictionary* dict, char* name) {
-    strncpy(dict->name,name,MAX_RVA_NAME);
+bdd_dictionary* bdd_dictionary_create(bdd_dictionary* dict) {
     // incomplete, randomize for time ???
     dict->magic       = rand();
     dict->bytesize    = sizeof(bdd_dictionary);
@@ -134,16 +137,13 @@ bdd_dictionary* bdd_dictionary_relocate(bdd_dictionary* dict) {
 int bdd_dictionary_free(bdd_dictionary* dict) {
     V_dict_var_free(dict->variables);
     V_dict_val_free(dict->values);
-    dict->name[0]   = 0;
     dict->variables = NULL;
     dict->values    = NULL;
     return 1;
 }
 
 void bdd_dictionary_print(bdd_dictionary* dict, int all, pbuff* pbuff) {
-    // bprintf(pbuff,"Dictionary(name=\"%s\")[\n",dict->name);
     if ( all ) {
-
         bprintf(pbuff,"# variables[size/cap]= [%d/%d]\n",dict->variables->size,dict->variables->capacity);
         bprintf(pbuff,"# values[size/cap]   = [%d/%d]\n",dict->values->size,dict->values->capacity);
         bprintf(pbuff,"# bytesize=%d\n",dict->bytesize);
@@ -174,7 +174,6 @@ void bdd_dictionary_print(bdd_dictionary* dict, int all, pbuff* pbuff) {
             bprintf(pbuff,"\n");
         }
     }
-    // bprintf(pbuff,"]\n");
 }
 
 static int lookup_var_index(bdd_dictionary* dict, char* name) {
@@ -264,6 +263,88 @@ static int normalize_var(bdd_dictionary* dict, dict_var* varp) {
         }
     }
     return 1;
+}
+
+static int add2merged(bdd_dictionary *md,
+                      dict_var       *srcvar,
+                      V_dict_val     *srcvar_val,
+                      V_dict_val     *merge_v,
+                      int             merge_offset,
+                      int             merge_card,
+                      char**          _errmsg) {
+    dict_var *mv;
+
+    if ( !(mv = add_variable(md,srcvar->name)) )
+        return 0;
+    //
+    for (int i=0; i<srcvar->card; i++) {
+        dict_val *dval = V_dict_val_getp(srcvar_val,srcvar->offset+i);
+        if ( !add_value(md,dval->value,dval->prob)  )
+            return 0;
+        mv->card++;
+    }
+    if ( merge_v ) {
+        for (int i=0; i<merge_card; i++) {
+            dict_val *dval = V_dict_val_getp(merge_v,merge_offset+i);
+            int vindex = get_var_value_index(md,mv,dval->value);
+            if (vindex >= 0) {
+                dict_val *mval = V_dict_val_getp(md->values,vindex);
+                if (dval->prob != mval->prob) 
+                    return pg_error(_errmsg,"dict_merge: duplicate rva with conficting prob: %s=%d : %f <> %f",mv->name,dval->value,dval->prob,mval->prob);
+            } else {
+                if ( !add_value(md,dval->value,dval->prob)  )
+                    return 0;
+                mv->card++;
+            }
+        }
+    }
+    normalize_var(md,mv); // make sump of probabilities 1 again
+    return 1;
+}
+
+bdd_dictionary* merge_dictionary(bdd_dictionary* md, bdd_dictionary* ld, bdd_dictionary* rd, char** _errmsg) {
+    if ( !bdd_dictionary_create(md) )
+        return NULL;
+    if ( !(bdd_dictionary_sort(ld) && bdd_dictionary_sort(rd)) )
+        return NULL;
+    int lvars = V_dict_var_size(ld->variables);
+    int rvars = V_dict_var_size(rd->variables);
+    int lvals = V_dict_val_size(ld->values) - ld->val_deleted;
+    int rvals = V_dict_val_size(rd->values) - rd->val_deleted;
+    if ( !V_dict_var_resize(md->variables,lvars+rvars) )
+        return NULL;;
+    if ( !V_dict_val_resize(md->values,lvals+rvals) )
+        return NULL;;
+    int lvar_i = 0, rvar_i = 0;
+    while ( lvar_i < lvars || rvar_i < rvars ) {
+        if ( lvar_i == lvars ) { // no more left vars
+            if ( !add2merged(md,V_dict_var_getp(rd->variables,rvar_i++),ld->values,NULL,-1,-1,_errmsg) )
+                return 0;
+        } else if ( rvar_i == rvars ) { // no more right vars
+            if ( !add2merged(md,V_dict_var_getp(ld->variables,lvar_i++),ld->values,NULL,-1,-1,_errmsg) )
+                return 0;
+        } else {
+            dict_var *lvar_p = V_dict_var_getp(ld->variables,lvar_i);
+            dict_var *rvar_p = V_dict_var_getp(rd->variables,rvar_i);
+            int cmp  = cmpDict_var(lvar_p,rvar_p);
+            if ( cmp < 0) {
+                if ( !add2merged(md,lvar_p,ld->values,NULL,-1,-1,_errmsg) )
+                    return NULL;
+                lvar_i++;
+            } else if (cmp>0) {
+                if ( !add2merged(md,rvar_p,rd->values,NULL,-1,-1,_errmsg) )
+                    return NULL;
+                rvar_i++;
+            } else { // equal
+                if ( !add2merged(md,lvar_p,ld->values,rd->values,lvar_p->offset,lvar_p->card,_errmsg) )
+                    return NULL;
+                lvar_i++;
+                rvar_i++;
+            }
+        }
+    }
+    md->var_sorted = 1;
+    return md;
 }
 
 int modify_dictionary(bdd_dictionary* dict, dict_mode mode, char* dictionary_def, char** _errmsg) {
@@ -389,7 +470,7 @@ int modify_dictionary(bdd_dictionary* dict, dict_mode mode, char* dictionary_def
             } else {
                 // delete one rva
                 if ( (vvi=get_var_value_index(dict,varp,scan_val)) < 0)
-                    return pg_error(_errmsg,"modify_dictionary:del: variable/value %s=%d does not exits ",varname,scan_val);
+                    return pg_error(_errmsg,"modify_dictionary:del: variable/value %s=%d does not exists ",varname,scan_val);
                 dict->val_deleted++;
                 if ( --varp->card == 0) { // delete entire var
                     dict->val_deleted += varp->card;

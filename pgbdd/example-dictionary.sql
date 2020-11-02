@@ -18,7 +18,7 @@ create extension pgbdd;
 create table Dict (name varchar(20), dict dictionary);
 
 -- create the 'mydict' dictionary
-insert into Dict(name,dict) VALUES('mydict',dictionary('mydict'));
+insert into Dict(name,dict) VALUES('mydict',dictionary(''));
 
 -- insert the first variable/value/prob pairs (vvp) in the 'mydict' dictionary
 update Dict
@@ -64,3 +64,6 @@ update Dict
 set dict=del(dict,'y=0 ; y=1 ; ')
 where name='mydict';
 select debug(dict) from Dict WHERE name = 'mydict';
+
+-- an example where we add 2 dictionaries
+select print( dictionary('x=0:1.0') + dictionary('x=1:1.0;') );
