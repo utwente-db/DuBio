@@ -33,3 +33,9 @@ select prob(dictionary(''),bdd('!(0&0)'));
 select alg_bdd('base',' (x=1&((y=1|y=2)&x=2))');
 select alg_bdd('robdd','(x=1&((y=1|y=2)&x=2))');
 select alg_bdd('kaj',  '(x=1&((y=1|y=2)&x=2))');
+
+-- nice examples
+select( bdd('(x=1)') & bdd('(y=1|y=2)&x=2') );
+select( bdd('z=1') & ! (bdd('(x=1)') & bdd('(y=1|y=2)&x=2')) );
+select alg_bdd('robdd','(z=1)&!((x=1)&((y=1|y=2)&x=2))' ); -- wrong !!!
+select bdd( '(z=1)&!((x=1)&((y=1|y=2)&x=2))' );

@@ -349,20 +349,20 @@ static int bdd_build_bdd_KAJ(bdd_alg* alg, bdd_runtime* bdd, char* expr, int i, 
     if ( l<0 ) return -1;
     bdd_replace_str(newexpr,expr,rva_string,'1');
     //
-    int dis = i+1;
-    while ( dis < V_rva_size(&bdd->order) ) {
-         rva* disvar = V_rva_getp(&bdd->order,dis);
-         if ( !IS_SAMEVAR(var,disvar) )
-             break; // break while
-         if ( var->val != disvar->val ) {
-             char dis_rva_string[MAX_RVA_LEN];
-             create_rva_string(dis_rva_string,disvar);
+    int scan_samevar_i = i+1;
+    while ( scan_samevar_i < V_rva_size(&bdd->order) ) {
+         rva* next_in_order = V_rva_getp(&bdd->order,scan_samevar_i);
+         if ( !IS_SAMEVAR(var,next_in_order) )
+             break; // varname changed, continue build from this index
+         if ( var->val != next_in_order->val ) {
+             char to_be_zerod[MAX_RVA_LEN];
+             create_rva_string(to_be_zerod,next_in_order);
              memcpy(expr,newexpr,bdd->len_expr);
-             bdd_replace_str(newexpr,expr,dis_rva_string,'0');
+             bdd_replace_str(newexpr,expr,to_be_zerod,'0');
          }
-         dis++;
+         scan_samevar_i++;
     }
-    int h = alg->build(alg,bdd,newexpr,dis/*newvar*/,rewrite_buffer,_errmsg);
+    int h = alg->build(alg,bdd,newexpr,scan_samevar_i/*newvar*/,rewrite_buffer,_errmsg);
     if ( h<0 )
         return -1;
     else
@@ -371,6 +371,9 @@ static int bdd_build_bdd_KAJ(bdd_alg* alg, bdd_runtime* bdd, char* expr, int i, 
 
 /*
  * The ROBDD algorithms
+ *
+ * INCOMPLETE: alg is wrong!!! "(z=1)&!((x=1)&((y=1|y=2)&x=2))" = 0 <> "z=1"
+ *
  */
 
 static void bdd_check_ROBDD(bdd_alg* alg, bdd_runtime* bdd_rt, int root, rva* iv, int l, int h, char** _errmsg) {
@@ -539,7 +542,7 @@ bdd_alg *BDD_KAJ     = &S_BDD_KAJ;
 bdd_alg S_BDD_ROBDD = {.name = "ROBDD", .build = bdd_build_bdd_BASE, .mk = bdd_mk_ROBDD};
 bdd_alg *BDD_ROBDD = &S_BDD_ROBDD;
 
-bdd_alg *BDD_DEFAULT = &S_BDD_BASE;
+bdd_alg *BDD_DEFAULT = &S_BDD_KAJ;
 
 bdd_alg* bdd_algorithm(char* alg_name, char** _errmsg) {
     if ( (strcmp(alg_name,"base")==0) || (strcmp(alg_name,"default")==0) )
@@ -656,6 +659,84 @@ void bdd_generate_dotfile(bdd* bdd, char* dotfile, char** extra) {
 /*
  *
  */
+
+static int or_length(bdd* bdd, int i) {
+    int count = 0;
+
+    rva_node *node = bdd_node(bdd,i);
+    while ( ! IS_LEAF(node) ) {
+        node = bdd_node(bdd,node->low);
+        count++;
+    }
+    return count;
+}
+
+static int and_length(bdd* bdd, int i) {
+    int count = 0;
+
+    rva_node *node = bdd_node(bdd,i);
+    while ( ! IS_LEAF(node) ) {
+        node = bdd_node(bdd,node->high);
+        count++;
+    }
+    return count;
+}
+
+static void _bdd2string(pbuff *pb, bdd* bdd, int i) {
+    rva_node *node = bdd_node(bdd,i);
+
+    if ( IS_LEAF(node) ) {
+        bprintf(pb,"%s",node->rva.var);
+        return;
+    }
+    int ol = or_length(bdd,i);
+    int al = and_length(bdd,i);
+
+    if ( (ol == 1) && (al == 1) ) {
+        bprintf(pb,"%s=%d",node->rva.var,node->rva.val);
+        return;
+    }
+    if ( ol > al ) {
+        // generate '|' chain
+        while ( ! IS_LEAF(node) ) {
+            if ( IS_LEAF_I(bdd,node->high) )
+                bprintf(pb,"%s=%d",node->rva.var,node->rva.val);
+            else {
+                bprintf(pb,"(");
+                _bdd2string(pb, bdd,node->high);
+                bprintf(pb,")");
+            }
+            node = bdd_node(bdd,node->low);
+            if ( ! IS_LEAF(node) )
+                bprintf(pb," | ");
+        }
+        return;
+    } else {
+        // generate '&' chain
+        while ( ! IS_LEAF(node) ) {
+            if ( IS_LEAF_I(bdd,node->low) )
+                bprintf(pb,"%s=%d",node->rva.var,node->rva.val);
+            else {
+                bprintf(pb,"(");
+                _bdd2string(pb,bdd,node->low);
+                bprintf(pb,")");
+            }
+            node = bdd_node(bdd,node->high);
+            if ( ! IS_LEAF(node) )
+                bprintf(pb," & ");
+        }
+    }
+}
+
+char* bdd2string(bdd* bdd, int encapsulate) {
+    pbuff pbuff_struct, *pb=pbuff_init(&pbuff_struct);
+    if ( encapsulate ) bprintf(pb,"Bdd(");
+    _bdd2string(pb,bdd,V_rva_node_size(&bdd->tree)-1);
+    if ( encapsulate ) bprintf(pb,")");
+    return pbuff_preserve_or_alloc(pb);
+    
+}
+
 
 static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, int i,char** extra,int verbose,char** _errmsg) {
     rva *rva = bdd_rva(bdd,i);

@@ -86,6 +86,9 @@ bdd_alg* bdd_algorithm(char*, char** _errmsg);
 #define IS_LEAF(N)         (((N)->low==-1)&&((N)->high==-1))
 #define IS_LEAF_I(PBDD,NI) (IS_LEAF(bdd_node(PBDD,NI)))
 
+#define IS_FALSE_I(PBDD,NI) (IS_LEAF(bdd_node(PBDD,NI)) && bdd_node(PBDD,NI)->rva.var[0]=='0')
+#define IS_TRUE_I(PBDD,NI) (IS_LEAF(bdd_node(PBDD,NI)) && bdd_node(PBDD,NI)->rva.var[0]=='1')
+
 #define bdd_low(PBDD,I)  (bdd_node(PBDD,I)->low)
 #define bdd_high(PBDD,I) (bdd_node(PBDD,I)->high)
 
@@ -107,9 +110,10 @@ void bdd_free(bdd_runtime*);
 bdd* serialize_bdd(bdd*);
 bdd* relocate_bdd(bdd*);
 
-void bdd_info(bdd*, pbuff*);
-void bdd_generate_dot(bdd*,pbuff*,char**);
-void bdd_generate_dotfile(bdd*,char*,char**);
+char* bdd2string(bdd*,int);
+void  bdd_info(bdd*, pbuff*);
+void  bdd_generate_dot(bdd*,pbuff*,char**);
+void  bdd_generate_dotfile(bdd*,char*,char**);
 
 double bdd_probability(bdd_dictionary*, bdd*,char**, int, char**);
 

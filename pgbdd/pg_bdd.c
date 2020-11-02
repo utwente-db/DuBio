@@ -40,6 +40,17 @@ bdd_in(PG_FUNCTION_ARGS)
     PG_RETURN_BDD(return_bdd);
 }
 
+static char* bdd_string(bdd* bdd, int encapsulate) {
+    if ( 0 ) {
+        pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+            if ( encapsulate ) 
+            bprintf(pbuff,"bdd(\'%s\')",bdd->expr);
+        else
+            bprintf(pbuff,"%s",bdd->expr);
+        return pbuff_preserve_or_alloc(pbuff);
+    } else
+        return bdd2string(bdd,encapsulate);
+}
 
 PG_FUNCTION_INFO_V1(bdd_out);
 /**
@@ -51,10 +62,7 @@ Datum
 bdd_out(PG_FUNCTION_ARGS)
 {
     bdd *par_bdd = PG_GETARG_BDD(0);
-
-    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
-    bprintf(pbuff,"Bdd(\'%s\')",par_bdd->expr);
-    char* result = pbuff_preserve_or_alloc(pbuff);
+    char* result = bdd_string(par_bdd,1/*print bdd() encapsulation*/);
     PG_RETURN_CSTRING(result);
 }
 
@@ -91,11 +99,8 @@ PG_FUNCTION_INFO_V1(bdd_pg_tostring);
 Datum
 bdd_pg_tostring(PG_FUNCTION_ARGS)
 {
-    bdd* par_bdd  = PG_GETARG_BDD(0);
-
-    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
-    bprintf(pbuff,"%s",par_bdd->expr);
-    char* result = pbuff_preserve_or_alloc(pbuff);
+    bdd *par_bdd = PG_GETARG_BDD(0);
+    char* result = bdd_string(par_bdd,0/*print bdd() encapsulation*/);
     PG_RETURN_CSTRING(result);
 }
 

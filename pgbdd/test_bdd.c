@@ -88,27 +88,34 @@ static void test_bdd_creation(){
     // char* expr = "(x=1 | x=2)&(y=1 | y=1) | (z=4)";
     // char* expr = "x=1 | (y=1 & x=2)";
     // char* expr = "(x=1 | x=2)";
-    char* expr = "(x=4 | x=2 | x=3 | x=1) & (y=2 | y=1 | y=3 )";
+    // char* expr = "(x=4 | x=2 | x=3 | x=1) & (y=2 | y=1 | y=3 )";
     // char* expr = "(x=8|x=2|x=4|x=3|x=9|x=6|x=7|x=1|x=5)";
-    // char* expr = "(x=1&((y=1|y=2)&x=2))";
+    char* expr = "(x=1&((y=1|y=2)&x=2))";
+    // char* expr = "(z=1)&!((x=1)&((y=1|y=2)&x=2))";
+    // char* expr = "(x=1 | x=2 | x=3 )";
+    // char* expr = "(x=1 & y=1 & z=1 )";
+    // char* expr = "(x=1&y=1) |(z=5)";
     bdd* test_bdd;
     char* _errmsg = NULL;
 
-    if ( (test_bdd = create_bdd(BDD_ROBDD,expr,&_errmsg,1/*verbose*/)) ) {
-        pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    if ( (test_bdd = create_bdd(BDD_DEFAULT,expr,&_errmsg,1/*verbose*/)) ) {
+        pbuff pbuff_struct, *pb=pbuff_init(&pbuff_struct);
         char* dot_filename = "./DOT/test.dot";
 
-        bdd_info(test_bdd,pbuff);
-        pbuff_flush(pbuff,stdout);
+        bdd_info(test_bdd,pb);
+        if ( 1 ) {
+            fprintf(stdout,"!!!STR= [%s]\n",bdd2string(test_bdd,0)); 
+        }
+        pbuff_flush(pb,stdout);
         if ( dot_filename ) {
             FILE* f = fopen(dot_filename,"w");
 
             if ( ! f )
                 fprintf(stderr,"Warning: unable to write dotfile: %s\n",dot_filename);
-            bdd_generate_dot(test_bdd,pbuff,NULL);
-            pbuff_flush(pbuff,f);
+            bdd_generate_dot(test_bdd,pb,NULL);
+            pbuff_flush(pb,f);
             fclose(f);
-            pbuff_free(pbuff);
+            pbuff_free(pb);
             fprintf(stdout,"Generated dotfile: %s\n",dot_filename); 
         }
         FREE(test_bdd);
@@ -211,8 +218,8 @@ static int test_static_bdd() {
 //
 
 void test_bdd() {
-    if (0) test_bdd_creation();
+    if (1) test_bdd_creation();
     if (0) test_bdd_probability();
     if (0) test_timings();
-    if (1) test_static_bdd();
+    if (0) test_static_bdd();
 }
