@@ -61,7 +61,10 @@ static bdd_runtime* bdd_init(bdd_runtime* bdd, char* expr, int verbose, char** _
     bdd->mk_calls    = 0;
     bdd->check_calls = 0;
 #endif
-    bdd->core.expr  = expr;
+#ifdef BDD_STORE_EXPRESSION
+    bdd->core.expr   = expr;
+#endif
+    bdd->expr        = expr;
     return bdd;
 }
 
@@ -95,7 +98,7 @@ static void bdd_print_V_rva(V_rva* v, pbuff* pbuff) {
 }
 
 static void bdd_print(bdd_runtime* bdd, pbuff* pbuff) {
-    bprintf(pbuff,"+ expr     = %s\n",bdd->core.expr);
+    bprintf(pbuff,"+ expr     = %s\n",bdd->expr);
     bprintf(pbuff,"+ order    = ");
     bdd_print_V_rva(&bdd->order,pbuff);
     bprintf(pbuff,"\n");
@@ -109,7 +112,12 @@ static void bdd_print(bdd_runtime* bdd, pbuff* pbuff) {
 #endif
 
 void bdd_info(bdd* bdd, pbuff* pbuff) {
+#ifdef BDD_STORE_EXPRESSION
     bprintf(pbuff,"%s\n\n",bdd->expr);
+#else
+    bdd2string(pbuff,bdd,0);
+    bprintf(pbuff,"\n\n");
+#endif
     bdd_print_tree(&bdd->tree,pbuff);
 }
 
@@ -468,13 +476,13 @@ static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd, char** _errmsg) {
         fprintf(stdout,"BDD start_build\n");
 #endif
     int len_expr, n_rva, n_spaces;
-    if ( !analyze_expr(bdd->core.expr,&len_expr,&n_rva,&n_spaces,_errmsg) )
+    if ( !analyze_expr(bdd->expr,&len_expr,&n_rva,&n_spaces,_errmsg) )
         return 0;
     // fprintf(stdout,"analyze: len_expr = %d, n_rva = %d, n_spaces = %d\n",len_expr,n_rva,n_spaces);
     bdd->len_expr = len_expr - n_spaces + 1;
     if ( !V_rva_init_estsz(&bdd->order,n_rva) )
         return pg_error(_errmsg,"bdd_start_build: error creating order vector");
-    if ( !compute_default_order(&bdd->order,bdd->core.expr,_errmsg))
+    if ( !compute_default_order(&bdd->order,bdd->expr,_errmsg))
         return 0;
     bdd->n     = V_rva_size(&bdd->order);
     if ( !V_rva_node_init_estsz(&bdd->core.tree, bdd->n+2) )
@@ -490,7 +498,7 @@ static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd, char** _errmsg) {
     char* rewrite_buffer = (char*)MALLOC(((bdd->n+1) * bdd->len_expr));
     // the last buffer is for the expression self
     char* exprbuff = rewrite_buffer + (bdd->n*bdd->len_expr);
-    bdd_strcpy_nospaces(exprbuff,bdd->core.expr,bdd->len_expr);
+    bdd_strcpy_nospaces(exprbuff,bdd->expr,bdd->len_expr);
     // memcpy(exprbuff,bdd->core.expr,bdd->len_expr);
     // Remove all spaces from the buffer! This will result in final expressions
     // with only characters 01&|!(). This way we can build an extremely fast
@@ -505,12 +513,12 @@ static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd, char** _errmsg) {
         if ( res >= 0 ) { // no errors
             if ( res == 0 ) {
                 if (bdd_create_node(bdd,&RVA_0,BDD_NONE,BDD_NONE)<0) return 0;
-#ifdef SIMPLIFY_CONSTANT
+#ifdef BDD_STORE_EXPRESSION
                 bdd->core.expr = "0";
 #endif
             } else {
                 if (bdd_create_node(bdd,&RVA_1,BDD_NONE,BDD_NONE)<0) return 0;
-#ifdef SIMPLIFY_CONSTANT
+#ifdef BDD_STORE_EXPRESSION
                 bdd->core.expr = "1";
 #endif
             }
@@ -580,18 +588,22 @@ bdd* create_bdd(bdd_alg* alg, char* expr, char** _errmsg, int verbose) {
 #define BDD_BASE_SIZE   (sizeof(bdd) - sizeof(V_rva_node))
 
 bdd* serialize_bdd(bdd* tbs) {
-    int tree_size, expr_size, bytesize;
+    int bytesize, tree_size;
 
     V_rva_node_shrink2size(&tbs->tree);
-    tree_size = V_rva_node_bytesize(&tbs->tree);
-    expr_size = strlen(tbs->expr) + 1;
-    bytesize  = BDD_BASE_SIZE + tree_size + expr_size;
-
+    tree_size= V_rva_node_bytesize(&tbs->tree);
+    bytesize = BDD_BASE_SIZE + tree_size;
+#ifdef BDD_STORE_EXPRESSION
+    int expr_size  = strlen(tbs->expr) + 1;
+    bytesize  += expr_size;
+#endif
     bdd* res = NULL;
     if ( (res = (bdd*)MALLOC(bytesize)) ) {
         res->bytesize = bytesize;
         V_rva_node_serialize(&res->tree,&tbs->tree);
+#ifdef BDD_STORE_EXPRESSION
         res->expr     = memcpy(((char*)&res->tree)+tree_size,tbs->expr,expr_size);
+#endif
         return res;
     } 
     else
@@ -600,7 +612,9 @@ bdd* serialize_bdd(bdd* tbs) {
 
 bdd* relocate_bdd(bdd* tbr) {
     V_rva_node_relocate(&tbr->tree);
+#ifdef BDD_STORE_EXPRESSION
     tbr->expr     = ((char*)&tbr->tree)+V_rva_node_bytesize(&tbr->tree);
+#endif
     return tbr;
 }
 
@@ -627,7 +641,13 @@ void bdd_generate_dot(bdd* bdd, pbuff* pbuff, char** extra) {
 
     bprintf(pbuff,"digraph {\n");
     bprintf(pbuff,"\tlabelloc=\"t\";\n");
+#ifdef BDD_STORE_EXPRESSION
     bprintf(pbuff,"\tlabel=\"bdd(\'%s\')\";\n",bdd->expr);
+#else
+    bprintf(pbuff,"\tlabel=\"bdd(\'");
+    bdd2string(pbuff,bdd,0);
+    bprintf(pbuff,"\')\";\n");
+#endif
     for(int i=0; i<V_rva_node_size(tree); i++) {
         rva_node *row = V_rva_node_getp(tree,i);
         if ( IS_LEAF(row) ) {
@@ -703,6 +723,7 @@ static void _bdd2string(pbuff *pb, bdd* bdd, int i) {
                 bprintf(pb,"%s=%d",node->rva.var,node->rva.val);
             else {
                 bprintf(pb,"(");
+                bprintf(pb,"%s=%d & ",node->rva.var,node->rva.val);
                 _bdd2string(pb, bdd,node->high);
                 bprintf(pb,")");
             }
@@ -714,10 +735,12 @@ static void _bdd2string(pbuff *pb, bdd* bdd, int i) {
     } else {
         // generate '&' chain
         while ( ! IS_LEAF(node) ) {
-            if ( IS_LEAF_I(bdd,node->low) )
+            
+            if ( IS_LEAF_I(bdd,node->low) ) {
                 bprintf(pb,"%s=%d",node->rva.var,node->rva.val);
-            else {
+            } else {
                 bprintf(pb,"(");
+                bprintf(pb,"%s=%d | ",node->rva.var,node->rva.val);
                 _bdd2string(pb,bdd,node->low);
                 bprintf(pb,")");
             }
@@ -728,8 +751,7 @@ static void _bdd2string(pbuff *pb, bdd* bdd, int i) {
     }
 }
 
-char* bdd2string(bdd* bdd, int encapsulate) {
-    pbuff pbuff_struct, *pb=pbuff_init(&pbuff_struct);
+char* bdd2string(pbuff* pb, bdd* bdd, int encapsulate) {
     if ( encapsulate ) bprintf(pb,"Bdd(");
     _bdd2string(pb,bdd,V_rva_node_size(&bdd->tree)-1);
     if ( encapsulate ) bprintf(pb,")");
@@ -791,4 +813,53 @@ double bdd_probability(bdd_dictionary* dict, bdd* bdd,char** extra, int verbose,
     int topnode = V_rva_node_size(&bdd->tree) - 1;
     
     return bdd_probability_node(dict,bdd,topnode,extra,verbose,_errmsg);
+}
+
+static int _contains_rva(bdd* bdd, char* var, int val) {
+    for (int i=0; i<V_rva_node_size(&bdd->tree); i++) {
+        rva_node* node = bdd_node(bdd,i);
+        if ( !IS_LEAF(node)) {
+            if ( strcmp(var,node->rva.var) == 0) {
+                 if ( (val<0) || (val == node->rva.val) )
+                     return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+int bdd_property_check(bdd* bdd, int prop, char* s, char** _errmsg) {
+    if ( !(IS_VALID_PROPERTY(prop)) ) {
+        pg_error(_errmsg,"bdd_property_check: bad property (%d)",prop);
+        return -1;
+    } if ( prop==BDD_IS_FALSE || prop==BDD_IS_TRUE ) {
+        if ( V_rva_node_size(&bdd->tree) == 1 ) {
+            rva_node* node = bdd_node(bdd,0);
+            return (node->rva.var[0]-'0')==prop; // :-)   
+        }
+    } else if ( prop==BDD_HAS_VARIABLE ) {
+        return _contains_rva(bdd,s,-1);
+    } else if ( prop==BDD_HAS_RVA ) {
+        char *varp, *eov, *valp;
+        varp = s;
+        while ( isspace(*varp) ) varp++;
+        if ( *varp ) {
+            valp = varp;
+            while ( isalnum(*valp) ) valp++;
+            if ( *valp ) {
+                eov = valp;
+                while ( *valp && *valp != '=') valp++;
+                if ( *valp == '=') {
+                    *eov = 0;
+                    int val = bdd_atoi(++valp);
+                    if ( val != BDD_NONE) {
+                        return _contains_rva(bdd,varp,val);
+                    }
+                }
+            }
+        }
+        pg_error(_errmsg,"bdd_property_check: bad rva (%s)",s);
+        return -1;
+    }
+    return 0;
 }

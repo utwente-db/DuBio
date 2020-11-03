@@ -19,6 +19,8 @@
 
 #include "postgres.h"
 #include "funcapi.h"
+#include "fmgr.h"
+#include "utils/builtins.h"
 
 #define PG_CONFIG
 
@@ -48,11 +50,17 @@
 //
 //
 
+typedef struct pbuff pbuff; // forward, defined in utils.h
+
+char* pbuff2cstring(pbuff* pbuff, int maxsz);
+text*    pbuff2text(pbuff* pbuff, int maxsz);
+
+//
+//
+//
+
 extern Datum dictionary_in(PG_FUNCTION_ARGS);
 extern Datum dictionary_out(PG_FUNCTION_ARGS);
 extern Datum dictionary_print(PG_FUNCTION_ARGS);
-extern Datum dictionary_add(PG_FUNCTION_ARGS);
-extern Datum dictionary_del(PG_FUNCTION_ARGS);
-extern Datum dictionary_upd(PG_FUNCTION_ARGS);
 
 #endif

@@ -11,7 +11,7 @@
 -- First remove old tables and extensions and start fresh
 --
 drop table if exists Dict; -- must be first, before drop extension
-drop extension if exists pgbdd;
+drop extension if exists pgbdd cascade;
 create extension pgbdd;
 
 -- create the main dictionary table

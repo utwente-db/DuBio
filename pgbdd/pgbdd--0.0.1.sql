@@ -28,9 +28,8 @@ create
 function bdd_out(dict bdd) returns cstring
      as '$libdir/pgbdd', 'bdd_out'
      language C immutable strict;
-
 comment on function bdd_out(bdd) is
-'create a serialised string representation of a bdd.';
+'create a serialised TEXT representation of a bdd.';
 
 
 create type bdd (
@@ -46,15 +45,14 @@ comment on type bdd is
 
 
 create 
-function tostring(bdd bdd) returns cstring
+function tostring(bdd bdd) returns text
      as '$libdir/pgbdd', 'bdd_pg_tostring'
      language C immutable strict;
-
 comment on function tostring(bdd) is
-'get string representation of expression of bdd.';
+'get TEXT representation of expression of bdd.';
 
 create 
-function info(bdd bdd) returns cstring
+function info(bdd bdd) returns text
      as '$libdir/pgbdd', 'bdd_pg_info'
      language C immutable strict;
 
@@ -62,12 +60,41 @@ comment on function info(bdd) is
 'get expr/tree/dot info of dictionary.';
 
 create 
-function dot(bdd bdd, file cstring default '') returns cstring
+function dot(bdd bdd, file cstring default '') returns text
      as '$libdir/pgbdd', 'bdd_pg_dot'
      language C immutable strict;
 
 comment on function dot(bdd,cstring) is
 'create a Graphviz DOT string representation of dictionary. The second argument is optional filename to store dot file';
+
+create 
+function _bdd_has_property(bdd bdd, prop integer, str_prop cstring) returns BOOLEAN
+     as '$libdir/pgbdd', 'bdd_has_property'
+     language C immutable strict;
+
+CREATE OR REPLACE FUNCTION istrue(bdd bdd) RETURNS BOOLEAN
+    AS $$ SELECT _bdd_has_property($1,1,''); $$
+    LANGUAGE SQL;
+comment on function istrue(bdd) is
+'Returns TRUE if bdd() is just 1.';
+
+CREATE OR REPLACE FUNCTION isfalse(bdd bdd) RETURNS BOOLEAN
+    AS $$ SELECT _bdd_has_property($1,0,''); $$
+    LANGUAGE SQL;
+comment on function istrue(bdd) is
+'Returns TRUE if bdd() is just 0.';
+
+CREATE OR REPLACE FUNCTION hasvar(bdd bdd,v text) RETURNS BOOLEAN
+    AS $$ SELECT _bdd_has_property($1,2,cstring($2)); $$
+    LANGUAGE SQL;
+comment on function hasvar(bdd,text) is
+'Returns TRUE var v is used in bdd.';
+
+CREATE OR REPLACE FUNCTION hasrva(bdd bdd,rva text) RETURNS BOOLEAN
+    AS $$ SELECT _bdd_has_property($1,3,cstring($2)); $$
+    LANGUAGE SQL;
+comment on function hasvar(bdd,text) is
+'Returns TRUE rva (v=n) is used in bdd.';
 
 /*
  *
@@ -106,36 +133,34 @@ create
 function merge(ldict dictionary, rdict dictionary) returns dictionary
      as '$libdir/pgbdd', 'dictionary_merge'
      language C immutable strict;
-
 comment on function merge(dictionary, dictionary) is
 'Merge 2 dictionary into a new.';
 
 create 
-function add(dict dictionary, vardef cstring) returns dictionary
-     as '$libdir/pgbdd', 'dictionary_add'
+function _dict_modify(dict dictionary, mode integer, vardef cstring) returns dictionary
+     as '$libdir/pgbdd', 'dictionary_modify'
      language C immutable strict;
 
-comment on function add(dictionary, cstring) is
+CREATE OR REPLACE FUNCTION add(d dictionary, vardefs text) RETURNS dictionary
+    AS $$ SELECT _dict_modify($1,1,cstring($2)); $$
+    LANGUAGE SQL;
+comment on function add(dictionary, text) is
 'Add the var=val:prob variable definitions to the dictionary.';
 
-create 
-function del(dict dictionary, vardef cstring) returns dictionary
-     as '$libdir/pgbdd', 'dictionary_del'
-     language C immutable strict;
-
-comment on function del(dictionary, cstring) is
+CREATE OR REPLACE FUNCTION del(d dictionary, vardefs text) RETURNS dictionary
+    AS $$ SELECT _dict_modify($1,2,cstring($2)); $$
+    LANGUAGE SQL;
+comment on function del(dictionary, text) is
 'Delete the var=val variable definitions from the dictionary.';
 
-create 
-function upd(dict dictionary, vardef cstring) returns dictionary
-     as '$libdir/pgbdd', 'dictionary_upd'
-     language C immutable strict;
-
-comment on function upd(dictionary, cstring) is
+CREATE OR REPLACE FUNCTION upd(d dictionary, vardefs text) RETURNS dictionary
+    AS $$ SELECT _dict_modify($1,3,cstring($2)); $$
+    LANGUAGE SQL;
+comment on function upd(dictionary, text) is
 'Update the var=val:prob variable definitions in the dictionary.';
 
 create 
-function print(dict dictionary) returns cstring
+function print(dict dictionary) returns text
      as '$libdir/pgbdd', 'dictionary_print'
      language C immutable strict;
 
@@ -143,7 +168,7 @@ comment on function print(dictionary) is
 'create a serialised string representation of dictionary.';
 
 create 
-function debug(dict dictionary) returns cstring
+function debug(dict dictionary) returns text
      as '$libdir/pgbdd', 'dictionary_debug'
      language C immutable strict;
 

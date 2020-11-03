@@ -51,7 +51,7 @@ int test_bdd_dictionary_v0() {
     return 1;
 }
 
-static void td(bdd_dictionary *d,dict_mode mode,char* modifiers) {
+static void td(bdd_dictionary *d,int mode,char* modifiers) {
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
     char* _errmsg;
    

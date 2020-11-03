@@ -347,9 +347,11 @@ bdd_dictionary* merge_dictionary(bdd_dictionary* md, bdd_dictionary* ld, bdd_dic
     return md;
 }
 
-int modify_dictionary(bdd_dictionary* dict, dict_mode mode, char* dictionary_def, char** _errmsg) {
+int modify_dictionary(bdd_dictionary* dict, int mode, char* dictionary_def, char** _errmsg) {
     dict_var* varp = NULL;
     char *p = dictionary_def;
+    if ( !(IS_VALID_MODIFIER(mode)) )
+        return pg_error(_errmsg,"modify_dictionary: bad modifier (%d)",mode);
     while ( *p ) {
         char*  scan_var     = NULL;
         int    scan_var_len = -1;

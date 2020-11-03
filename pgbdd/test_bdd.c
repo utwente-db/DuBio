@@ -90,22 +90,35 @@ static void test_bdd_creation(){
     // char* expr = "(x=1 | x=2)";
     // char* expr = "(x=4 | x=2 | x=3 | x=1) & (y=2 | y=1 | y=3 )";
     // char* expr = "(x=8|x=2|x=4|x=3|x=9|x=6|x=7|x=1|x=5)";
-    char* expr = "(x=1&((y=1|y=2)&x=2))";
+    // char* expr = "(x=1&((y=1|y=2)&x=2))";
     // char* expr = "(z=1)&!((x=1)&((y=1|y=2)&x=2))";
     // char* expr = "(x=1 | x=2 | x=3 )";
     // char* expr = "(x=1 & y=1 & z=1 )";
     // char* expr = "(x=1&y=1) |(z=5)";
+    char* expr = "(z=1)&!((x=1)&((y=1|y=2)&x=2))";
     bdd* test_bdd;
     char* _errmsg = NULL;
 
-    if ( (test_bdd = create_bdd(BDD_DEFAULT,expr,&_errmsg,1/*verbose*/)) ) {
+    bdd_alg* ALG = BDD_BASE;
+    if ( (test_bdd = create_bdd(ALG,expr,&_errmsg,1/*verbose*/)) ) {
         pbuff pbuff_struct, *pb=pbuff_init(&pbuff_struct);
         char* dot_filename = "./DOT/test.dot";
 
         bdd_info(test_bdd,pb);
-        if ( 1 ) {
-            fprintf(stdout,"!!!STR= [%s]\n",bdd2string(test_bdd,0)); 
-        }
+        pbuff pbgen_struct, *pbgen=pbuff_init(&pbgen_struct);
+        bdd2string(pbgen,test_bdd,0);
+        char* gen_str = pbuff_preserve_or_alloc(pbgen);
+        pbgen=pbuff_init(&pbgen_struct);
+        fprintf(stdout,"BDD2STRING = [%s]\n",gen_str); 
+        //
+        bdd* regen_bdd = create_bdd(ALG,gen_str,&_errmsg,0/*verbose*/);
+        if ( !regen_bdd )
+            pg_fatal("Test_bdd:error: %s\n",(_errmsg ? _errmsg : "NULL"));
+        bdd2string(pbgen,regen_bdd,0);
+        char* regen_str = pbuff_preserve_or_alloc(pbgen); 
+        pbgen=pbuff_init(&pbgen_struct);
+        if ( strcmp(gen_str,regen_str) != 0 ) 
+            pg_fatal("test_bdd_creation: regenerated string does not match original");
         pbuff_flush(pb,stdout);
         if ( dot_filename ) {
             FILE* f = fopen(dot_filename,"w");

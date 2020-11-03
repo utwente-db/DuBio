@@ -19,8 +19,6 @@
 
 #define BDD_NONE -1
 
-#define SIMPLIFY_CONSTANT /* Simplify constant expressions to '1' or '0' */ 
-
 typedef struct rva {
     char        var[MAX_RVA_NAME];
     int         val;
@@ -41,10 +39,14 @@ DefVectorH(rva_node);
 
 int cmpRva_node(rva_node*, rva_node*);
 
+// #define BDD_STORE_EXPRESSION
+
 // The BDD core structure stored in the Postgres Database
 typedef struct bdd {
     char     vl_len[4]; // used by Postgres memory management
+#ifdef BDD_STORE_EXPRESSION
     char    *expr; 
+#endif
     int      bytesize;  // size in bytes of serialized bdd
     V_rva_node tree;
     // because serialized tree grows in memory do not define attributes here!!!
@@ -56,6 +58,7 @@ typedef struct bdd_runtime {
     int      mk_calls;
     int      check_calls;
 #endif
+    char*    expr;
     int      len_expr;
     int      n;
     V_rva order;
@@ -110,12 +113,21 @@ void bdd_free(bdd_runtime*);
 bdd* serialize_bdd(bdd*);
 bdd* relocate_bdd(bdd*);
 
-char* bdd2string(bdd*,int);
+char* bdd2string(pbuff*,bdd*,int);
 void  bdd_info(bdd*, pbuff*);
 void  bdd_generate_dot(bdd*,pbuff*,char**);
 void  bdd_generate_dotfile(bdd*,char*,char**);
 
 double bdd_probability(bdd_dictionary*, bdd*,char**, int, char**);
+
+#define BDD_IS_FALSE       0
+#define BDD_IS_TRUE        1
+#define BDD_HAS_VARIABLE   2
+#define BDD_HAS_RVA        3
+
+#define IS_VALID_PROPERTY(P)    (((P)>=0)&&((P)<4))
+
+int    bdd_property_check(bdd*,int,char*,char**);
 
 //
 //

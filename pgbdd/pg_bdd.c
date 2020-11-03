@@ -21,6 +21,18 @@ PG_MODULE_MAGIC;
 
 #include "bdd.c"
 
+static text* bdd2text(bdd* bdd, int encapsulate) {
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    bdd2string(pbuff,bdd,encapsulate);
+    return pbuff2text(pbuff,PBUFF_MAX_TOTAL);
+}
+
+static char* bdd2cstring(bdd* bdd, int encapsulate) {
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    bdd2string(pbuff,bdd,encapsulate);
+    return pbuff2cstring(pbuff,-1);
+}
+
 PG_FUNCTION_INFO_V1(bdd_in);
 /**
  * <code>bdd_in(expression cstring) returns bdd</code>
@@ -40,18 +52,6 @@ bdd_in(PG_FUNCTION_ARGS)
     PG_RETURN_BDD(return_bdd);
 }
 
-static char* bdd_string(bdd* bdd, int encapsulate) {
-    if ( 0 ) {
-        pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
-            if ( encapsulate ) 
-            bprintf(pbuff,"bdd(\'%s\')",bdd->expr);
-        else
-            bprintf(pbuff,"%s",bdd->expr);
-        return pbuff_preserve_or_alloc(pbuff);
-    } else
-        return bdd2string(bdd,encapsulate);
-}
-
 PG_FUNCTION_INFO_V1(bdd_out);
 /**
  * <code>bdd_out(bdd bdd) returns text</code>
@@ -62,7 +62,7 @@ Datum
 bdd_out(PG_FUNCTION_ARGS)
 {
     bdd *par_bdd = PG_GETARG_BDD(0);
-    char* result = bdd_string(par_bdd,1/*print bdd() encapsulation*/);
+    char* result = bdd2cstring(par_bdd,1/*print bdd() encapsulation*/);
     PG_RETURN_CSTRING(result);
 }
 
@@ -100,8 +100,8 @@ Datum
 bdd_pg_tostring(PG_FUNCTION_ARGS)
 {
     bdd *par_bdd = PG_GETARG_BDD(0);
-    char* result = bdd_string(par_bdd,0/*print bdd() encapsulation*/);
-    PG_RETURN_CSTRING(result);
+    text* result = bdd2text(par_bdd,0/*print bdd() encapsulation*/);
+    PG_RETURN_TEXT_P(result);
 }
 
 
@@ -118,8 +118,8 @@ bdd_pg_info(PG_FUNCTION_ARGS)
 
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
     bdd_info(par_bdd, pbuff);
-    char* result = pbuff_preserve_or_alloc(pbuff);
-    PG_RETURN_CSTRING(result);
+    text* result = pbuff2text(pbuff,-1);
+    PG_RETURN_TEXT_P(result);
 }
 
 
@@ -137,17 +137,17 @@ bdd_pg_dot(PG_FUNCTION_ARGS)
 
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
     bdd_generate_dot(par_bdd,pbuff,NULL);
-    char* result = pbuff_preserve_or_alloc(pbuff);
 
     if ( dotfile && strlen(dotfile) > 0) {
         FILE* f = fopen(dotfile,"w");
 
         if ( f ) {
-            fputs(result,f);
+            fputs(pbuff->buffer,f);
             fclose(f);
         }
     }
-    PG_RETURN_CSTRING(result);
+    text* result = pbuff2text(pbuff,-1);
+    PG_RETURN_TEXT_P(result);
 }
 
 
@@ -170,4 +170,49 @@ bdd_pg_prob(PG_FUNCTION_ARGS)
     PG_RETURN_FLOAT8(prob);
 }
 
+PG_FUNCTION_INFO_V1(bdd_has_property);
+/**
+ * <code>bdd_has_property(bdd bdd, mode integer, s cstring) returns bdd</code>
+ * Check a property of a bdd
+ *
+ */
+Datum
+bdd_has_property(PG_FUNCTION_ARGS)
+{       
+    bdd  *par_bdd = PG_GETARG_BDD(0);
+    int   mode    = PG_GETARG_INT32(1);
+    char *s       = PG_GETARG_CSTRING(2);
+    int   res     = -1;
+    char *_errmsg = NULL;
 
+    if ( (res = bdd_property_check(par_bdd,mode,s,&_errmsg)) < 0 )
+        ereport(ERROR,(errmsg("bdd_has_property: %d %s",mode,(_errmsg ? _errmsg : "NULL"))));
+    PG_RETURN_BOOL(res);
+}
+
+/*
+ *
+ *
+ *
+ */
+
+text* pbuff2text(pbuff* pbuff, int maxsz) {
+    /*
+     * This function converts the contents of a pbuff to a postgresql 
+     * TEXT VALUE. After this the palloc()'ed memory used by the pbuff
+     * is freed.
+     */
+    text* res = cstring_to_text_with_len(pbuff->buffer,pbuff->size);
+    pbuff_free(pbuff);
+    return res;
+}
+
+char* pbuff2cstring(pbuff* pbuff, int maxsz) {
+    /*
+     * This function converts the contents of a pbuff to a postgresql 
+     * CSTRING VALUE. After this the palloc()'ed memory used by the pbuff
+     * is freed.
+     */
+    char* res = pbuff_preserve_or_alloc(pbuff);
+    return res;
+}

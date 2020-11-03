@@ -60,7 +60,7 @@ dictionary_out(PG_FUNCTION_ARGS)
 
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
     bprintf(pbuff,"[Dictionary(#vars=%d, #values=%d)]",V_dict_var_size(dict->variables),V_dict_val_size(dict->values)-dict->val_deleted);
-    char* result = pbuff_preserve_or_alloc(pbuff);
+    char* result = pbuff2cstring(pbuff,-1);
     PG_RETURN_CSTRING(result);
 }
 
@@ -81,8 +81,8 @@ dictionary_print(PG_FUNCTION_ARGS)
 
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
     bdd_dictionary_print(dict,0/*all*/,pbuff);
-    char* result = pbuff_preserve_or_alloc(pbuff);
-    PG_RETURN_CSTRING(result);
+    text* result = pbuff2text(pbuff,-1);
+    PG_RETURN_TEXT_P(result);
 }
 
 PG_FUNCTION_INFO_V1(dictionary_debug);
@@ -101,8 +101,8 @@ dictionary_debug(PG_FUNCTION_ARGS)
 
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
     bdd_dictionary_print(dict,1/*all*/,pbuff);
-    char* result = pbuff_preserve_or_alloc(pbuff);
-    PG_RETURN_CSTRING(result);
+    text* result = pbuff2text(pbuff,-1);
+    PG_RETURN_TEXT_P(result);
 }
 
 PG_FUNCTION_INFO_V1(dictionary_merge);
@@ -129,84 +129,30 @@ dictionary_merge(PG_FUNCTION_ARGS)
         ereport(ERROR,(errmsg("%s",_errmsg)));
     if ( !(storage_dict = dictionary_prepare2store(merged_dict)) )
         ereport(ERROR,(errmsg("dictionary_merge: %s","internal error serialize/free/sort")));
-    // INCOMPLETE: should FREE merged dict! not 
     SET_VARSIZE(storage_dict,storage_dict->bytesize);
     PG_RETURN_DICTIONARY(storage_dict);
 }
 
-PG_FUNCTION_INFO_V1(dictionary_add);
+PG_FUNCTION_INFO_V1(dictionary_modify);
 /**
- * <code>dictionary_add(dictionary dictionary) returns new dictionary with addes vars</code>
+ * <code>dictionary_modify(dictionary dictionary) returns new dictionary with addes vars</code>
  *
  * @param fcinfo Params as described_below
  * <br><code>mystr dictionary</code> A dictionary object
  * @return <code>cstring</code> the string representation of the dictionary
  */
 Datum
-dictionary_add(PG_FUNCTION_ARGS)
+dictionary_modify(PG_FUNCTION_ARGS)
 {
     bdd_dictionary  *dict         = PG_GETARG_DICTIONARY(0);
-    char            *vardefs      = PG_GETARG_CSTRING(1);
+    char            mode          = PG_GETARG_INT32(1);
+    char            *vardefs      = PG_GETARG_CSTRING(2);
     bdd_dictionary  *storage_dict = NULL;
     char            *_errmsg      = NULL;
 
     if ( !dict )
-        ereport(ERROR,(errmsg("dictionary_add: %s","internal error bad dict parameter")));
-    if ( !modify_dictionary(dict,DICT_ADD,vardefs,&_errmsg) )
-        ereport(ERROR,(errmsg("%s",_errmsg)));
-    if ( !(storage_dict = dictionary_prepare2store(dict)) )
-        ereport(ERROR,(errmsg("dictionary_add: %s","internal error serialize/free/sort")));
-    SET_VARSIZE(storage_dict,storage_dict->bytesize);
-    PG_RETURN_DICTIONARY(storage_dict);
-}
-
-
-PG_FUNCTION_INFO_V1(dictionary_del);
-/**
- * <code>dictionary_del(dictionary dictionary) returns new dictionary with addes vars</code>
- *
- * @param fcinfo Params as described_below
- * <br><code>mystr dictionary</code> A dictionary object
- * @return <code>cstring</code> the string representation of the dictionary
- */
-Datum
-dictionary_del(PG_FUNCTION_ARGS)
-{
-    bdd_dictionary  *dict         = PG_GETARG_DICTIONARY(0);
-    char            *vardefs      = PG_GETARG_CSTRING(1);
-    bdd_dictionary  *storage_dict = NULL;
-    char            *_errmsg      = NULL;
-
-    if ( !dict )
-        ereport(ERROR,(errmsg("dictionary_del: %s","internal error bad dict parameter")));
-    if ( !modify_dictionary(dict,DICT_DEL,vardefs,&_errmsg) )
-        ereport(ERROR,(errmsg("%s",_errmsg)));
-    if ( !(storage_dict = dictionary_prepare2store(dict)) )
-        ereport(ERROR,(errmsg("dictionary_add: %s","internal error serialize/free/sort")));
-    SET_VARSIZE(storage_dict,storage_dict->bytesize);
-    PG_RETURN_DICTIONARY(storage_dict);
-}
-
-
-PG_FUNCTION_INFO_V1(dictionary_upd);
-/**
- * <code>dictionary_upd(dictionary dictionary) returns new dictionary with addes vars</code>
- *
- * @param fcinfo Params as described_below
- * <br><code>mystr dictionary</code> A dictionary object
- * @return <code>cstring</code> the string representation of the dictionary
- */
-Datum
-dictionary_upd(PG_FUNCTION_ARGS)
-{
-    bdd_dictionary  *dict         = PG_GETARG_DICTIONARY(0);
-    char            *vardefs      = PG_GETARG_CSTRING(1);
-    bdd_dictionary  *storage_dict = NULL;
-    char            *_errmsg      = NULL;
-
-    if ( !dict )
-        ereport(ERROR,(errmsg("dictionary_upd: %s","internal error bad dict parameter")));
-    if ( !modify_dictionary(dict,DICT_UPD,vardefs,&_errmsg) )
+        ereport(ERROR,(errmsg("dictionary_modify: %s","internal error bad dict parameter")));
+    if ( !modify_dictionary(dict,mode,vardefs,&_errmsg) )
         ereport(ERROR,(errmsg("%s",_errmsg)));
     if ( !(storage_dict = dictionary_prepare2store(dict)) )
         ereport(ERROR,(errmsg("dictionary_add: %s","internal error serialize/free/sort")));
