@@ -18,3 +18,29 @@
 #include "pg_config.h"
 
 #include "utils.c"
+
+/*
+ *
+ *
+ */
+
+text* pbuff2text(pbuff* pbuff, int maxsz) {
+    /*
+     * This function converts the contents of a pbuff to a postgresql 
+     * TEXT VALUE. After this the palloc()'ed memory used by the pbuff
+     * is freed.
+     */
+    text* res = cstring_to_text_with_len(pbuff->buffer,pbuff->size);
+    pbuff_free(pbuff);
+    return res;
+}
+
+char* pbuff2cstring(pbuff* pbuff, int maxsz) {
+    /*
+     * This function converts the contents of a pbuff to a postgresql 
+     * CSTRING VALUE. After this the palloc()'ed memory used by the pbuff
+     * is freed.
+     */
+    char* res = pbuff_preserve_or_alloc(pbuff);
+    return res;
+}

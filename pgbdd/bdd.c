@@ -751,12 +751,10 @@ static void _bdd2string(pbuff *pb, bdd* bdd, int i) {
     }
 }
 
-char* bdd2string(pbuff* pb, bdd* bdd, int encapsulate) {
+void bdd2string(pbuff* pb, bdd* bdd, int encapsulate) {
     if ( encapsulate ) bprintf(pb,"Bdd(");
     _bdd2string(pb,bdd,V_rva_node_size(&bdd->tree)-1);
     if ( encapsulate ) bprintf(pb,")");
-    return pbuff_preserve_or_alloc(pb);
-    
 }
 
 

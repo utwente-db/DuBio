@@ -36,7 +36,7 @@ dictionary_in(PG_FUNCTION_ARGS)
     if ( !(dict = bdd_dictionary_create(&new_dict_struct)) )
         ereport(ERROR,(errmsg("dictionary_in: dictionary create' failed")));
     if ( !modify_dictionary(dict,DICT_ADD,vardefs,&_errmsg) )
-        ereport(ERROR,(errmsg("%s",_errmsg)));
+        ereport(ERROR,(errmsg("%s",(_errmsg ? _errmsg : "NULL"))));
     if ( !(storage_dict = dictionary_prepare2store(dict)) )
         ereport(ERROR,(errmsg("dictionary_add: %s","internal error serialize/free/sort")));
     SET_VARSIZE(storage_dict,storage_dict->bytesize);
@@ -46,7 +46,7 @@ dictionary_in(PG_FUNCTION_ARGS)
 
 PG_FUNCTION_INFO_V1(dictionary_out);
 /**
- * <code>dictionary_out(dictionary dictionary) returns text</code>
+ * <code>dictionary_out(dictionary dictionary) returns cstring</code>
  * Create a text representation of a dictionary expression.
  *
  * @param fcinfo Params as described_below
@@ -126,7 +126,7 @@ dictionary_merge(PG_FUNCTION_ARGS)
     if ( !ldict )
         ereport(ERROR,(errmsg("dictionary_merge: %s","internal error bad dict parameter")));
     if ( !(merged_dict=merge_dictionary(&s_merged_dict,ldict,rdict,&_errmsg)) )
-        ereport(ERROR,(errmsg("%s",_errmsg)));
+        ereport(ERROR,(errmsg("%s",(_errmsg ? _errmsg : "NULL"))));
     if ( !(storage_dict = dictionary_prepare2store(merged_dict)) )
         ereport(ERROR,(errmsg("dictionary_merge: %s","internal error serialize/free/sort")));
     SET_VARSIZE(storage_dict,storage_dict->bytesize);
@@ -153,7 +153,7 @@ dictionary_modify(PG_FUNCTION_ARGS)
     if ( !dict )
         ereport(ERROR,(errmsg("dictionary_modify: %s","internal error bad dict parameter")));
     if ( !modify_dictionary(dict,mode,vardefs,&_errmsg) )
-        ereport(ERROR,(errmsg("%s",_errmsg)));
+        ereport(ERROR,(errmsg("%s",(_errmsg ? _errmsg : "NULL"))));
     if ( !(storage_dict = dictionary_prepare2store(dict)) )
         ereport(ERROR,(errmsg("dictionary_add: %s","internal error serialize/free/sort")));
     SET_VARSIZE(storage_dict,storage_dict->bytesize);

@@ -62,7 +62,7 @@ Datum
 bdd_out(PG_FUNCTION_ARGS)
 {
     bdd *par_bdd = PG_GETARG_BDD(0);
-    char* result = bdd2cstring(par_bdd,1/*print bdd() encapsulation*/);
+    char* result = bdd2cstring(par_bdd,1/*encapsulation*/);
     PG_RETURN_CSTRING(result);
 }
 
@@ -166,7 +166,7 @@ bdd_pg_prob(PG_FUNCTION_ARGS)
     char* _errmsg;
     double prob = bdd_probability(dict,par_bdd,NULL,0,&_errmsg);
     if ( prob < 0.0 )
-        ereport(ERROR,(errmsg("bdd_pg_prob: %s",_errmsg)));
+        ereport(ERROR,(errmsg("bdd_pg_prob: %s",(_errmsg ? _errmsg : "NULL"))));
     PG_RETURN_FLOAT8(prob);
 }
 
@@ -188,31 +188,4 @@ bdd_has_property(PG_FUNCTION_ARGS)
     if ( (res = bdd_property_check(par_bdd,mode,s,&_errmsg)) < 0 )
         ereport(ERROR,(errmsg("bdd_has_property: %d %s",mode,(_errmsg ? _errmsg : "NULL"))));
     PG_RETURN_BOOL(res);
-}
-
-/*
- *
- *
- *
- */
-
-text* pbuff2text(pbuff* pbuff, int maxsz) {
-    /*
-     * This function converts the contents of a pbuff to a postgresql 
-     * TEXT VALUE. After this the palloc()'ed memory used by the pbuff
-     * is freed.
-     */
-    text* res = cstring_to_text_with_len(pbuff->buffer,pbuff->size);
-    pbuff_free(pbuff);
-    return res;
-}
-
-char* pbuff2cstring(pbuff* pbuff, int maxsz) {
-    /*
-     * This function converts the contents of a pbuff to a postgresql 
-     * CSTRING VALUE. After this the palloc()'ed memory used by the pbuff
-     * is freed.
-     */
-    char* res = pbuff_preserve_or_alloc(pbuff);
-    return res;
 }

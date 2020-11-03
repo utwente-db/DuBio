@@ -113,7 +113,7 @@ void bdd_free(bdd_runtime*);
 bdd* serialize_bdd(bdd*);
 bdd* relocate_bdd(bdd*);
 
-char* bdd2string(pbuff*,bdd*,int);
+void  bdd2string(pbuff*,bdd*,int);
 void  bdd_info(bdd*, pbuff*);
 void  bdd_generate_dot(bdd*,pbuff*,char**);
 void  bdd_generate_dotfile(bdd*,char*,char**);
