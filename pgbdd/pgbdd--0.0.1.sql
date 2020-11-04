@@ -8,21 +8,18 @@
  * ----------
  */
 
+
+/*------------------------
+ * Definition of BDD type.
+ *------------------------
+ */ 
+
 create 
 function bdd_in(expression cstring) returns bdd
      as '$libdir/pgbdd', 'bdd_in'
      language C immutable strict;
-
 comment on function bdd_in(cstring) is
 'Create a bdd expression from argument string.';
-
-create 
-function alg_bdd(alg cstring, expression cstring) returns bdd
-     as '$libdir/pgbdd', 'alg_bdd'
-     language C immutable strict;
-
-comment on function alg_bdd(cstring,cstring) is
-'Create a bdd expression from argument algorithm and string.';
 
 create 
 function bdd_out(dict bdd) returns cstring
@@ -31,18 +28,28 @@ function bdd_out(dict bdd) returns cstring
 comment on function bdd_out(bdd) is
 'create a serialised TEXT representation of a bdd.';
 
-
-create type bdd (
+CREATE TYPE bdd (
     input = bdd_in,
     output = bdd_out,
     internallength = variable,
     alignment = double,
     storage = main
 );
-
 comment on type bdd is
 'A postgres implementation of a Binary Decision Diagrams.';
 
+create 
+function _op_bdd(operator cstring,lhs_bdd bdd,rhs_bdd bdd) returns bdd
+     as '$libdir/pgbdd', 'bdd_operator'
+     language C immutable strict;
+
+
+create 
+function alg_bdd(alg cstring, expression cstring) returns bdd
+     as '$libdir/pgbdd', 'alg_bdd'
+     language C immutable strict;
+comment on function alg_bdd(cstring,cstring) is
+'Create a bdd expression from argument algorithm and string.';
 
 create 
 function tostring(bdd bdd) returns text
@@ -63,7 +70,6 @@ create
 function dot(bdd bdd, file cstring default '') returns text
      as '$libdir/pgbdd', 'bdd_pg_dot'
      language C immutable strict;
-
 comment on function dot(bdd,cstring) is
 'create a Graphviz DOT string representation of dictionary. The second argument is optional filename to store dot file';
 
@@ -96,47 +102,61 @@ CREATE OR REPLACE FUNCTION hasrva(bdd bdd,rva text) RETURNS BOOLEAN
 comment on function hasvar(bdd,text) is
 'Returns TRUE rva (v=n) is used in bdd.';
 
-/*
- *
- */
+--
+-- The operator and syntactic sugar section for bdd's
+--
+
+CREATE OR REPLACE FUNCTION _not(lbdd bdd) RETURNS bdd
+    AS $$ SELECT _op_bdd('!',$1,NULL); $$
+    LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _or(lbdd bdd,rbdd bdd) RETURNS bdd
+    AS $$ SELECT _op_bdd('|',$1,$2); $$
+    LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _and(lbdd bdd,rbdd bdd) RETURNS bdd
+    AS $$ SELECT _op_bdd('&',$1,$2); $$
+    LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _implies(lbdd bdd,rbdd bdd) RETURNS bdd
+    AS $$ SELECT (_or(_not(lbdd),rbdd)); $$
+    LANGUAGE SQL;
+
+create operator !  (procedure  = _not                    , rightarg = bdd); 
+create operator &  (procedure  = _and     , leftarg = bdd, rightarg = bdd); 
+create operator |  (procedure  = _or      , leftarg = bdd, rightarg = bdd); 
+create operator -> (procedure  = _implies , leftarg = bdd, rightarg = bdd); 
+
+/*------------------------------
+ * Definition of DICTIONARY type.
+ *-------------------------------
+ */ 
 
 create 
 function dictionary_in(dictname cstring) returns dictionary
      as '$libdir/pgbdd', 'dictionary_in'
      language C immutable strict;
-
 comment on function dictionary_in(cstring) is
 'Create a dictionary with name dictname and the vardef variable definitions.';
-
 
 create 
 function dictionary_out(dict dictionary) returns cstring
      as '$libdir/pgbdd', 'dictionary_out'
      language C immutable strict;
-
 comment on function dictionary_out(dictionary) is
 'create a serialised string representation of dictionary.';
 
-
-create type dictionary (
+CREATE TYPE dictionary (
     input = dictionary_in,
     output = dictionary_out,
     internallength = variable,
     alignment = double,
     storage = main
 );
-
 comment on type dictionary is
 'A postgres implementation of a variable/probability dictionary used by Binary Decision Diagrams.';
 
-create 
-function merge(ldict dictionary, rdict dictionary) returns dictionary
-     as '$libdir/pgbdd', 'dictionary_merge'
-     language C immutable strict;
-comment on function merge(dictionary, dictionary) is
-'Merge 2 dictionary into a new.';
-
-create 
+create
 function _dict_modify(dict dictionary, mode integer, vardef cstring) returns dictionary
      as '$libdir/pgbdd', 'dictionary_modify'
      language C immutable strict;
@@ -160,10 +180,16 @@ comment on function upd(dictionary, text) is
 'Update the var=val:prob variable definitions in the dictionary.';
 
 create 
+function merge(ldict dictionary, rdict dictionary) returns dictionary
+     as '$libdir/pgbdd', 'dictionary_merge'
+     language C immutable strict;
+comment on function merge(dictionary, dictionary) is
+'Merge 2 dictionary into a new.';
+
+create 
 function print(dict dictionary) returns text
      as '$libdir/pgbdd', 'dictionary_print'
      language C immutable strict;
-
 comment on function print(dictionary) is
 'create a serialised string representation of dictionary.';
 
@@ -171,47 +197,12 @@ create
 function debug(dict dictionary) returns text
      as '$libdir/pgbdd', 'dictionary_debug'
      language C immutable strict;
-
 comment on function debug(dictionary) is
 'create a serialised string representation of internal dictionary structure.';
 
-create 
-function prob(dict dictionary, bdd bdd) returns double precision
-     as '$libdir/pgbdd', 'bdd_pg_prob'
-     language C immutable strict;
-
-comment on function prob(dictionary, bdd) is
-'return probability of bdd expression with rva/probabilities defined in dictionary.';
-
-
 --
--- The operator and syntactic suhger section
+-- The operator and syntactic sugar section for bdd's
 --
-
-CREATE OR REPLACE FUNCTION _op(op text, lbdd bdd) RETURNS bdd
-    AS $$ SELECT bdd(concat($1,'(',tostring($2),')')); $$
-    LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _op(lbdd bdd, op text, rbdd bdd) RETURNS bdd
-    AS $$ SELECT bdd(concat('(',tostring($1),')',$2,'(',tostring($3),')')); $$
-    LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _not(lbdd bdd) RETURNS bdd
-    AS $$ SELECT bdd(concat('!','(',tostring($1),')')); $$
-    LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _and(lbdd bdd,rbdd bdd) RETURNS bdd
-    AS $$ SELECT bdd(concat('(',tostring($1),')','&','(',tostring($2),')')); $$
-    LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _or(lbdd bdd,rbdd bdd) RETURNS bdd
-    AS $$ SELECT bdd(concat('(',tostring($1),')','|','(',tostring($2),')')); $$
-    LANGUAGE SQL;
-
-
-create operator ! (procedure = _not, rightarg = bdd); 
-create operator & (procedure = _and, leftarg = bdd, rightarg = bdd); 
-create operator | (procedure = _or , leftarg = bdd, rightarg = bdd); 
 
 create operator + (procedure=merge,leftarg=dictionary,rightarg=dictionary); 
 
@@ -220,3 +211,15 @@ CREATE AGGREGATE sum (dictionary)
     sfunc = merge,
     stype = dictionary
 );
+
+/*
+ *
+ * Mixed DICTIONARY/BDD functions/operations
+ */
+
+create 
+function prob(dict dictionary, bdd bdd) returns double precision
+     as '$libdir/pgbdd', 'bdd_pg_prob'
+     language C immutable strict;
+comment on function prob(dictionary, bdd) is
+'return probability of bdd expression using rva/probabilities defined in dictionary.';

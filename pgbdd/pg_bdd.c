@@ -21,18 +21,6 @@ PG_MODULE_MAGIC;
 
 #include "bdd.c"
 
-static text* bdd2text(bdd* bdd, int encapsulate) {
-    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
-    bdd2string(pbuff,bdd,encapsulate);
-    return pbuff2text(pbuff,PBUFF_MAX_TOTAL);
-}
-
-static char* bdd2cstring(bdd* bdd, int encapsulate) {
-    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
-    bdd2string(pbuff,bdd,encapsulate);
-    return pbuff2cstring(pbuff,-1);
-}
-
 PG_FUNCTION_INFO_V1(bdd_in);
 /**
  * <code>bdd_in(expression cstring) returns bdd</code>
@@ -64,6 +52,48 @@ bdd_out(PG_FUNCTION_ARGS)
     bdd *par_bdd = PG_GETARG_BDD(0);
     char* result = bdd2cstring(par_bdd,1/*encapsulation*/);
     PG_RETURN_CSTRING(result);
+}
+
+PG_FUNCTION_INFO_V1(bdd_operator);
+/**
+ * <code>bdd_in(expression cstring) returns bdd</code>
+ * Create an expression from argument string.
+ *
+ */
+Datum
+bdd_operator(PG_FUNCTION_ARGS)
+{       
+    char *operator  = PG_GETARG_CSTRING(0);
+    bdd *lhs_bdd    = PG_GETARG_BDD(1);
+    bdd *rhs_bdd    = NULL;
+    
+    char *_errmsg    = NULL;
+    bdd  *return_bdd = NULL;
+
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    if ( *operator == '&' || *operator == '|' )
+        rhs_bdd    = PG_GETARG_BDD(2);
+    else if (*operator != '!')
+        ereport(ERROR,(errmsg("bdd_operator: bad operator \'%c\'",*operator)));
+    //
+    if ( rhs_bdd ) {
+        // binary operation
+        bprintf(pbuff,"(");
+        bdd2string(pbuff,lhs_bdd,0);
+        bprintf(pbuff,")%c(",*operator);
+        bdd2string(pbuff,rhs_bdd,0);
+        bprintf(pbuff,")");
+    } else {
+        // unary operation
+        bprintf(pbuff,"(%c(",*operator);
+        bdd2string(pbuff,lhs_bdd,0);
+        bprintf(pbuff,"))");
+    }
+    if ( !(return_bdd = create_bdd(BDD_DEFAULT,pbuff->buffer,&_errmsg,0/*verbose*/)) )
+        ereport(ERROR,(errmsg("bdd_operator: %s",(_errmsg ? _errmsg : "NULL"))));
+    pbuff_free(pbuff);
+    SET_VARSIZE(return_bdd,return_bdd->bytesize);
+    PG_RETURN_BDD(return_bdd);
 }
 
 PG_FUNCTION_INFO_V1(alg_bdd);

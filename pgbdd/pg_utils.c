@@ -19,6 +19,9 @@
 
 #include "utils.c"
 
+#include "dictionary.h"
+#include "bdd.h"
+
 /*
  *
  *
@@ -44,3 +47,16 @@ char* pbuff2cstring(pbuff* pbuff, int maxsz) {
     char* res = pbuff_preserve_or_alloc(pbuff);
     return res;
 }
+
+text* bdd2text(bdd* bdd, int encapsulate) {
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    bdd2string(pbuff,bdd,encapsulate);
+    return pbuff2text(pbuff,PBUFF_MAX_TOTAL);
+}
+
+char* bdd2cstring(bdd* bdd, int encapsulate) {
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    bdd2string(pbuff,bdd,encapsulate);
+    return pbuff2cstring(pbuff,-1);
+}
+

@@ -50,10 +50,19 @@
 //
 //
 
+/*
+ * A couple of pg_* utility functions used interfacing with Postgres. The are
+ * implemented in pg_utils.c
+ */
+
 typedef struct pbuff pbuff; // forward, defined in utils.h
+typedef struct bdd   bdd;   // ,,
 
 char* pbuff2cstring(pbuff* pbuff, int maxsz);
-text*    pbuff2text(pbuff* pbuff, int maxsz);
+text* pbuff2text(pbuff* pbuff, int maxsz);
+
+text* bdd2text(bdd* bdd, int encapsulate);
+char* bdd2cstring(bdd* bdd, int encapsulate);
 
 //
 //

@@ -25,6 +25,8 @@ select !(bdd('0') | bdd('1'));
 select bdd('0') | bdd('1') | bdd('0') | bdd('1');
 
 -- a couple of more difficult examples
+select bdd('x=1') &  bdd('y=1');
+select bdd('x=1') -> bdd('y=1');
 select bdd('(x=1|x=2)&(!1)');
 select prob(dictionary(''),bdd('0'));
 select prob(dictionary(''),bdd('!(0&0)'));
