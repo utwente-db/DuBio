@@ -180,6 +180,7 @@ bdd_pg_prob(PG_FUNCTION_ARGS)
     if ( prob < 0.0 )
         ereport(ERROR,(errmsg("bdd_pg_prob: %s",(_errmsg ? _errmsg : "NULL"))));
     PG_RETURN_FLOAT8(prob);
+    // PG_RETURN_NUMERIC(prob); CRASHES SERVER
 }
 
 PG_FUNCTION_INFO_V1(bdd_has_property);

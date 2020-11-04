@@ -7,7 +7,7 @@ EXTENSION  = $(MYEXT)
 MODULE_big = $(MYEXT)
 DATA       = pgbdd--0.0.1.sql
 
-PG_CFLAGS  = -Ofast -DBDD_OPTIMIZE # switch off costly checks & optimize
+// PG_CFLAGS  = -Ofast -DBDD_OPTIMIZE # switch off costly checks & optimize
 
 SRCBASE    = TAG_dictionary.c TAG_bdd.c TAG_utils.c TAG_vector.c
 

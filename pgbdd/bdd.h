@@ -62,6 +62,9 @@ typedef struct bdd_runtime {
     int      len_expr;
     int      n;
     V_rva order;
+    unsigned short    G_l;
+    unsigned short    G_r;
+    unsigned short*   G_cache;
     //
     bdd      core;
 } bdd_runtime;
@@ -84,10 +87,13 @@ bdd_alg* bdd_algorithm(char*, char** _errmsg);
 #define bdd_node(PBDD,I) (V_rva_node_getp(&(PBDD)->tree,I))
 #endif
 
+#define BDD_ROOT(PBDD)   (V_rva_node_size(&(PBDD)->tree)-1)
+
 #define bdd_rva(PBDD,I)  (&bdd_node(PBDD,I)->rva)
 
 #define IS_LEAF(N)         (((N)->low==-1)&&((N)->high==-1))
 #define IS_LEAF_I(PBDD,NI) (IS_LEAF(bdd_node(PBDD,NI)))
+#define LEAF_BOOLVALUE(N)  ((N)->rva.var[0]-'0')
 
 #define IS_FALSE_I(PBDD,NI) (IS_LEAF(bdd_node(PBDD,NI)) && bdd_node(PBDD,NI)->rva.var[0]=='0')
 #define IS_TRUE_I(PBDD,NI) (IS_LEAF(bdd_node(PBDD,NI)) && bdd_node(PBDD,NI)->rva.var[0]=='1')
@@ -108,12 +114,14 @@ bdd_alg* bdd_algorithm(char*, char** _errmsg);
 //
 
 bdd* create_bdd(bdd_alg*,char*,char**,int);
-void bdd_free(bdd_runtime*);
+
+void bdd_rt_free(bdd_runtime*);
 
 bdd* serialize_bdd(bdd*);
 bdd* relocate_bdd(bdd*);
 
 bdd*  bdd_operator(char,bdd*,bdd*,char**);
+bdd*  bdd_apply(bdd_alg*,char,bdd*,bdd*,char**);
 
 void  bdd2string(pbuff*,bdd*,int);
 void  bdd_info(bdd*, pbuff*);

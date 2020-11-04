@@ -217,6 +217,7 @@ CREATE AGGREGATE sum (dictionary)
  */
 
 create 
+-- function prob(dict dictionary, bdd bdd) returns numeric CRASHES SERVER
 function prob(dict dictionary, bdd bdd) returns double precision
      as '$libdir/pgbdd', 'bdd_pg_prob'
      language C immutable strict;

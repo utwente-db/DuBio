@@ -21,6 +21,7 @@
 #include "funcapi.h"
 #include "fmgr.h"
 #include "utils/builtins.h"
+#include "utils/numeric.h"
 
 #define PG_CONFIG
 

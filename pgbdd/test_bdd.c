@@ -148,11 +148,68 @@ static int test_trio() {
 //
 //
 
+static int test_apply() {
+    char* _errmsg = NULL;
+    bdd *lhs, *rhs;
+    // char* dotfile = NULL;
+    char* dotfile = "./DOT/test.dot";
+  
+
+    char* la = "x=1";
+    char  op = '&';
+    char* ra = "y=1 | z=1";
+
+    lhs = create_bdd(BDD_DEFAULT,la,&_errmsg,0/*verbose*/);
+    rhs = create_bdd(BDD_DEFAULT,ra,&_errmsg,0/*verbose*/);
+    if ( !(lhs && rhs) )
+        pg_fatal("test_apply: error: %s",_errmsg);
+    bdd* res = bdd_apply(BDD_DEFAULT,op,lhs,rhs,&_errmsg);
+    if ( !res ) {
+        fprintf(stderr,"test_apply:error: %s\n",_errmsg);
+    } else {
+        pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+        bprintf(pbuff,"L: ");
+        bdd2string(pbuff,lhs,0);
+        bprintf(pbuff,"\nO: %c\n",op);
+        bprintf(pbuff,"R: ");
+        bdd2string(pbuff,rhs,0);
+        bprintf(pbuff,"\nRESULT APPLY : ");
+        bdd2string(pbuff,res,0);
+        bprintf(pbuff,"\n");
+        pbuff_flush(pbuff,stdout);
+        if ( dotfile )
+            bdd_generate_dotfile(res,dotfile,NULL);
+        bdd2string(pbuff,res,0);
+        FREE(res);
+        if ( !(res=create_bdd(BDD_DEFAULT,pbuff->buffer,&_errmsg,0/*verbose*/)))
+            pg_fatal("test_apply: error: %s",_errmsg);
+        pbuff_reset(pbuff);
+        bprintf(pbuff,"AND REPARSED : ");
+        bdd2string(pbuff,res,0);
+        bprintf(pbuff,"\n");
+        //
+        if ( !(res = bdd_operator(op,lhs,rhs,&_errmsg)))
+            pg_fatal("test_apply: error: %s",_errmsg);
+        bprintf(pbuff,"STRING CONCAT: ");
+        bdd2string(pbuff,res,0);
+        bprintf(pbuff,"\n");
+        pbuff_flush(pbuff,stdout);
+        FREE(res);
+    }
+    return 1;
+}
+
+//
+//
+//
+
 
 static void test_bdd_creation(){
     // char* expr = "(x=1 & y=1 & z=1 )";
     // char* expr = "(x=1&y=1) |(z=5)";
-    char* expr = "(z=1)&!((x=1)&((y=1|y=2)&x=2))";
+    // char* expr = "(z=1)&!((x=1)&((y=1|y=2)&x=2))";
+    // char* expr = "!(x=1)";
+    char* expr = "!(x=1&y=2&z=3)";
     bdd*  test_bdd;
     char* _errmsg = NULL;
 
@@ -290,8 +347,9 @@ void test_bdd() {
     if (1) test_regenerate(); // do this always, catches many errors
     if (1) test_trio();       // ,,
     //
-    if (0) test_bdd_creation();
-    if (1) test_bdd_probability();
+    if (1) test_bdd_creation();
+    if (0) test_bdd_probability();
     if (0) test_timings();
     if (0) test_static_bdd();
+    if (0) test_apply();
 }
