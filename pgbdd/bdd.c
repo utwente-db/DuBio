@@ -585,6 +585,34 @@ bdd* create_bdd(bdd_alg* alg, char* expr, char** _errmsg, int verbose) {
  *
  */
 
+bdd* bdd_operator(char operator, bdd* lhs_bdd, bdd* rhs_bdd, char** _errmsg) {
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    if ( ! (operator == '&' || operator == '|' || operator == '!' ) ) {
+        pg_error(_errmsg,"bdd_operator: bad operator \'%c\'",operator);
+        return NULL;
+    }
+    if ( rhs_bdd ) {
+        // binary operation
+        bprintf(pbuff,"(");
+        bdd2string(pbuff,lhs_bdd,0);
+        bprintf(pbuff,")%c(",operator);
+        bdd2string(pbuff,rhs_bdd,0);
+        bprintf(pbuff,")");
+    } else {
+        // unary operation 
+        bprintf(pbuff,"(%c(",operator);
+        bdd2string(pbuff,lhs_bdd,0);
+        bprintf(pbuff,"))");
+    }
+    bdd* return_bdd = create_bdd(BDD_DEFAULT,pbuff->buffer,_errmsg,0/*verbose*/);
+    pbuff_free(pbuff);
+    return return_bdd;
+}
+
+/*
+ *
+ */
+
 #define BDD_BASE_SIZE   (sizeof(bdd) - sizeof(V_rva_node))
 
 bdd* serialize_bdd(bdd* tbs) {

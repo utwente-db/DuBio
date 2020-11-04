@@ -40,9 +40,8 @@ comment on type bdd is
 
 create 
 function _op_bdd(operator cstring,lhs_bdd bdd,rhs_bdd bdd) returns bdd
-     as '$libdir/pgbdd', 'bdd_operator'
-     language C immutable strict;
-
+     as '$libdir/pgbdd', 'bdd_pg_operator'
+     language C immutable; -- not STRICT because rhs_bdd may be NULL
 
 create 
 function alg_bdd(alg cstring, expression cstring) returns bdd
@@ -80,25 +79,25 @@ function _bdd_has_property(bdd bdd, prop integer, str_prop cstring) returns BOOL
 
 CREATE OR REPLACE FUNCTION istrue(bdd bdd) RETURNS BOOLEAN
     AS $$ SELECT _bdd_has_property($1,1,''); $$
-    LANGUAGE SQL;
+    LANGUAGE SQL STRICT;
 comment on function istrue(bdd) is
 'Returns TRUE if bdd() is just 1.';
 
 CREATE OR REPLACE FUNCTION isfalse(bdd bdd) RETURNS BOOLEAN
     AS $$ SELECT _bdd_has_property($1,0,''); $$
-    LANGUAGE SQL;
+    LANGUAGE SQL STRICT;
 comment on function istrue(bdd) is
 'Returns TRUE if bdd() is just 0.';
 
 CREATE OR REPLACE FUNCTION hasvar(bdd bdd,v text) RETURNS BOOLEAN
     AS $$ SELECT _bdd_has_property($1,2,cstring($2)); $$
-    LANGUAGE SQL;
+    LANGUAGE SQL STRICT;
 comment on function hasvar(bdd,text) is
 'Returns TRUE var v is used in bdd.';
 
 CREATE OR REPLACE FUNCTION hasrva(bdd bdd,rva text) RETURNS BOOLEAN
     AS $$ SELECT _bdd_has_property($1,3,cstring($2)); $$
-    LANGUAGE SQL;
+    LANGUAGE SQL STRICT;
 comment on function hasvar(bdd,text) is
 'Returns TRUE rva (v=n) is used in bdd.';
 

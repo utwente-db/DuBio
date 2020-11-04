@@ -43,9 +43,18 @@ void dp_print(const char *fmt,...);
 #define PBUFF_MAX_TOTAL       130000 /* max # printed chars in 1 buffer()  */
 #define PBUFF_INITIAL_SIZE      1024 /* initial PBUFF size without alloc */
 
+#define PBUFF_MAGIC          3789291 /* magic number should be OK */
+
+#ifdef  BDD_OPTIMIZE
+#define PBUFF_ASSERT(PB)     
+#else
+#define PBUFF_ASSERT(PB)     if (((PB)->magic!=PBUFF_MAGIC)||((PB)->size<0)||((PB)->size>(PB)->capacity)) pg_fatal("PBUFF_ASSERT FAILS")
+#endif
+
 typedef struct pbuff {
     int   size;
     int   capacity;
+    int   magic;
     char* buffer;
     char  fast_buffer[PBUFF_INITIAL_SIZE];
 } pbuff;

@@ -161,6 +161,7 @@ void fast_itoa(char *dst, uint32_t val)
  */
 
 pbuff* pbuff_init(pbuff* pbuff) {
+    pbuff->magic    = PBUFF_MAGIC;
     pbuff->size     = 0;
     pbuff->capacity = PBUFF_INITIAL_SIZE;
     pbuff->buffer   = pbuff->fast_buffer;
@@ -169,12 +170,14 @@ pbuff* pbuff_init(pbuff* pbuff) {
 }
 
 pbuff* pbuff_reset(pbuff* pbuff) {
+    PBUFF_ASSERT(pbuff);
     if ( pbuff->buffer != pbuff->fast_buffer )
         FREE(pbuff->buffer);
     return pbuff_init(pbuff);
 }
 
 char* pbuff_preserve_or_alloc(pbuff* pbuff) {
+    PBUFF_ASSERT(pbuff);
     if ( pbuff->buffer != pbuff->fast_buffer )
         return pbuff->buffer; // preserve
     else {
@@ -187,6 +190,7 @@ char* pbuff_preserve_or_alloc(pbuff* pbuff) {
 }
 
 void pbuff_free(pbuff* pbuff) {
+    PBUFF_ASSERT(pbuff);
     pbuff->size = pbuff->capacity = -1;
     if ( pbuff->buffer != pbuff->fast_buffer )
         FREE(pbuff->buffer);
@@ -194,24 +198,34 @@ void pbuff_free(pbuff* pbuff) {
 }
 
 void pbuff_flush(pbuff* pbuff, FILE* out) {
+    PBUFF_ASSERT(pbuff);
     fputs(pbuff->buffer, out);
     pbuff->size      = 0;
     pbuff->buffer[0] = 0;
 }
+
+
+/* 
+ * bprintf() is safe fprinf() like function which prints to a buffer. If 
+ * printing fails 0 will be returned. The buffer is not infinite and after
+ * PBUFF_MAX_TOTAL characters an overflow message will be printed at the end
+ * of the buffer.
+ */
 
 static const char overflow_message[] = "[*PRINTBUFFER OVERFLOW*]\n";
 
 int bprintf(pbuff* pbuff, const char *fmt,...)
 {
     va_list ap;
+    PBUFF_ASSERT(pbuff);
+    int  n_printed;
     char buffer[PBUFF_MAX_BPRINTF];
 
     va_start(ap, fmt);
-    vsnprintf(buffer,PBUFF_MAX_BPRINTF,fmt,ap);
+    n_printed = vsnprintf(buffer,PBUFF_MAX_BPRINTF,fmt,ap);
     va_end(ap);
     //
-    int size = strlen(buffer);
-    if ( (pbuff->size+size+1) > pbuff->capacity) {
+    if ( (pbuff->size+n_printed+1) > pbuff->capacity) {
         if ( pbuff->capacity > PBUFF_MAX_TOTAL) {
             // buffer is at its maximum size
             if ( !(pbuff->size > pbuff->capacity) ) { // alreay overflowing
@@ -231,8 +245,8 @@ int bprintf(pbuff* pbuff, const char *fmt,...)
         if ( !pbuff->buffer )
             return 0;
     }
-    memcpy(pbuff->buffer+pbuff->size,buffer,size);
-    pbuff->size += size;
+    memcpy(pbuff->buffer+pbuff->size,buffer,n_printed);
+    pbuff->size += n_printed;
     pbuff->buffer[pbuff->size] = 0;
     return 1;
 }
