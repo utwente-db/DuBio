@@ -79,17 +79,20 @@ void bdd_rt_free(bdd_runtime* bdd_rt) {
         FREE(bdd_rt->G_cache);
 }
 
-static void bdd_print_row(rva_node* row, pbuff* pbuff) {
+static void bdd_print_row(bdd* par_bdd, int i, pbuff* pbuff) {
+    rva_node* row = V_rva_node_getp(&par_bdd->tree,i);
     if ( row->rva.val < 0 )
-        bprintf(pbuff,"[\"%s\"]\n",row->rva.var);
+        bprintf(pbuff,"[\"%s\"]",row->rva.var);
     else
-        bprintf(pbuff,"[\"%s=%d\",%d,%d]\n",row->rva.var,row->rva.val,row->low,row->high);
+        bprintf(pbuff,"[\"%s=%d\",%d,%d]",row->rva.var,row->rva.val,row->low,row->high);
 }
 
-static void bdd_print_tree(V_rva_node* tree, pbuff* pbuff) {
+static void bdd_print_tree(bdd* par_bdd, pbuff* pbuff) {
+    V_rva_node* tree = &par_bdd->tree;
     for(int i=0; i<V_rva_node_size(tree); i++) {
         bprintf(pbuff,"\t%d:\t",i);
-        bdd_print_row(V_rva_node_getp(tree,i),pbuff);
+        bdd_print_row(par_bdd,i,pbuff);
+        bprintf(pbuff,"\n");
     }
 }
 
@@ -112,7 +115,7 @@ static void bdd_print(bdd_runtime* bdd_rt, pbuff* pbuff) {
     bprintf(pbuff,"mk_calls   = %d\n",bdd_rt->mk_calls);
     bprintf(pbuff,"check_calls= %d\n",bdd_rt->check_calls);
     bprintf(pbuff,"Tree       = [\n");
-    bdd_print_tree(&bdd_rt->core.tree,pbuff);
+    bdd_print_tree(&bdd_rt->core,pbuff);
     bprintf(pbuff,"]\n");
 }
 #endif
@@ -124,7 +127,7 @@ void bdd_info(bdd* bdd, pbuff* pbuff) {
     bdd2string(pbuff,bdd,0);
     bprintf(pbuff,"\n\n");
 #endif
-    bdd_print_tree(&bdd->tree,pbuff);
+    bdd_print_tree(bdd,pbuff);
 }
 
 static int bdd_lookup(bdd_runtime* bdd_rt, rva* rva, int low, int high) {
@@ -276,10 +279,13 @@ static int compute_default_order(V_rva* order, char* expr, char** _errmsg) {
  * The BASE build()/mk() algorithms
  */
 
-static int bdd_mk_BASE(bdd_alg* alg, bdd_runtime* bdd_rt, rva *v, int l, int h, char** _errmsg) {
+static int bdd_mk_BASE(bdd_runtime* bdd_rt, rva *v, int l, int h, char** _errmsg) {
 #ifdef BDD_VERBOSE
-    if ( bdd_rt->verbose )
-        fprintf(stdout,"MK{%s}[v=\"%s=%d\", l=%d, h=%d]\n",alg->name,v->var,v->val,l,h);
+    if ( bdd_rt->verbose ) {
+        for(int i=0;i<bdd_rt->call_depth; i++)
+            fprintf(stdout,">>");
+        fprintf(stdout," MK{BASE}[v=\"%s=%d\", l=%d, h=%d]\n",v->var,v->val,l,h);
+    }
     bdd_rt->mk_calls++;
 #endif
     if ( l == h )
@@ -289,8 +295,11 @@ static int bdd_mk_BASE(bdd_alg* alg, bdd_runtime* bdd_rt, rva *v, int l, int h, 
         return node; /* node already exists */ 
     int res = bdd_create_node(&bdd_rt->core,v,l,h);
 #ifdef BDD_VERBOSE
-    if ( bdd_rt->verbose )
-        fprintf(stdout,"CREATED NODE[%d](v=\"%s=%d\", l=%d, h=%d)\n",res,v->var,v->val,l,h);
+    if ( bdd_rt->verbose ) {
+        for(int i=0;i<bdd_rt->call_depth; i++)
+            fprintf(stdout,">>");
+        fprintf(stdout," CREATED NODE[%d](v=\"%s=%d\", l=%d, h=%d)\n",res,v->var,v->val,l,h);
+    }
 #endif
     return res;
 } 
@@ -335,7 +344,7 @@ static int bdd_build_bdd_BASE(bdd_alg* alg, bdd_runtime* bdd_rt, char* expr, int
     if ( l<0 || h<0 )
         return -1;
     else
-        return alg->mk(alg,bdd_rt,var,l,h,_errmsg);
+        return alg->mk(bdd_rt,var,l,h,_errmsg);
 }
 
 /*
@@ -385,7 +394,7 @@ static int bdd_build_bdd_KAJ(bdd_alg* alg, bdd_runtime* bdd_rt, char* expr, int 
     if ( h<0 )
         return -1;
     else
-        return alg->mk(alg,bdd_rt,var,l,h,_errmsg);
+        return alg->mk(bdd_rt,var,l,h,_errmsg);
 }
 
 /*
@@ -395,11 +404,11 @@ static int bdd_build_bdd_KAJ(bdd_alg* alg, bdd_runtime* bdd_rt, char* expr, int 
  *
  */
 
-static void bdd_check_ROBDD(bdd_alg* alg, bdd_runtime* bdd_rt, int root, rva* iv, int l, int h, char** _errmsg) {
+static void bdd_check_ROBDD(bdd_runtime* bdd_rt, int root, rva* iv, int l, int h, char** _errmsg) {
     bdd* bdd = &bdd_rt->core;
 #ifdef BDD_VERBOSE
     if ( bdd_rt->verbose )
-        fprintf(stdout,"CHECK{%s}[root=%d, l=%d, h=%d]\n",alg->name,root,l,h);
+        fprintf(stdout,"CHECK{ROBDD}[root=%d, l=%d, h=%d]\n",root,l,h);
     bdd_rt->check_calls++;
 #endif
     int low_branch  = 1;
@@ -421,20 +430,20 @@ static void bdd_check_ROBDD(bdd_alg* alg, bdd_runtime* bdd_rt, int root, rva* iv
             return;
         DELETE_LAST_ELEMENT(bdd);
         if ( high_branch > low_branch ) {
-            bdd_check_ROBDD(alg,bdd_rt,high_branch,iv,l,h,_errmsg);
-            bdd_check_ROBDD(alg,bdd_rt, low_branch,iv,l,h,_errmsg);
+            bdd_check_ROBDD(bdd_rt,high_branch,iv,l,h,_errmsg);
+            bdd_check_ROBDD(bdd_rt, low_branch,iv,l,h,_errmsg);
         } else {
-            bdd_check_ROBDD(alg,bdd_rt, low_branch,iv,l,h,_errmsg);
-            bdd_check_ROBDD(alg,bdd_rt,high_branch,iv,l,h,_errmsg);
+            bdd_check_ROBDD(bdd_rt, low_branch,iv,l,h,_errmsg);
+            bdd_check_ROBDD(bdd_rt,high_branch,iv,l,h,_errmsg);
         }
     }
 }
 
-static int bdd_mk_ROBDD(bdd_alg* alg, bdd_runtime* bdd_rt, rva *iv, int l, int h, char** _errmsg) {
+static int bdd_mk_ROBDD(bdd_runtime* bdd_rt, rva *iv, int l, int h, char** _errmsg) {
     bdd* bdd = &bdd_rt->core;
 #ifdef BDD_VERBOSE
     if ( bdd_rt->verbose )
-        fprintf(stdout,"MK{%s}[v=\"%s=%d\", l=%d, h=%d]\n",alg->name,iv->var,iv->val,l,h);
+        fprintf(stdout,"MK{ROBDD}[v=\"%s=%d\", l=%d, h=%d]\n",iv->var,iv->val,l,h);
     bdd_rt->mk_calls++;
 #endif
     int flag = 0;
@@ -452,7 +461,7 @@ static int bdd_mk_ROBDD(bdd_alg* alg, bdd_runtime* bdd_rt, rva *iv, int l, int h
                     if ( aux != l )
                         DELETE_LAST_ELEMENT(bdd);
                     // INCOMPLETE, is this parameter order OK
-                    bdd_check_ROBDD(alg,bdd_rt,subtree,iv,l,h,_errmsg);
+                    bdd_check_ROBDD(bdd_rt,subtree,iv,l,h,_errmsg);
                 }
                 if ( h!=0 && h!=1 )
                     aux = h;
@@ -593,32 +602,56 @@ bdd* create_bdd(bdd_alg* alg, char* expr, char** _errmsg, int verbose) {
  *
  */
 
-static int init_G(bdd_runtime* bdd_rt,int l, int r) {
-    size_t sz = l * r * sizeof(short);
+#define BDD_G_CACHE_POSSIBLE(L,R) (((L+1)*(R+1)*sizeof(short)) < BDD_G_CACHE_MAX)
 
+#define G_INDEX(BRTP,L,R)         ((L)*((int)(BRTP)->G_l) + (R))
+
+
+static int init_G(bdd_runtime* bdd_rt,int l_root, int r_root, char** _errmsg) {
+    if ( ! BDD_G_CACHE_POSSIBLE(l_root,r_root) )
+        return pg_error(_errmsg,"bdd_operation:init_G:apply too complex: (%d x %d x %d) > %d",l_root+1,r_root+1,sizeof(short),BDD_G_CACHE_MAX);
+    bdd_rt->G_l = (unsigned short)l_root+1;
+    bdd_rt->G_r = (unsigned short)r_root+1;
+    size_t sz = bdd_rt->G_l * bdd_rt->G_r * sizeof(short); 
     if ( !(bdd_rt->G_cache = (unsigned short*)MALLOC(sz)) )
         return 0;
     memset(bdd_rt->G_cache,0,sz);
-    bdd_rt->G_l = (unsigned short)l;
-    bdd_rt->G_r = (unsigned short)r;
     return 1;
 }
 
+#define G_INDEX(BRTP,L,R)       ((L)*((int)(BRTP)->G_l) + (R))
+
 static void store_G(bdd_runtime* bdd_rt,int l, int r, int v) {
-    int index = l*((int)bdd_rt->G_l) + r;
-    bdd_rt->G_cache[index] = (unsigned short)(v+1); // :-) because of memset init
+    bdd_rt->G_cache[G_INDEX(bdd_rt,l,r)] = (unsigned short)(v+1);
 }
 
 static int lookup_G(bdd_runtime* bdd_rt, int l, int r) {
-    int index = l*((int)bdd_rt->G_l) + r;
-    int res = (int)bdd_rt->G_cache[index] - 1; // :-) because of memset init
+    int res = (int)bdd_rt->G_cache[G_INDEX(bdd_rt,l,r)] - 1;
+#ifdef BDD_VERBOSE
+    if ( res >= 0 )
+        bdd_rt->G_cache_hits++;
+#endif
     return res;
 }
 
-static int _bdd_apply(bdd_alg* alg, bdd_runtime* bdd_rt, char op, bdd* b1, int u1, bdd* b2, int u2, char** _errmsg)
+static int _bdd_apply(bdd_runtime* bdd_rt, char op, bdd* b1, int u1, bdd* b2, int u2, char** _errmsg)
 {
     int u;
 
+#ifdef BDD_VERBOSE
+    if ( bdd_rt->verbose ) {
+        bdd_rt->call_depth++;
+        pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+        for(int i=0;i<bdd_rt->call_depth; i++)
+            bprintf(pbuff,">>");
+        bprintf(pbuff," _bdd_apply(");
+        bdd_print_row(b1,u1,pbuff);
+        bprintf(pbuff," , ");
+        bdd_print_row(b2,u2,pbuff);
+        bprintf(pbuff,")\n");
+        pbuff_flush(pbuff,stdout);
+    }
+#endif
     if ( (u = lookup_G(bdd_rt,u1,u2)) < 0 ) {
         rva_node *n_u1 = bdd_node(b1,u1);
         rva_node *n_u2 = bdd_node(b2,u2);
@@ -629,42 +662,49 @@ static int _bdd_apply(bdd_alg* alg, bdd_runtime* bdd_rt, char op, bdd* b1, int u
         } else {
             int cmp = cmpRva(&n_u1->rva,&n_u2->rva);
             if ( cmp == 0 ) {
-                u = bdd_mk_BASE(alg, bdd_rt, &n_u1->rva,
-                        _bdd_apply(alg,bdd_rt,op,b1,n_u1->low,b2,n_u2->low,_errmsg),
-                        _bdd_apply(alg,bdd_rt,op,b1,n_u1->high,b2,n_u2->high,_errmsg),
+                u = bdd_mk_BASE(bdd_rt, &n_u1->rva,
+                        _bdd_apply(bdd_rt,op,b1,n_u1->low,b2,n_u2->low,_errmsg),
+                        _bdd_apply(bdd_rt,op,b1,n_u1->high,b2,n_u2->high,_errmsg),
                         _errmsg);
-            } else if ( cmp < 0 ) {
-                u = bdd_mk_BASE(alg, bdd_rt, &n_u2->rva,
-                        _bdd_apply(alg,bdd_rt,op,b1,u1,b2,n_u2->low,_errmsg),
-                        _bdd_apply(alg,bdd_rt,op,b1,u1,b2,n_u2->high,_errmsg),
+            } else if ( IS_LEAF(n_u1) || (cmp < 0) ) {
+                u = bdd_mk_BASE(bdd_rt, &n_u2->rva,
+                        _bdd_apply(bdd_rt,op,b1,u1,b2,n_u2->low,_errmsg),
+                        _bdd_apply(bdd_rt,op,b1,u1,b2,n_u2->high,_errmsg),
                         _errmsg);
-            } else /* cmp < 0 */ {
-                u = bdd_mk_BASE(alg, bdd_rt, &n_u1->rva,
-                        _bdd_apply(alg,bdd_rt,op,b1,n_u1->low, b2,u2,_errmsg),
-                        _bdd_apply(alg,bdd_rt,op,b1,n_u1->high,b2,u2,_errmsg),
+            } else { /* IS_LEAF(n_u1) || (cmp > 0) */
+                u = bdd_mk_BASE(bdd_rt, &n_u1->rva,
+                        _bdd_apply(bdd_rt,op,b1,n_u1->low, b2,u2,_errmsg),
+                        _bdd_apply(bdd_rt,op,b1,n_u1->high,b2,u2,_errmsg),
                         _errmsg);
             }
         }
         store_G(bdd_rt,u1,u2,u);
     }
+#ifdef BDD_VERBOSE
+    bdd_rt->call_depth--;
+#endif
     return u;
 }
 
-bdd* bdd_apply(bdd_alg* alg,char op,bdd* b1,bdd* b2,char** _errmsg) {
-    bdd_runtime bdd_rt_struct, *bdd_rt;;
-
-    if ( !(bdd_rt = bdd_rt_init(&bdd_rt_struct,"",0,_errmsg)) )
+bdd* bdd_apply(char op,bdd* b1,bdd* b2,int verbose, char** _errmsg) {
+    bdd_runtime bdd_rt_struct, *bdd_rt;
+    if ( !(bdd_rt = bdd_rt_init(&bdd_rt_struct,"",verbose/*verbose*/,_errmsg)) )
         return NULL;
     V_rva_node_init(&bdd_rt->core.tree); // Ugly, should have been done in _init
-    V_rva_init(&bdd_rt->order);          // ,,
-    init_G(bdd_rt,BDD_ROOT(b1)+1,BDD_ROOT(b2)+1);
+    V_rva_init(&bdd_rt->order);          // ,, && unnecesary
+    if (!init_G(bdd_rt,BDD_ROOT(b1),BDD_ROOT(b2),_errmsg))
+        return NULL;
     //
     if ( (bdd_create_node(&bdd_rt->core,&RVA_0,BDD_NONE,BDD_NONE)<0) ||
          (bdd_create_node(&bdd_rt->core,&RVA_1,BDD_NONE,BDD_NONE)<0) ) {
         pg_error(_errmsg,"bdd_apply: tree init [0,1] fails");
         return NULL;
     }
-    if (_bdd_apply(alg,bdd_rt,op,b1,BDD_ROOT(b1),b2,BDD_ROOT(b2),_errmsg) < 0)
+#ifdef BDD_VERBOSE
+    bdd_rt->call_depth   = 0;
+    bdd_rt->G_cache_hits = 0;
+#endif
+    if (_bdd_apply(bdd_rt,op,b1,BDD_ROOT(b1),b2,BDD_ROOT(b2),_errmsg) < 0)
         return NULL;
     bdd* res = serialize_bdd(&bdd_rt->core);
     bdd_rt_free(bdd_rt);
@@ -677,16 +717,20 @@ bdd* bdd_apply(bdd_alg* alg,char op,bdd* b1,bdd* b2,char** _errmsg) {
  */
 
 static bdd* _bdd_not(bdd* par_bdd, char** _errmsg) {
+    /* bdd ! operation. Could be even faster by switching node 0 and 1. But 
+     * I think is is safer to have '0' at 0 and '1' at 1 so I only switch the
+     * pointers in the tree to these LEAF nodes.
+     */
     bdd* res = serialize_bdd(par_bdd);
     int root = BDD_ROOT(res);
     if ( root == 0 ) { // just one element '0' or '1'
         rva_node *node = bdd_node(res,root);
         node->rva.var[0] = (node->rva.var[0] == '0') ? '1' : '0';
     } else {
-        for(int i=0; i<V_rva_node_size(&res->tree); i++) {
+        for(int i=0 /*?2?*/; i<V_rva_node_size(&res->tree); i++) {
             rva_node *node = bdd_node(res,i);
             
-            if ( !IS_LEAF(node) ) {
+            if ( !IS_LEAF(node) ) { // check not necessary when starting at 2
                 if ( node->low <2 ) node->low = (node->low ==1) ? 0 : 1;
                 if ( node->high<2 ) node->high= (node->high==1) ? 0 : 1;
             }
@@ -695,35 +739,38 @@ static bdd* _bdd_not(bdd* par_bdd, char** _errmsg) {
     return res;
 }
 
-static bdd* _bdd_binary_operator(char operator, bdd* lhs_bdd, bdd* rhs_bdd, char** _errmsg) {
-    bdd* res = NULL;
+static bdd* _bdd_binary_op_by_text(char operator, bdd* lhs_bdd, bdd* rhs_bdd, char** _errmsg) {
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
 
-    if (1) {
-        pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
-        bprintf(pbuff,"(");
-        bdd2string(pbuff,lhs_bdd,0);
-        bprintf(pbuff,")%c(",operator);
-        bdd2string(pbuff,rhs_bdd,0);
-        bprintf(pbuff,")");
-        res = create_bdd(BDD_DEFAULT,pbuff->buffer,_errmsg,0/*verbose*/);
-        pbuff_free(pbuff);
-    }
+    bprintf(pbuff,"(");
+    bdd2string(pbuff,lhs_bdd,0);
+    bprintf(pbuff,")%c(",operator);
+    bdd2string(pbuff,rhs_bdd,0);
+    bprintf(pbuff,")");
+    bdd* res = create_bdd(BDD_DEFAULT,pbuff->buffer,_errmsg,0/*verbose*/);
+    pbuff_free(pbuff);
+    //
     return res;
 }
 
-bdd* bdd_operator(char operator, bdd* lhs_bdd, bdd* rhs_bdd, char** _errmsg) {
-    if ( !lhs_bdd ) {
+bdd* bdd_operator(char operator, op_mode m, bdd* lhs, bdd* rhs, char** _errmsg) {
+    if ( !lhs ) {
          pg_error(_errmsg,"_bdd_operator: lhs bdd NULL");
          return NULL;
     }
     if ( operator == '!' ) 
-        return _bdd_not(lhs_bdd,_errmsg);
+        return _bdd_not(lhs,_errmsg); // ignore m BY_TEXT
     else  if ( operator == '|' || operator == '&' ) {
-        if ( !rhs_bdd ) {
+        if ( !rhs ) {
              pg_error(_errmsg,"_bdd_operator: rhs bdd NULL");
              return NULL;
         }
-        return _bdd_binary_operator(operator,lhs_bdd,rhs_bdd,_errmsg);
+        if ( m == BY_APPLY ) {
+            if ( BDD_G_CACHE_POSSIBLE(BDD_ROOT(lhs),BDD_ROOT(rhs)) )
+                return bdd_apply(operator,lhs,rhs,0,_errmsg);
+        } // else  
+            // cache for apply would be too big, text variant is less complex ???
+        return _bdd_binary_op_by_text(operator,lhs,rhs,_errmsg);
     } else {
              pg_error(_errmsg,"_bdd_operator: bad operator (%c)",operator);
              return NULL;
@@ -762,10 +809,6 @@ bdd* relocate_bdd(bdd* tbr) {
 #endif
     return tbr;
 }
-
-//
-//
-//
 
 /*
  *

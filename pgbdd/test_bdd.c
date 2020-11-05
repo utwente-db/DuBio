@@ -17,9 +17,18 @@
 
 #include "test_config.h"
 
+#ifndef BDD_OPTIMIZE
 #define BDD_VERBOSE
+#endif
 
 #include "bdd.c"
+
+#include <time.h>
+static clock_t _clock_start, _clock_stop;
+#define CLOCK_START() _clock_start = clock()
+#define CLOCK_STOP()  _clock_stop  = clock()
+#define CLOCK_MS()    ((_clock_stop-_clock_start)*1000/CLOCKS_PER_SEC)
+
 
 static bdd_dictionary* get_test_dictionary(char* dict_vars, char** _errmsg) {
     bdd_dictionary dict_struct, *new_dict;
@@ -88,19 +97,18 @@ static int test_regenerate() {
 }
 
 
-#include <time.h>
-
 static void test_timings(){
     int REPEAT = 10000;
     int n_bdd  = (sizeof(bdd_expr)/sizeof(char*)) - 1;
     int count  = REPEAT * n_bdd;
-    clock_t start = clock(), diff;
+    CLOCK_START();
     for (int r=0; r<REPEAT; r++) {
         test_regenerate();
     }
-    diff = clock() - start;
-    int msec = diff * 1000 / CLOCKS_PER_SEC;
-    fprintf(stdout,"Time %ds/%dms, created %d bdd's (%d/s)\n", msec/1000, msec%1000,count, (int)((double)count/((double)msec/1000)));
+    CLOCK_STOP();
+    int msec = CLOCK_MS();
+    fprintf(stdout,"+ Time %ds/%dms\n",msec/1000,msec%1000);
+    fprintf(stdout,"+ Created %d bdd's (%d/s)\n",count, (int)((double)count/((double)msec/1000)));
 }
 
 static char* TRIO_DICTIONARY = 
@@ -148,6 +156,66 @@ static int test_trio() {
 //
 //
 
+#define N_LHS 3
+static char *lhs_expr[N_LHS] = {
+"x=1|(!y=3)",
+"(x=2&z=4)",
+"x=3"
+};
+static bdd* lhs_bdd[N_LHS];
+
+#define N_RHS 3
+static char *rhs_expr[N_RHS] = {
+"y=1",
+"(y=2|x=1|x=2)",
+"(y=3|z=4)"
+};
+static bdd* rhs_bdd[N_RHS];
+
+
+static void run_apply_test(op_mode m) {
+    char* _errmsg = NULL;
+
+    int repeat = 100000;
+    int count = 0;
+    CLOCK_START();
+    for(int r=0; r<repeat; r++) {
+        for(int i=0; i<N_LHS; i++) {
+            for(int j=0; j<N_LHS; j++) {
+                bdd* res;
+                if (!(res=bdd_operator('&',m,lhs_bdd[i],rhs_bdd[j],&_errmsg)))
+                    pg_fatal("compare_apply_text: error: %s",_errmsg);
+                FREE(res);
+                count++;
+                if (!(res=bdd_operator('|',m,lhs_bdd[i],rhs_bdd[j],&_errmsg)))
+                    pg_fatal("compare_apply_text: error: %s",_errmsg);
+                FREE(res);
+                count++;
+            }
+        }
+    }
+    CLOCK_STOP();
+    int msec = CLOCK_MS();
+    fprintf(stdout,"+ result of \"%s\" test:\n",(m==BY_TEXT?"TEXT":"APPLY"));
+    fprintf(stdout,"+ Time %ds/%dms, #op=%d, #op/s=%d\n",msec/1000,msec%1000,count,(int)((double)count/((double)msec/1000)));
+} 
+
+static int compare_apply_text() {
+    char* _errmsg = NULL;
+
+    for (int i=0; i<N_LHS; i++) 
+        if (!(lhs_bdd[i] = create_bdd(BDD_DEFAULT,lhs_expr[i],&_errmsg,0)))
+            pg_fatal("compare_apply_text: error: %s",_errmsg);
+    for (int i=0; i<N_RHS; i++) 
+        if (!(rhs_bdd[i] = create_bdd(BDD_DEFAULT,rhs_expr[i],&_errmsg,0)))
+            pg_fatal("compare_apply_text: error: %s",_errmsg);
+    //
+    run_apply_test(BY_TEXT);
+    run_apply_test(BY_APPLY);
+    //
+    return 1;
+} 
+
 static int test_apply() {
     char* _errmsg = NULL;
     bdd *lhs, *rhs;
@@ -155,15 +223,16 @@ static int test_apply() {
     char* dotfile = "./DOT/test.dot";
   
 
-    char* la = "x=1";
+    char* la = "(x=1&y=2)";
     char  op = '&';
-    char* ra = "y=1 | z=1";
+    // char* ra = "y=2";
+    char* ra = "(x=1&y=2&z=3)";
 
     lhs = create_bdd(BDD_DEFAULT,la,&_errmsg,0/*verbose*/);
     rhs = create_bdd(BDD_DEFAULT,ra,&_errmsg,0/*verbose*/);
     if ( !(lhs && rhs) )
         pg_fatal("test_apply: error: %s",_errmsg);
-    bdd* res = bdd_apply(BDD_DEFAULT,op,lhs,rhs,&_errmsg);
+    bdd* res = bdd_apply(op,lhs,rhs,0/*verbose*/,&_errmsg);
     if ( !res ) {
         fprintf(stderr,"test_apply:error: %s\n",_errmsg);
     } else {
@@ -188,7 +257,7 @@ static int test_apply() {
         bdd2string(pbuff,res,0);
         bprintf(pbuff,"\n");
         //
-        if ( !(res = bdd_operator(op,lhs,rhs,&_errmsg)))
+        if ( !(res = bdd_operator(op,BY_TEXT,lhs,rhs,&_errmsg)))
             pg_fatal("test_apply: error: %s",_errmsg);
         bprintf(pbuff,"STRING CONCAT: ");
         bdd2string(pbuff,res,0);
@@ -209,7 +278,8 @@ static void test_bdd_creation(){
     // char* expr = "(x=1&y=1) |(z=5)";
     // char* expr = "(z=1)&!((x=1)&((y=1|y=2)&x=2))";
     // char* expr = "!(x=1)";
-    char* expr = "!(x=1&y=2&z=3)";
+    // char* expr = "!(x=1&y=2&z=3)";
+    char* expr = "(!x=1)|y=2";
     bdd*  test_bdd;
     char* _errmsg = NULL;
 
@@ -344,12 +414,16 @@ static int test_static_bdd() {
 //
 
 void test_bdd() {
+#ifdef BDD_VERBOSE
+    fprintf(stdout,"# BDD_VERBOSE = ON!\n");
+#endif
     if (1) test_regenerate(); // do this always, catches many errors
     if (1) test_trio();       // ,,
     //
-    if (1) test_bdd_creation();
+    if (0) test_bdd_creation();
     if (0) test_bdd_probability();
     if (0) test_timings();
     if (0) test_static_bdd();
-    if (0) test_apply();
+    if (1) test_apply();
+    if (0) compare_apply_text();
 }

@@ -57,6 +57,8 @@ typedef struct bdd_runtime {
     int      verbose;
     int      mk_calls;
     int      check_calls;
+    int      call_depth;
+    int      G_cache_hits;
 #endif
     char*    expr;
     int      len_expr;
@@ -73,7 +75,7 @@ typedef struct bdd_alg bdd_alg; /*forward*/
 typedef struct bdd_alg {
     char name[32];
     int  (*build)(bdd_alg*,bdd_runtime*,char*,int,char*,char**);
-    int  (*mk)(bdd_alg*,bdd_runtime*,rva*,int,int,char**);
+    int  (*mk)(bdd_runtime*,rva*,int,int,char**);
 } bdd_alg;
 
 extern bdd_alg *BDD_DEFAULT, *BDD_BASE, *BDD_KAJ, *BDD_ROBDD;
@@ -120,8 +122,13 @@ void bdd_rt_free(bdd_runtime*);
 bdd* serialize_bdd(bdd*);
 bdd* relocate_bdd(bdd*);
 
-bdd*  bdd_operator(char,bdd*,bdd*,char**);
-bdd*  bdd_apply(bdd_alg*,char,bdd*,bdd*,char**);
+#define BDD_G_CACHE_MAX 8192
+
+bdd*  bdd_apply(char,bdd*,bdd*,int,char**);
+
+typedef enum op_mode {BY_TEXT, BY_APPLY} op_mode;
+
+bdd*  bdd_operator(char,op_mode,bdd*,bdd*,char**);
 
 void  bdd2string(pbuff*,bdd*,int);
 void  bdd_info(bdd*, pbuff*);
