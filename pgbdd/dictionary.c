@@ -216,10 +216,14 @@ static void del_variable(bdd_dictionary* dict, int var_index) {
 static dict_val* add_value(bdd_dictionary* dict, int value, double prob) {
     dict_val newval = { .value = value, .prob = prob };
 
+    /* This is the only place where ushort with small footprint should be
+     * checked. There is no other way to create larger offset/card values 
+     * than 65536. Variables need at last 1 value so maybe they donot have
+     * to be checked at all
+     */
     int index = V_dict_val_add(dict->values,&newval);
     return (index<0) ? NULL : V_dict_val_getp(dict->values,index);
 }
-
 
 static int get_var_value_index(bdd_dictionary* dict, dict_var* varp, int val) {
     if ( val >= 0 ) {

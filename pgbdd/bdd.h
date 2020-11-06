@@ -17,7 +17,8 @@
 #ifndef BDD_H
 #define BDD_H
 
-#define BDD_NONE -1
+#define BDD_FAIL  0
+#define BDD_OK    1
 
 typedef struct rva {
     char        var[MAX_RVA_NAME];
@@ -28,11 +29,28 @@ DefVectorH(rva);
 
 int cmpRva(rva*, rva*);
 
-// 
+/*
+ * The rva_node type defines a node in the bdd/graph tree. It has two
+ * 'pointers' low and high pointing to the FALSE and TRUE children in the
+ * tree. Best introduction to this graph is the "Introduction to Binary
+ * Decision Diagrams" by HR Andersen.
+ *
+ * https://www.cmi.ac.in/~madhavan/courses/verification-2011/andersen-bdd.pdf
+ *
+ * The current implementation defines a node index type 'nodei' as a regular
+ * short with the NODEI_NONE = -1. This can be made larger by making it
+ * unsigned but BDD's of more than 32767 are too large to handle anyway I
+ * think. And in this case NODEI_NONE would be USHRT_MAX and NODEI_MAX would
+ * be USHRT_MAX-1
+ */
+
+typedef short      nodei;
+#define NODEI_MAX  SHRT_MAX
+#define NODEI_NONE -1
 
 typedef struct rva_node {
-    rva rva;
-    int low, high;
+    nodei low, high;
+    rva   rva;
 } rva_node;
 
 DefVectorH(rva_node);
@@ -74,8 +92,8 @@ typedef struct bdd_runtime {
 typedef struct bdd_alg bdd_alg; /*forward*/
 typedef struct bdd_alg {
     char name[32];
-    int  (*build)(bdd_alg*,bdd_runtime*,char*,int,char*,char**);
-    int  (*mk)(bdd_runtime*,rva*,int,int,char**);
+    nodei  (*build)(bdd_alg*,bdd_runtime*,char*,int,char*,char**);
+    nodei  (*mk)(bdd_runtime*,rva*,nodei,nodei,char**);
 } bdd_alg;
 
 extern bdd_alg *BDD_DEFAULT, *BDD_BASE, *BDD_KAJ, *BDD_ROBDD;
@@ -84,27 +102,29 @@ bdd_alg* bdd_algorithm(char*, char** _errmsg);
 
 
 #ifdef BDD_OPTIMIZE
-#define bdd_node(PBDD,I) (&(PBDD)->tree.items[I])
+#define BDD_NODE(PBDD,I)    (&(PBDD)->tree.items[I])
+#define BDD_TREESIZE(PBDD)  ((PBDD)->tree.size)
 #else
-#define bdd_node(PBDD,I) (V_rva_node_getp(&(PBDD)->tree,I))
+#define BDD_NODE(PBDD,I)    (V_rva_node_getp(&(PBDD)->tree,I))
+#define BDD_TREESIZE(PBDD)  (V_rva_node_size(&(PBDD)->tree))
 #endif
 
-#define BDD_ROOT(PBDD)   (V_rva_node_size(&(PBDD)->tree)-1)
+#define BDD_ROOT(PBDD)      (BDD_TREESIZE(PBDD)-1)
 
-#define bdd_rva(PBDD,I)  (&bdd_node(PBDD,I)->rva)
+#define BDD_RVA(PBDD,I)     (&BDD_NODE(PBDD,I)->rva)
 
-#define IS_LEAF(N)         (((N)->low==-1)&&((N)->high==-1))
-#define IS_LEAF_I(PBDD,NI) (IS_LEAF(bdd_node(PBDD,NI)))
-#define LEAF_BOOLVALUE(N)  ((N)->rva.var[0]-'0')
+#define IS_LEAF(N)          (((N)->low==NODEI_NONE)&&((N)->high==NODEI_NONE))
+#define IS_LEAF_I(PBDD,NI)  (IS_LEAF(BDD_NODE(PBDD,NI)))
+#define LEAF_BOOLVALUE(N)   ((N)->rva.var[0]-'0')
 
-#define IS_FALSE_I(PBDD,NI) (IS_LEAF(bdd_node(PBDD,NI)) && bdd_node(PBDD,NI)->rva.var[0]=='0')
-#define IS_TRUE_I(PBDD,NI) (IS_LEAF(bdd_node(PBDD,NI)) && bdd_node(PBDD,NI)->rva.var[0]=='1')
+#define IS_FALSE_I(PBDD,NI) (IS_LEAF(BDD_NODE(PBDD,NI)) && BDD_NODE(PBDD,NI)->rva.var[0]=='0')
+#define IS_TRUE_I(PBDD,NI)  (IS_LEAF(BDD_NODE(PBDD,NI)) && BDD_NODE(PBDD,NI)->rva.var[0]=='1')
 
-#define bdd_low(PBDD,I)  (bdd_node(PBDD,I)->low)
-#define bdd_high(PBDD,I) (bdd_node(PBDD,I)->high)
+#define bdd_low(PBDD,I)     (BDD_NODE(PBDD,I)->low)
+#define bdd_high(PBDD,I)    (BDD_NODE(PBDD,I)->high)
 
 #define IS_SAMEVAR(L,R)          (strcmp((L)->var,(R)->var)==0)
-#define IS_SAMEVAR_I(PBDD,LI,RI) (IS_SAMEVAR(&(bdd_node(PBDD,LI)->rva),&(bdd_node(PBDD,RI)->rva)))
+#define IS_SAMEVAR_I(PBDD,LI,RI) (IS_SAMEVAR(&(BDD_NODE(PBDD,LI)->rva),&(BDD_NODE(PBDD,RI)->rva)))
 
 /*
  * Macros for Probdd

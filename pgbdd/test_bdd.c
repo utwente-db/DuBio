@@ -276,10 +276,10 @@ static int test_apply() {
 static void test_bdd_creation(){
     // char* expr = "(x=1 & y=1 & z=1 )";
     // char* expr = "(x=1&y=1) |(z=5)";
-    // char* expr = "(z=1)&!((x=1)&((y=1|y=2)&x=2))";
+    char* expr = "(z=1)&!((x=1)&((y=1|y=2)&x=2))";
     // char* expr = "!(x=1)";
     // char* expr = "!(x=1&y=2&z=3)";
-    char* expr = "(!x=1)|y=2";
+    // char* expr = "(!x=1)|y=2";
     bdd*  test_bdd;
     char* _errmsg = NULL;
 
@@ -423,7 +423,7 @@ void test_bdd() {
     if (0) test_bdd_creation();
     if (0) test_bdd_probability();
     if (0) test_timings();
+    if (0) compare_apply_text();
     if (0) test_static_bdd();
     if (1) test_apply();
-    if (0) compare_apply_text();
 }

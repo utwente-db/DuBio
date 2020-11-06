@@ -15,6 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -79,8 +80,8 @@ void bdd_rt_free(bdd_runtime* bdd_rt) {
         FREE(bdd_rt->G_cache);
 }
 
-static void bdd_print_row(bdd* par_bdd, int i, pbuff* pbuff) {
-    rva_node* row = V_rva_node_getp(&par_bdd->tree,i);
+static void bdd_print_row(bdd* par_bdd, nodei i, pbuff* pbuff) {
+    rva_node* row = BDD_NODE(par_bdd,i);
     if ( row->rva.val < 0 )
         bprintf(pbuff,"[\"%s\"]",row->rva.var);
     else
@@ -88,8 +89,7 @@ static void bdd_print_row(bdd* par_bdd, int i, pbuff* pbuff) {
 }
 
 static void bdd_print_tree(bdd* par_bdd, pbuff* pbuff) {
-    V_rva_node* tree = &par_bdd->tree;
-    for(int i=0; i<V_rva_node_size(tree); i++) {
+    for(nodei i=0; i<BDD_TREESIZE(par_bdd); i++) {
         bprintf(pbuff,"\t%d:\t",i);
         bdd_print_row(par_bdd,i,pbuff);
         bprintf(pbuff,"\n");
@@ -130,13 +130,13 @@ void bdd_info(bdd* bdd, pbuff* pbuff) {
     bdd_print_tree(bdd,pbuff);
 }
 
-static int bdd_lookup(bdd_runtime* bdd_rt, rva* rva, int low, int high) {
+static nodei bdd_lookup(bdd_runtime* bdd_rt, rva* rva, nodei low, nodei high) {
     // ORIGINAL: 
     // rva_node tofind = { .rva  = *rva, .low  = low, .high = high };
     // return V_rva_node_find(&bdd_rt->core.tree,cmpRva_node,&tofind);
     // OPTIMIZED:
     V_rva_node *tree = &bdd_rt->core.tree;
-    for (int i=0; i<tree->size; i++) {
+    for (nodei i=0; i<tree->size; i++) {
         rva_node* n = &tree->items[i];
         if ( (n->low == low) && 
              (n->high == high) &&
@@ -145,12 +145,16 @@ static int bdd_lookup(bdd_runtime* bdd_rt, rva* rva, int low, int high) {
             return i;
         }
     }
-    return -1;
+    return NODEI_NONE;
 } 
 
-static int bdd_create_node(bdd* bdd, rva* rva, int low, int high) {
+static nodei bdd_create_node(bdd* bdd, rva* rva, nodei low, nodei high) {
     rva_node newrow = { .rva  = *rva, .low  = low, .high = high };
-    return V_rva_node_add(&bdd->tree,&newrow);
+
+    if ( (BDD_TREESIZE(bdd) + 1) >= NODEI_MAX )
+        return NODEI_NONE; // error, end of 'nodei' range
+    int new_index = V_rva_node_add(&bdd->tree,&newrow);
+    return (new_index < 0) ? NODEI_NONE : (nodei)new_index;
 }
 
 /*
@@ -199,7 +203,7 @@ static int create_new_rva(rva* res, char* var, int var_len, char* val, char** _e
     res->var[var_len] = 0;
     if ( strcmp(res->var,"not")==0||strcmp(res->var,"and")==0||strcmp(res->var,"or")==0 )
         return pg_error(_errmsg, "bdd-expr: do not use and/or/not keywords but use '&|!': %s",var);
-    if ( (res->val = bdd_atoi(val)) == BDD_NONE )
+    if ( (res->val = bdd_atoi(val)) == NODEI_NONE )
         return pg_error(_errmsg,"bad rva string, bad value %s= %s",res->var,val);   
     return 1;
 }
@@ -210,11 +214,11 @@ static int add_to_order(V_rva* order, rva* new_rva) {
     int index = V_rva_bsearch(order,cmpRva,new_rva);
     if ( index < 0 ) {
         index = -(index + VECTOR_BSEARCH_NEG_OFFSET);
-        return (V_rva_insert_at(order,index,new_rva)<0) ? 0 : 1;
+        return (V_rva_insert_at(order,index,new_rva) < 0) ? BDD_FAIL : BDD_OK;
     } else
         return 1; // OK, already in order
 #else
-    return (V_rva_add(order,new_rva)<0) ? 0 : 1;
+    return (V_rva_add(order,new_rva) < 0) ? BDD_FAIL : BDD_OK;
 #endif
 }
 
@@ -250,9 +254,9 @@ static int compute_default_order(V_rva* order, char* expr, char** _errmsg) {
                     return pg_error(_errmsg,"missing value after \'=\' in expr: \"%s\"",start);
                 rva new_rva;
                 if ( !create_new_rva(&new_rva,start,len,p,_errmsg) )
-                    return 0;
+                    return BDD_FAIL;
                 if ( !add_to_order(order,&new_rva) )
-                    return 0;
+                    return BDD_FAIL;
                 while (isdigit(*p) )
                     p++;
             }
@@ -279,7 +283,7 @@ static int compute_default_order(V_rva* order, char* expr, char** _errmsg) {
  * The BASE build()/mk() algorithms
  */
 
-static int bdd_mk_BASE(bdd_runtime* bdd_rt, rva *v, int l, int h, char** _errmsg) {
+static nodei bdd_mk_BASE(bdd_runtime* bdd_rt, rva *v, nodei l, nodei h, char** _errmsg) {
 #ifdef BDD_VERBOSE
     if ( bdd_rt->verbose ) {
         for(int i=0;i<bdd_rt->call_depth; i++)
@@ -290,10 +294,10 @@ static int bdd_mk_BASE(bdd_runtime* bdd_rt, rva *v, int l, int h, char** _errmsg
 #endif
     if ( l == h )
         return h;
-    int node = bdd_lookup(bdd_rt,v,l,h);
-    if ( node != -1 ) 
+    nodei node = bdd_lookup(bdd_rt,v,l,h);
+    if ( node != NODEI_NONE ) 
         return node; /* node already exists */ 
-    int res = bdd_create_node(&bdd_rt->core,v,l,h);
+    nodei res = bdd_create_node(&bdd_rt->core,v,l,h);
 #ifdef BDD_VERBOSE
     if ( bdd_rt->verbose ) {
         for(int i=0;i<bdd_rt->call_depth; i++)
@@ -316,7 +320,7 @@ static void create_rva_string(char* dst, rva* src) {
     }
 }
 
-static int bdd_build_bdd_BASE(bdd_alg* alg, bdd_runtime* bdd_rt, char* expr, int i, char* rewrite_buffer, char** _errmsg) {
+static nodei bdd_build_bdd_BASE(bdd_alg* alg, bdd_runtime* bdd_rt, char* expr, int i, char* rewrite_buffer, char** _errmsg) {
 #ifdef BDD_VERBOSE
     if ( bdd_rt->verbose )
         fprintf(stdout,"BUILD{%s}[i=%d]: %s\n",alg->name,i,expr);
@@ -338,11 +342,11 @@ static int bdd_build_bdd_BASE(bdd_alg* alg, bdd_runtime* bdd_rt, char* expr, int
     char rva_string[MAX_RVA_LEN];
     create_rva_string(rva_string,var);
     bdd_replace_str(newexpr,expr,rva_string,'0');
-    int l = alg->build(alg,bdd_rt,newexpr,i+1,rewrite_buffer,_errmsg);
+    nodei l = alg->build(alg,bdd_rt,newexpr,i+1,rewrite_buffer,_errmsg);
     bdd_replace_str(newexpr,expr,rva_string,'1');
-    int h = alg->build(alg,bdd_rt,newexpr,i+1,rewrite_buffer,_errmsg);
-    if ( l<0 || h<0 )
-        return -1;
+    nodei h = alg->build(alg,bdd_rt,newexpr,i+1,rewrite_buffer,_errmsg);
+    if ( l == NODEI_NONE || h == NODEI_NONE )
+        return NODEI_NONE;
     else
         return alg->mk(bdd_rt,var,l,h,_errmsg);
 }
@@ -351,33 +355,33 @@ static int bdd_build_bdd_BASE(bdd_alg* alg, bdd_runtime* bdd_rt, char* expr, int
  * Kaj's algorithm
  */
 
-static int bdd_build_bdd_KAJ(bdd_alg* alg, bdd_runtime* bdd_rt, char* expr, int i, char* rewrite_buffer, char** _errmsg) {
+static nodei bdd_build_bdd_KAJ(bdd_alg* alg, bdd_runtime* bdd_rt, char* expr, int order_i, char* rewrite_buffer, char** _errmsg) {
 #ifdef BDD_VERBOSE
     if ( bdd_rt->verbose )
-        fprintf(stdout,"BUILD{%s}[i=%d]: %s\n",alg->name,i,expr);
+        fprintf(stdout,"BUILD{%s}[i=%d]: %s\n",alg->name,order_i,expr);
 #endif
-    if ( i >= bdd_rt->n ) {
+    if ( order_i >= bdd_rt->n ) {
 #ifdef BDD_VERBOSE
         if ( bdd_rt->verbose )
-            fprintf(stdout,"EVAL{%s}[i=%d]: %s = ",alg->name,i,expr);
+            fprintf(stdout,"EVAL{%s}[i=%d]: %s = ",alg->name,order_i,expr);
 #endif
-        int res = bee_eval(expr,_errmsg);
+        int boolean_res = bee_eval(expr,_errmsg);
 #ifdef BDD_VERBOSE
         if ( bdd_rt->verbose )
-            fprintf(stdout,"%d\n",res);
+            fprintf(stdout,"%d\n",boolean_res);
 #endif
-        return res;
+        return (boolean_res < 0) ? NODEI_NONE : (nodei)boolean_res;
     }
-    rva* var = V_rva_getp(&bdd_rt->order,i);
-    char* newexpr = rewrite_buffer + (i*bdd_rt->len_expr); // Pretty brill:-)
+    rva* var = V_rva_getp(&bdd_rt->order,order_i);
+    char* newexpr = rewrite_buffer + (order_i*bdd_rt->len_expr); // Pretty brill:-)
     char rva_string[MAX_RVA_LEN];
     create_rva_string(rva_string,var);
     bdd_replace_str(newexpr,expr,rva_string,'0');
-    int l = alg->build(alg,bdd_rt,newexpr,i+1,rewrite_buffer,_errmsg);
-    if ( l<0 ) return -1;
+    nodei l = alg->build(alg,bdd_rt,newexpr,order_i+1,rewrite_buffer,_errmsg);
+    if ( l == NODEI_NONE ) return NODEI_NONE;
     bdd_replace_str(newexpr,expr,rva_string,'1');
     //
-    int scan_samevar_i = i+1;
+    int scan_samevar_i = order_i+1;
     while ( scan_samevar_i < V_rva_size(&bdd_rt->order) ) {
          rva* next_in_order = V_rva_getp(&bdd_rt->order,scan_samevar_i);
          if ( !IS_SAMEVAR(var,next_in_order) )
@@ -390,9 +394,9 @@ static int bdd_build_bdd_KAJ(bdd_alg* alg, bdd_runtime* bdd_rt, char* expr, int 
          }
          scan_samevar_i++;
     }
-    int h = alg->build(alg,bdd_rt,newexpr,scan_samevar_i/*newvar*/,rewrite_buffer,_errmsg);
-    if ( h<0 )
-        return -1;
+    nodei h = alg->build(alg,bdd_rt,newexpr,scan_samevar_i/*newvar*/,rewrite_buffer,_errmsg);
+    if ( h == NODEI_NONE )
+        return NODEI_NONE;
     else
         return alg->mk(bdd_rt,var,l,h,_errmsg);
 }
@@ -404,15 +408,15 @@ static int bdd_build_bdd_KAJ(bdd_alg* alg, bdd_runtime* bdd_rt, char* expr, int 
  *
  */
 
-static void bdd_check_ROBDD(bdd_runtime* bdd_rt, int root, rva* iv, int l, int h, char** _errmsg) {
+static void bdd_check_ROBDD(bdd_runtime* bdd_rt, nodei root, rva* iv, nodei l, nodei h, char** _errmsg) {
     bdd* bdd = &bdd_rt->core;
 #ifdef BDD_VERBOSE
     if ( bdd_rt->verbose )
         fprintf(stdout,"CHECK{ROBDD}[root=%d, l=%d, h=%d]\n",root,l,h);
     bdd_rt->check_calls++;
 #endif
-    int low_branch  = 1;
-    int high_branch = 1;
+    nodei low_branch  = 1;
+    nodei high_branch = 1;
     if ( root != 0 && root != 1 ) {
         high_branch = bdd_high(bdd,root);
         low_branch  = bdd_low(bdd,root);
@@ -439,7 +443,7 @@ static void bdd_check_ROBDD(bdd_runtime* bdd_rt, int root, rva* iv, int l, int h
     }
 }
 
-static int bdd_mk_ROBDD(bdd_runtime* bdd_rt, rva *iv, int l, int h, char** _errmsg) {
+static nodei bdd_mk_ROBDD(bdd_runtime* bdd_rt, rva *iv, nodei l, nodei h, char** _errmsg) {
     bdd* bdd = &bdd_rt->core;
 #ifdef BDD_VERBOSE
     if ( bdd_rt->verbose )
@@ -449,15 +453,19 @@ static int bdd_mk_ROBDD(bdd_runtime* bdd_rt, rva *iv, int l, int h, char** _errm
     int flag = 0;
     if ( l == h ) return l;
     else {
-        int index = bdd_lookup(bdd_rt,iv,l,h);
-        if ( index >= 0 ) 
+        nodei index = bdd_lookup(bdd_rt,iv,l,h);
+        if ( index != NODEI_NONE ) 
             return index;
         if ( h != 0 && h != 1 && flag == 0) {
-            while ( IS_SAMEVAR(&(bdd_node(bdd,h)->rva),iv) ) {
-                int aux = h;
+            // INCOMPLETE: error h may be too big
+            if ( h >= bdd->tree.size ) {
+                pg_fatal("HERE");
+            }
+            while ( (h<bdd->tree.size) && IS_SAMEVAR(BDD_RVA(bdd,h),iv) ) {
+                nodei aux = h;
                 h = bdd_low(bdd,h);
                 if ( aux == LAST_ADDED(bdd) ) {
-                    int subtree  = bdd_high(bdd,aux);
+                    nodei subtree  = bdd_high(bdd,aux);
                     if ( aux != l )
                         DELETE_LAST_ELEMENT(bdd);
                     // INCOMPLETE, is this parameter order OK
@@ -472,8 +480,8 @@ static int bdd_mk_ROBDD(bdd_runtime* bdd_rt, rva *iv, int l, int h, char** _errm
     }
     if ( l == h ) return l;
     else {
-        int index = bdd_lookup(bdd_rt,iv,l,h);
-        if ( index >= 0 )
+        nodei index = bdd_lookup(bdd_rt,iv,l,h);
+        if ( index != NODEI_NONE )
             return index;
         else 
             return bdd_create_node(&bdd_rt->core,iv,l,h);
@@ -494,13 +502,13 @@ static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd_rt, char** _errmsg) {
 #endif
     int len_expr, n_rva, n_spaces;
     if ( !analyze_expr(bdd_rt->expr,&len_expr,&n_rva,&n_spaces,_errmsg) )
-        return 0;
+        return BDD_FAIL;
     // fprintf(stdout,"analyze: len_expr = %d, n_rva = %d, n_spaces = %d\n",len_expr,n_rva,n_spaces);
     bdd_rt->len_expr = len_expr - n_spaces + 1;
     if ( !V_rva_init_estsz(&bdd_rt->order,n_rva) )
         return pg_error(_errmsg,"bdd_rt: error creating order vector");
     if ( !compute_default_order(&bdd_rt->order,bdd_rt->expr,_errmsg))
-        return 0;
+        return BDD_FAIL;
     bdd_rt->n     = V_rva_size(&bdd_rt->order);
     if ( !V_rva_node_init_estsz(&bdd_rt->core.tree, bdd_rt->n+2) )
         return pg_error(_errmsg,"bdd_rt: error creating tree");
@@ -521,24 +529,22 @@ static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd_rt, char** _errmsg) {
     // with only characters 01&|!(). This way we can build an extremely fast
     // expression evaluator
     //
-    if (bdd_create_node(&bdd_rt->core,&RVA_0,BDD_NONE,BDD_NONE)<0) return 0;
-    if (bdd_create_node(&bdd_rt->core,&RVA_1,BDD_NONE,BDD_NONE)<0) return 0;
-    int res = alg->build(alg,bdd_rt,exprbuff,0,rewrite_buffer,_errmsg);
-    if ( (res>=0) && V_rva_node_size(&bdd_rt->core.tree) == 2 ) {
+    if (bdd_create_node(&bdd_rt->core,&RVA_0,NODEI_NONE,NODEI_NONE)==NODEI_NONE) return BDD_FAIL;
+    if (bdd_create_node(&bdd_rt->core,&RVA_1,NODEI_NONE,NODEI_NONE)==NODEI_NONE) return BDD_FAIL;
+    nodei res = alg->build(alg,bdd_rt,exprbuff,0,rewrite_buffer,_errmsg);
+    if ( (res != NODEI_NONE) && V_rva_node_size(&bdd_rt->core.tree) == 2 ) {
         // there have no nodes been created, expression is constant, no errors
         V_rva_node_reset(&bdd_rt->core.tree);
-        if ( res >= 0 ) { // no errors
-            if ( res == 0 ) {
-                if (bdd_create_node(&bdd_rt->core,&RVA_0,BDD_NONE,BDD_NONE)<0) return 0;
+        if ( res == 0 ) {
+            if (bdd_create_node(&bdd_rt->core,&RVA_0,NODEI_NONE,NODEI_NONE) == NODEI_NONE) return BDD_FAIL;
 #ifdef BDD_STORE_EXPRESSION
-                bdd_rt->core.expr = "0";
+            bdd_rt->core.expr = "0";
 #endif
-            } else {
-                if (bdd_create_node(&bdd_rt->core,&RVA_1,BDD_NONE,BDD_NONE)<0) return 0;
+        } else {
+            if (bdd_create_node(&bdd_rt->core,&RVA_1,NODEI_NONE,NODEI_NONE) == NODEI_NONE) return BDD_FAIL;
 #ifdef BDD_STORE_EXPRESSION
-                bdd_rt->core.expr = "1";
+            bdd_rt->core.expr = "1";
 #endif
-            }
         }
     }
     //
@@ -547,7 +553,7 @@ static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd_rt, char** _errmsg) {
 #ifdef BDD_VERBOSE
     if ( bdd_rt->verbose ) {
         fprintf(stdout,"/------FINISH, alg=\"%s\"--------\n",alg->name);
-        if ( res < 0 ) 
+        if ( res == NODEI_NONE ) 
             fprintf(stdout,"ERROR: res=%d\n",res);
         else
             bdd_print(bdd_rt,pbuff); pbuff_flush(pbuff,stdout);
@@ -555,7 +561,7 @@ static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd_rt, char** _errmsg) {
     }
     pbuff_free(&pbuff_struct);
 #endif
-    return (res<0) ? 0 : 1;
+    return (res == NODEI_NONE) ? BDD_FAIL : BDD_OK;
 }
 
 bdd_alg S_BDD_BASE    = {.name = "BASE", .build = bdd_build_bdd_BASE, .mk = bdd_mk_BASE};
@@ -614,7 +620,7 @@ static int init_G(bdd_runtime* bdd_rt,int l_root, int r_root, char** _errmsg) {
     bdd_rt->G_r = (unsigned short)r_root+1;
     size_t sz = bdd_rt->G_l * bdd_rt->G_r * sizeof(short); 
     if ( !(bdd_rt->G_cache = (unsigned short*)MALLOC(sz)) )
-        return 0;
+        return BDD_FAIL;
     memset(bdd_rt->G_cache,0,sz);
     return 1;
 }
@@ -634,9 +640,9 @@ static int lookup_G(bdd_runtime* bdd_rt, int l, int r) {
     return res;
 }
 
-static int _bdd_apply(bdd_runtime* bdd_rt, char op, bdd* b1, int u1, bdd* b2, int u2, char** _errmsg)
+static nodei _bdd_apply(bdd_runtime* bdd_rt, char op, bdd* b1, nodei u1, bdd* b2, nodei u2, char** _errmsg)
 {
-    int u;
+    nodei u;
 
 #ifdef BDD_VERBOSE
     if ( bdd_rt->verbose ) {
@@ -653,11 +659,11 @@ static int _bdd_apply(bdd_runtime* bdd_rt, char op, bdd* b1, int u1, bdd* b2, in
     }
 #endif
     if ( (u = lookup_G(bdd_rt,u1,u2)) < 0 ) {
-        rva_node *n_u1 = bdd_node(b1,u1);
-        rva_node *n_u2 = bdd_node(b2,u2);
+        rva_node *n_u1 = BDD_NODE(b1,u1);
+        rva_node *n_u2 = BDD_NODE(b2,u2);
         if ( IS_LEAF(n_u1) && IS_LEAF(n_u2) ) {
-            int bv_u1 = LEAF_BOOLVALUE(n_u1);
-            int bv_u2 = LEAF_BOOLVALUE(n_u2);
+            nodei bv_u1 = LEAF_BOOLVALUE(n_u1);
+            nodei bv_u2 = LEAF_BOOLVALUE(n_u2);
             u = (op=='&') ? (bv_u1 & bv_u2) : (bv_u1 | bv_u2);
         } else {
             int cmp = cmpRva(&n_u1->rva,&n_u2->rva);
@@ -671,7 +677,7 @@ static int _bdd_apply(bdd_runtime* bdd_rt, char op, bdd* b1, int u1, bdd* b2, in
                         _bdd_apply(bdd_rt,op,b1,u1,b2,n_u2->low,_errmsg),
                         _bdd_apply(bdd_rt,op,b1,u1,b2,n_u2->high,_errmsg),
                         _errmsg);
-            } else { /* IS_LEAF(n_u1) || (cmp > 0) */
+            } else { /* IS_LEAF(n_u2) || (cmp > 0) */
                 u = bdd_mk_BASE(bdd_rt, &n_u1->rva,
                         _bdd_apply(bdd_rt,op,b1,n_u1->low, b2,u2,_errmsg),
                         _bdd_apply(bdd_rt,op,b1,n_u1->high,b2,u2,_errmsg),
@@ -691,12 +697,12 @@ bdd* bdd_apply(char op,bdd* b1,bdd* b2,int verbose, char** _errmsg) {
     if ( !(bdd_rt = bdd_rt_init(&bdd_rt_struct,"",verbose/*verbose*/,_errmsg)) )
         return NULL;
     V_rva_node_init(&bdd_rt->core.tree); // Ugly, should have been done in _init
-    V_rva_init(&bdd_rt->order);          // ,, && unnecesary
+    VECTOR_EMPTY(&bdd_rt->order);        // handy macro
     if (!init_G(bdd_rt,BDD_ROOT(b1),BDD_ROOT(b2),_errmsg))
         return NULL;
     //
-    if ( (bdd_create_node(&bdd_rt->core,&RVA_0,BDD_NONE,BDD_NONE)<0) ||
-         (bdd_create_node(&bdd_rt->core,&RVA_1,BDD_NONE,BDD_NONE)<0) ) {
+    if ( (bdd_create_node(&bdd_rt->core,&RVA_0,NODEI_NONE,NODEI_NONE)==NODEI_NONE) ||
+         (bdd_create_node(&bdd_rt->core,&RVA_1,NODEI_NONE,NODEI_NONE)==NODEI_NONE) ) {
         pg_error(_errmsg,"bdd_apply: tree init [0,1] fails");
         return NULL;
     }
@@ -704,7 +710,7 @@ bdd* bdd_apply(char op,bdd* b1,bdd* b2,int verbose, char** _errmsg) {
     bdd_rt->call_depth   = 0;
     bdd_rt->G_cache_hits = 0;
 #endif
-    if (_bdd_apply(bdd_rt,op,b1,BDD_ROOT(b1),b2,BDD_ROOT(b2),_errmsg) < 0)
+    if (_bdd_apply(bdd_rt,op,b1,BDD_ROOT(b1),b2,BDD_ROOT(b2),_errmsg) == NODEI_NONE)
         return NULL;
     bdd* res = serialize_bdd(&bdd_rt->core);
     bdd_rt_free(bdd_rt);
@@ -722,13 +728,13 @@ static bdd* _bdd_not(bdd* par_bdd, char** _errmsg) {
      * pointers in the tree to these LEAF nodes.
      */
     bdd* res = serialize_bdd(par_bdd);
-    int root = BDD_ROOT(res);
+    nodei root = BDD_ROOT(res);
     if ( root == 0 ) { // just one element '0' or '1'
-        rva_node *node = bdd_node(res,root);
+        rva_node *node = BDD_NODE(res,root);
         node->rva.var[0] = (node->rva.var[0] == '0') ? '1' : '0';
     } else {
-        for(int i=0 /*?2?*/; i<V_rva_node_size(&res->tree); i++) {
-            rva_node *node = bdd_node(res,i);
+        for(nodei i=0 /*?2?*/; i<V_rva_node_size(&res->tree); i++) {
+            rva_node *node = BDD_NODE(res,i);
             
             if ( !IS_LEAF(node) ) { // check not necessary when starting at 2
                 if ( node->low <2 ) node->low = (node->low ==1) ? 0 : 1;
@@ -871,9 +877,9 @@ void bdd_generate_dotfile(bdd* bdd, char* dotfile, char** extra) {
 static int or_length(bdd* bdd, int i) {
     int count = 0;
 
-    rva_node *node = bdd_node(bdd,i);
+    rva_node *node = BDD_NODE(bdd,i);
     while ( ! IS_LEAF(node) ) {
-        node = bdd_node(bdd,node->low);
+        node = BDD_NODE(bdd,node->low);
         count++;
     }
     return count;
@@ -882,16 +888,16 @@ static int or_length(bdd* bdd, int i) {
 static int and_length(bdd* bdd, int i) {
     int count = 0;
 
-    rva_node *node = bdd_node(bdd,i);
+    rva_node *node = BDD_NODE(bdd,i);
     while ( ! IS_LEAF(node) ) {
-        node = bdd_node(bdd,node->high);
+        node = BDD_NODE(bdd,node->high);
         count++;
     }
     return count;
 }
 
-static void _bdd2string(pbuff *pb, bdd* bdd, int i) {
-    rva_node *node = bdd_node(bdd,i);
+static void _bdd2string(pbuff *pb, bdd* bdd, nodei i) {
+    rva_node *node = BDD_NODE(bdd,i);
 
     if ( IS_LEAF(node) ) {
         bprintf(pb,"%s",node->rva.var);
@@ -922,7 +928,7 @@ static void _bdd2string(pbuff *pb, bdd* bdd, int i) {
                 _bdd2string(pb, bdd,node->high);
                 bprintf(pb,")");
             }
-            node = bdd_node(bdd,node->low);
+            node = BDD_NODE(bdd,node->low);
             if ( ! IS_LEAF(node) )
                 bprintf(pb," | ");
         }
@@ -944,7 +950,7 @@ static void _bdd2string(pbuff *pb, bdd* bdd, int i) {
                 _bdd2string(pb,bdd,node->low);
                 bprintf(pb,")");
             }
-            node = bdd_node(bdd,node->high);
+            node = BDD_NODE(bdd,node->high);
             if ( ! IS_LEAF(node) )
                 bprintf(pb," & ");
         }
@@ -960,13 +966,13 @@ void bdd2string(pbuff* pb, bdd* bdd, int encapsulate) {
 }
 
 
-static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, int i,char** extra,int verbose,char** _errmsg) {
-    rva *rva = bdd_rva(bdd,i);
+static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, nodei i,char** extra,int verbose,char** _errmsg) {
+    rva *rva = BDD_RVA(bdd,i);
     // incomplete: highly unefficient, store already computed results
     if (verbose )
         fprintf(stdout,"+ bdd_probability(node=%d,\'%s=%d\')\n",i,rva->var,rva->val);
     double p_root, res;
-    rva_node *node = bdd_node(bdd,i);
+    rva_node *node = BDD_NODE(bdd,i);
     if ( IS_LEAF(node) ) {
         // is a '0' or '1' leaf
         res = p_root = LEAF_BOOLVALUE(node) ? 1.0 : 0.0;
@@ -980,11 +986,11 @@ static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, int i,char** 
             pg_error(_errmsg,"dictionary_lookup: rva[\'%s\'] not found.",rva);
             return -1.0;
         }
-        int low = node->low;
-        int high = node->high;
+        nodei low = node->low;
+        nodei high = node->high;
 #define MAURICE_NEW
 #ifdef MAURICE_NEW
-        while ( IS_SAMEVAR(bdd_rva(bdd,high),rva) ) {
+        while ( IS_SAMEVAR(BDD_RVA(bdd,high),rva) ) {
             high = bdd_low(bdd,high);
         }
 #endif
@@ -997,7 +1003,7 @@ static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, int i,char** 
         if ( p_l < 0.0 || p_h < 0.0 )
             return -1.0;
         res = (p_root * p_h) + p_l;
-        if ( ! IS_SAMEVAR(rva,bdd_rva(bdd,low)) )
+        if ( ! IS_SAMEVAR(rva,BDD_RVA(bdd,low)) )
             res = res - p_root*p_l;
 #ifdef BDD_VERBOSE
         if ( verbose )
@@ -1015,10 +1021,10 @@ double bdd_probability(bdd_dictionary* dict, bdd* bdd,char** extra, int verbose,
 
 static int _contains_rva(bdd* bdd, char* var, int val) {
     for (int i=0; i<V_rva_node_size(&bdd->tree); i++) {
-        rva_node* node = bdd_node(bdd,i);
+        rva_node* node = BDD_NODE(bdd,i);
         if ( !IS_LEAF(node)) {
             if ( strcmp(var,node->rva.var) == 0) {
-                 if ( (val<0) || (val == node->rva.val) )
+                 if ( (val < 0) || (val == node->rva.val) )
                      return 1;
             }
         }
@@ -1032,7 +1038,7 @@ int bdd_property_check(bdd* bdd, int prop, char* s, char** _errmsg) {
         return -1;
     } if ( prop==BDD_IS_FALSE || prop==BDD_IS_TRUE ) {
         if ( V_rva_node_size(&bdd->tree) == 1 ) {
-            rva_node* node = bdd_node(bdd,0);
+            rva_node* node = BDD_NODE(bdd,0);
             return LEAF_BOOLVALUE(node)==prop; // :-)   
         }
     } else if ( prop==BDD_HAS_VARIABLE ) {
@@ -1050,7 +1056,7 @@ int bdd_property_check(bdd* bdd, int prop, char* s, char** _errmsg) {
                 if ( *valp == '=') {
                     *eov = 0;
                     int val = bdd_atoi(++valp);
-                    if ( val != BDD_NONE) {
+                    if ( val != NODEI_NONE) {
                         return _contains_rva(bdd,varp,val);
                     }
                 }

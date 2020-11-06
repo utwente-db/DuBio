@@ -18,13 +18,21 @@
 #define DICTIONARY_H
 
 
-#define MAX_RVA_NAME    12
-#define MAX_RVA_LEN     24
+#define MAX_RVA_NAME_BUFF    12
+#define MAX_RVA_NAME         (MAX_RVA_NAME_BUFF-1)        
+#define MAX_RVA_LEN          24
 
+
+#define MAX_OFFSET           USHRT_MAX
+#define MAX_CARD             USHRT_MAX
+
+// typedef int ushort;
+
+// INCOMPLETE, maybe offset and card should be unsigned short for size
 typedef struct dict_var {
-    char name[MAX_RVA_NAME];
-    int  offset;
-    int  card;
+    char name[MAX_RVA_NAME_BUFF];
+    int  offset; // Why not short ???
+    int  card;   // Why not short
 } dict_var;
 
 DefVectorH(dict_var);
@@ -34,8 +42,8 @@ int cmpDict_var(dict_var* l, dict_var* r);
 //
 
 typedef struct dict_val {
+    double  prob;        // Why double, with float sizeof(dict_val)=8 <> 16
     int    value;
-    double prob;
 } dict_val;
 
 DefVectorH(dict_val);

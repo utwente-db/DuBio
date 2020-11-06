@@ -37,8 +37,8 @@
 #define VECTOR_ASSERT(V)
 #define RANGE_ASSERT(V,I)
 #else
-#define VECTOR_ASSERT(V)  if ((V->magic!=VECTOR_MAGIC)||(V->size<0)||(V->size>V->capacity)||(!V->items)) pg_fatal("VECTOR_ASSERT FAILS")
-#define RANGE_ASSERT(V,I) if (((I)<0)&&((I)>=V->size)) pg_fatal("RANGE_ASSERT FAILS %d not in [0-%d]",I,V->size)
+#define VECTOR_ASSERT(V)  if ((V->magic!=VECTOR_MAGIC)||(V->size<0)) pg_fatal("VECTOR_ASSERT FAILS")
+#define RANGE_ASSERT(V,I) if (((I)<0)||((I)>=V->size)) pg_fatal("RANGE_ASSERT FAILS %d not in [0-%d]",I,V->size)
 #endif
 
 #define VECTOR_INIT_CAPACITY 4
@@ -301,6 +301,8 @@ void V_##type##_free(V_##type *v) \
     }  \
     v->items = NULL; \
 }
+
+#define VECTOR_EMPTY(V) {(V)->magic=VECTOR_MAGIC;(V)->size=(V)->capacity=0;(V)->items=(V)->dynamic=0;}
 
 void test_vector(void);
 

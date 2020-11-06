@@ -33,6 +33,13 @@ int main() {
 #ifdef BDD_OPTIMIZE
     fprintf(stdout,"# BDD_OPTIMIZE = ON!\n");
 #endif
+    if ( 0 ) {
+        fprintf(stdout,"sizeof(dict_var) = %d\n",(int)sizeof(dict_var));
+        fprintf(stdout,"sizeof(dict_val) = %d\n",(int)sizeof(dict_val));
+        fprintf(stdout,"sizeof(rva)      = %d\n",(int)sizeof(rva));
+        fprintf(stdout,"sizeof(rva_node) = %d\n",(int)sizeof(rva_node));
+    }
+    //
     if (0) test_vector();
     if (0) test_utils();
     if (1) test_bdd();
