@@ -22,17 +22,13 @@
 #define MAX_RVA_NAME         (MAX_RVA_NAME_BUFF-1)        
 #define MAX_RVA_LEN          24
 
+typedef unsigned short       dindex;
+#define MAX_DINDEX           USHRT_MAX
 
-#define MAX_OFFSET           USHRT_MAX
-#define MAX_CARD             USHRT_MAX
-
-// typedef int ushort;
-
-// INCOMPLETE, maybe offset and card should be unsigned short for size
 typedef struct dict_var {
-    char name[MAX_RVA_NAME_BUFF];
-    int  offset; // Why not short ???
-    int  card;   // Why not short
+    char    name[MAX_RVA_NAME_BUFF];
+    dindex  offset;
+    dindex  card;
 } dict_var;
 
 DefVectorH(dict_var);
@@ -54,12 +50,10 @@ DefVectorH(dict_val);
 
 typedef struct bdd_dictionary {
     char        vl_len[4]; // used by Postgres memory management
-    int         magic;
     int         bytesize;
-    int         n_justcopy;
-    int         val_deleted;
-    int         var_sorted; // when sorted use binary search to find var
-    int         var_offset; // first in buff so is always 0 :-)
+    dindex      val_deleted;
+    dindex      var_offset; // first in buff so is always 0 :-)
+    char        var_sorted; // when sorted use binary search to find var
     V_dict_var* variables;
     int         val_offset; // after the vars, so size of var buffer
     V_dict_val* values;
@@ -71,11 +65,11 @@ typedef struct bdd_dictionary {
 //
 
 bdd_dictionary* bdd_dictionary_create(bdd_dictionary*);
-int bdd_dictionary_free(bdd_dictionary*);
-bdd_dictionary* dictionary_prepare2store(bdd_dictionary*);
+int             bdd_dictionary_free(bdd_dictionary*);
+
 bdd_dictionary* bdd_dictionary_relocate(bdd_dictionary*);
-void bdd_dictionary_print(bdd_dictionary* dict, int all, pbuff* pbuff);
-int bdd_dictionary_sort(bdd_dictionary* dict);
+bdd_dictionary* dictionary_prepare2store(bdd_dictionary*);
+void            bdd_dictionary_print(bdd_dictionary* dict,int all,pbuff* pbuff);
 bdd_dictionary* merge_dictionary(bdd_dictionary*,bdd_dictionary*,bdd_dictionary*,char** _errmsg);
 
 #define DICT_ADD        1
@@ -89,10 +83,6 @@ int modify_dictionary(bdd_dictionary*, int, char*, char**);
 typedef struct rva rva; /* forward */
 
 double lookup_probability(bdd_dictionary*,rva*);
-
-int test_bdd_dictionary_v0(void);
-int test_bdd_dictionary_v1(void);
-int test_bdd_dictionary_v2(void);
 
 int test_dictionary(void);
 

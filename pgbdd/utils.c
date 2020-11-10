@@ -199,7 +199,9 @@ void pbuff_free(pbuff* pbuff) {
 
 void pbuff_flush(pbuff* pbuff, FILE* out) {
     PBUFF_ASSERT(pbuff);
-    fputs(pbuff->buffer, out);
+    if ( out ) {
+        fputs(pbuff->buffer, out);
+    }
     pbuff->size      = 0;
     pbuff->buffer[0] = 0;
 }

@@ -60,39 +60,56 @@ char *bdd_expr[] = {
     0
 };
 
-static int _regenerate_test(char* bdd_expr[], char** _errmsg) {
+static int _regenerate_test(char* par_expr, char** _errmsg) {
     pbuff pbgen_struct, *pbgen=pbuff_init(&pbgen_struct);
-    for (int i=0; bdd_expr[i]; i++) {
-        bdd *bdd1, *bdd2;
+    bdd *bdd1, *bdd2;
 
-        pbgen=pbuff_init(&pbgen_struct);
-        // fprintf(stdout,"TESTING: %s\n",bdd_expr[i]);
-        if ( !(bdd1 = create_bdd(BDD_DEFAULT,bdd_expr[i],_errmsg,0)) )
-            return 0;
-        bdd2string(pbgen,bdd1,0);
-        char* bdd1_str = pbuff_preserve_or_alloc(pbgen);
-        // fprintf(stdout,"TESTING: bdd1 = [%s]\n",bdd1_str);
-        //
-        pbgen=pbuff_init(&pbgen_struct);
-        if ( !(bdd2 = create_bdd(BDD_DEFAULT,bdd1_str,_errmsg,0)) )
-            return 0;
-        bdd2string(pbgen,bdd2,0);
-        char* bdd2_str = pbuff_preserve_or_alloc(pbgen);
-        // fprintf(stdout,"TESTING: bdd2 = [%s]\n",bdd2_str);
-        //
-        if ( strcmp(bdd1_str,bdd2_str) != 0 ) 
-            return pg_error(_errmsg,"regenerated string does not match original: %s <<<>>> %s", bdd1_str,bdd2_str);
-        FREE(bdd1_str);
-        FREE(bdd2_str);
+    int VERBOSE = 0;
+
+    if (VERBOSE) fprintf(stdout,"TESTING: %s\n",par_expr);
+    if ( !(bdd1 = create_bdd(BDD_DEFAULT,par_expr,_errmsg,0)) )
+        return 0;
+    bdd2string(pbgen,bdd1,0);
+    char* bdd1_str = pbuff_preserve_or_alloc(pbgen);
+    if (VERBOSE) fprintf(stdout,"TESTING: bdd1 = [%s]\n",bdd1_str);
+    //
+    pbgen=pbuff_init(&pbgen_struct);
+    if ( !(bdd2 = create_bdd(BDD_DEFAULT,bdd1_str,_errmsg,0)) )
+        return 0;
+    bdd2string(pbgen,bdd2,0);
+    char* bdd2_str = pbuff_preserve_or_alloc(pbgen);
+    if (VERBOSE) fprintf(stdout,"TESTING: bdd2 = [%s]\n",bdd2_str);
+    //
+    if ( strcmp(bdd1_str,bdd2_str) != 0 ) {
+        int res_eq = bdd_test_equivalence(bdd1_str,bdd1_str,_errmsg);
+        if ( res_eq < 0 )
+            pg_fatal("regenerate_test:equivalence error: %s",_errmsg);
+        if ( !res_eq ) {
+            if ( 1 ) {
+                fprintf(stdout,"/--------------------------------------------\n");
+                fprintf(stdout,"1> %s\n",bdd1_str);
+                fprintf(stdout,"/--------------------------------------------\n");
+                fprintf(stdout,"2> %s\n",bdd2_str);
+                fprintf(stdout,"/--------------------------------------------\n");
+            }
+            return pg_error(_errmsg,"regenerated string not equivalent to original: %s <<<>>> %s", bdd1_str,bdd2_str);
+        }
     }
+    FREE(bdd1);
+    FREE(bdd2);
+    FREE(bdd1_str);
+    FREE(bdd2_str);
+    //
     return 1;
 }
 
 static int test_regenerate() {
     char* _errmsg;
 
-    if ( !_regenerate_test(bdd_expr,&_errmsg) )
-        pg_fatal("regenerate_test:error: %s",_errmsg);
+    for (int i=0; bdd_expr[i]; i++) {
+        if ( !_regenerate_test(bdd_expr[i],&_errmsg) )
+            pg_fatal("regenerate_test:error: %s",_errmsg);
+    }
     return 1;
 }
 
@@ -276,10 +293,34 @@ static int test_apply() {
 static void test_bdd_creation(){
     // char* expr = "(x=1 & y=1 & z=1 )";
     // char* expr = "(x=1&y=1) |(z=5)";
-    char* expr = "(z=1)&!((x=1)&((y=1|y=2)&x=2))";
+    // char* expr = "(z=1)&!((x=1)&((y=1|y=2)&x=2))";
     // char* expr = "!(x=1)";
     // char* expr = "!(x=1&y=2&z=3)";
     // char* expr = "(!x=1)|y=2";
+    // char* expr = "!(a=4 | (b=4 & !d=1))"; // NOTMODE example
+    // char* expr = "(a=0&((b=0&(c=1&d=0))|c=0))"; // c=0 / H and L
+    // char* expr = "((d=0|c=0|a=0)|(!c=1&b=2)|(d=0|!d=1)|(a=1))";
+    // char* expr = "((!d=1&!a=4&b=4))";
+    // char* expr = "(a=1|b=2|c=3|d=4|e=5|f=6|g=7|h=8)";
+    // char* expr = "!(a=1|b=2|!(c=3|d=4|!e=5))";
+    // char* expr = "(a=1|b=2|!(c=3|d=4|!e=5))";
+    // char* expr = "a=1";
+    // char* expr = "!a=1";
+    // char* expr = "a=1 | b=2";
+    // char* expr = "a=1 & b=2";
+    // char* expr = "!(a=1 | b=2)";
+    // char* expr = "!(a=1 & b=2)";
+    // char* expr = "!(a=1 & b=2 & c=3)";
+    // char* expr = "!(a=1 | b=2 | c=3)";
+    // char* expr = "(x=1|y=1)";
+    //
+    // problem cluster -> first xlates to second ()(OK) but result ->
+    //
+    // char* expr = "((c=1&c=1&a=0)&(d=0|b=1|!b=0)&(d=2|d=3|a=0))";
+    // char* expr = "(a=0&(b=0&(c=1&d=0)|c=0))"; // xlate from above
+    char* expr = "(a=0&(b=0&(c=0|(c=1&d=0))|c=0))"; // xlate from xlate
+    
+
     bdd*  test_bdd;
     char* _errmsg = NULL;
 
@@ -287,12 +328,9 @@ static void test_bdd_creation(){
         pbuff pbuff_struct, *pb=pbuff_init(&pbuff_struct);
         char* dot_filename = "./DOT/test.dot";
 
+        fprintf(stdout,"#EXPR: %s\n",expr);
         bdd_info(test_bdd,pb);
         pbuff_flush(pb,stdout);
-        pbuff pbgen_struct, *pbgen=pbuff_init(&pbgen_struct);
-        bdd2string(pbgen,test_bdd,0);
-        char* regen_str = pbuff_preserve_or_alloc(pbgen);
-        fprintf(stdout,"BDD2STRING = [%s]\n",regen_str); 
         //
         if ( dot_filename ) {
             FILE* f = fopen(dot_filename,"w");
@@ -308,6 +346,13 @@ static void test_bdd_creation(){
             }
         }
         FREE(test_bdd);
+        //
+        if ( 1 ) {
+            char* _errmsg;
+            if ( !_regenerate_test(expr,&_errmsg) )
+                exit(0);
+                // pg_fatal("regenerate_test:error: %s",_errmsg);
+        }
     } else {
         fprintf(stderr,"Test_bdd:error: %s\n",(_errmsg ? _errmsg : "NULL"));
     }
@@ -408,22 +453,163 @@ static int test_static_bdd() {
     return 1;
 }
 
+/* 
+ *
+ * Random expression generaor
+ *
+ */
+
+
+typedef struct randexpr {
+    int MAX_LEVELS;
+    int MAX_CLUSTER;
+    int MAX_CLUSTER_SIZE;
+    int N_VARS;
+    int N_VALS;
+    int NOT_MODULO;
+} randexpr;
+
+static int randInRange(int min, int max)
+{
+  return min + (int)(((double)rand()/(double)RAND_MAX)*(double)(max-min+1));
+}
+
+static char* genvar(int n) {
+    static char vbuff[16];
+    int i = 0;
+    
+    do {
+        vbuff[i++] = 'a' + (n%26);
+        n /= 26;
+    } while ( n > 0 );
+    vbuff[i] = 0;
+    return vbuff;
+}
+
+static char* rand_var(randexpr* conf) {
+    return genvar(randInRange(0,conf->N_VARS));
+}
+
+static int rand_val(randexpr* conf) {
+    return randInRange(0,conf->N_VALS);
+}
+
+static char* rand_and_or(randexpr* conf) {
+    return (rand()%2) ? "&" : "|"; // 50 - 50 distribution
+}
+
+static char* rand_not(randexpr* conf) {
+    return (rand()%conf->NOT_MODULO) ? "" : "!"; // 1 : NOT-MODULO chance
+}
+
+static void generate_level(randexpr* conf, pbuff* pbuff, int level);
+
+static void generate_expression(randexpr* conf, pbuff* pbuff, int level) {
+    if ( randInRange(0,conf->MAX_LEVELS-1) > level )
+        generate_level(conf, pbuff,++level);
+    else {
+        bprintf(pbuff,rand_not(conf));
+        bprintf(pbuff,"%s=%d",rand_var(conf),rand_val(conf));
+    }
+}
+
+static void generate_cluster(randexpr* conf, pbuff* pbuff, int level) {
+    int n_expr = randInRange(1,conf->MAX_CLUSTER_SIZE); 
+    char* op = rand_and_or(conf);
+    bprintf(pbuff,rand_not(conf));
+    bprintf(pbuff,"(");
+    for (int i=0; i<n_expr; i++) {
+        if (i) bprintf(pbuff,op); 
+        generate_expression(conf,pbuff,level);
+    }
+    bprintf(pbuff,")");
+}
+
+static void generate_level(randexpr* conf, pbuff* pbuff, int level) {
+    int n_clusters = randInRange(1,conf->MAX_CLUSTER); 
+    char* op = rand_and_or(conf);
+    bprintf(pbuff,"(");
+    for (int i=0; i<n_clusters; i++) {
+        if (i) bprintf(pbuff,op); 
+        generate_cluster(conf,pbuff,level);
+    }
+    bprintf(pbuff,")");
+}
+
+static char* random_expression(randexpr* conf, pbuff* pbuff) {
+    pbuff_flush(pbuff,NULL);
+    generate_level(conf,pbuff,0);
+    return pbuff->buffer;
+}
+
+/*
+ * static randexpr  RANDEXPR = {
+ *     .MAX_LEVELS       =  3,
+ *     .MAX_CLUSTER      =  5,
+ *     .MAX_CLUSTER_SIZE =  4,
+ *     .NOT_MODULO       =  6,
+ *     .N_VARS           =  3,
+ *     .N_VALS           =  4
+ * };
+ */
+
+static randexpr  RANDEXPR = {
+    .MAX_LEVELS       =  1,
+    .MAX_CLUSTER      =  4,
+    .MAX_CLUSTER_SIZE =  3,
+    .NOT_MODULO       =  5,
+    .N_VARS           =  3,
+    .N_VALS           =  4
+};
+
+
+
+static void random_test(int n, long seed) {
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    srand(seed);
+  
+    for (int i=0; i<n; i++) {
+        char* _errmsg = NULL;
+        bdd*      bdd = NULL;
+        char *expr    = random_expression(&RANDEXPR,pbuff);
+
+        if (!(bdd = create_bdd(BDD_DEFAULT,expr,&_errmsg,0))) {
+            pg_fatal("random_test: error: %s",_errmsg);
+        }
+        FREE(bdd);
+        if ( 1 ) {
+            char* _errmsg;
+            if ( !_regenerate_test(expr,&_errmsg) ) {
+                pg_fatal("regenerate_test:error: %s",_errmsg);
+            }
+        }
+    }
+    pbuff_free(pbuff);
+}
 
 //
 //
 //
 
 void test_bdd() {
+    if ( 0 ) {
+        fprintf(stdout,"+ sizeof(rva) = %d\n",(int)sizeof(rva));
+        fprintf(stdout,"+ sizeof(rva_node) = %d\n",(int)sizeof(rva_node));
+        fprintf(stdout,"+ sizeof(dict_var) = %d\n",(int)sizeof(dict_var));
+        fprintf(stdout,"+ sizeof(dict_val) = %d\n",(int)sizeof(dict_val));
+        fprintf(stdout,"+ sizeof(bdd_dictionary) = %d\n",(int)sizeof(bdd_dictionary));
+    }
 #ifdef BDD_VERBOSE
     fprintf(stdout,"# BDD_VERBOSE = ON!\n");
 #endif
     if (1) test_regenerate(); // do this always, catches many errors
     if (1) test_trio();       // ,,
+    if (1) random_test(1000/*n*/, 888/*seed*/);
     //
     if (0) test_bdd_creation();
     if (0) test_bdd_probability();
     if (0) test_timings();
     if (0) compare_apply_text();
     if (0) test_static_bdd();
-    if (1) test_apply();
+    if (0) test_apply();
 }

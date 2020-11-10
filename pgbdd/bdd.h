@@ -20,9 +20,15 @@
 #define BDD_FAIL  0
 #define BDD_OK    1
 
+typedef char RVANAME[MAX_RVA_NAME];
+#define      COMPARE_VAR(L,R) (strcmp(L,R))
+
+// typedef int RVANAME;
+// #define      COMPARE_VAR(L,R) ((L)-(R))
+
 typedef struct rva {
-    char        var[MAX_RVA_NAME];
     int         val;
+    RVANAME     var;
 } rva;
 
 DefVectorH(rva);
@@ -112,19 +118,18 @@ bdd_alg* bdd_algorithm(char*, char** _errmsg);
 #define BDD_ROOT(PBDD)      (BDD_TREESIZE(PBDD)-1)
 
 #define BDD_RVA(PBDD,I)     (&BDD_NODE(PBDD,I)->rva)
+#define BDD_RVAVAR(PBDD,I)  (&(BDD_RVA(PBDD,I).var)
 
 #define IS_LEAF(N)          (((N)->low==NODEI_NONE)&&((N)->high==NODEI_NONE))
 #define IS_LEAF_I(PBDD,NI)  (IS_LEAF(BDD_NODE(PBDD,NI)))
 #define LEAF_BOOLVALUE(N)   ((N)->rva.var[0]-'0')
-
-#define IS_FALSE_I(PBDD,NI) (IS_LEAF(BDD_NODE(PBDD,NI)) && BDD_NODE(PBDD,NI)->rva.var[0]=='0')
-#define IS_TRUE_I(PBDD,NI)  (IS_LEAF(BDD_NODE(PBDD,NI)) && BDD_NODE(PBDD,NI)->rva.var[0]=='1')
+#define NODE_BOOLVALUE(N)   (IS_LEAF(N) ? ((N)->rva.var[0]-'0') : -1)
 
 #define bdd_low(PBDD,I)     (BDD_NODE(PBDD,I)->low)
 #define bdd_high(PBDD,I)    (BDD_NODE(PBDD,I)->high)
 
-#define IS_SAMEVAR(L,R)          (strcmp((L)->var,(R)->var)==0)
-#define IS_SAMEVAR_I(PBDD,LI,RI) (IS_SAMEVAR(&(BDD_NODE(PBDD,LI)->rva),&(BDD_NODE(PBDD,RI)->rva)))
+#define IS_SAMEVAR(L,R)          (COMPARE_VAR((L)->var,(R)->var)==0)
+#define IS_SAMEVAR_I(PBDD,LI,RI) (IS_SAMEVAR(&(BDD_RVA(PBDD,LI)),&(BDD_RVA(PBDD,RI))))
 
 /*
  * Macros for Probdd
@@ -142,7 +147,7 @@ void bdd_rt_free(bdd_runtime*);
 bdd* serialize_bdd(bdd*);
 bdd* relocate_bdd(bdd*);
 
-#define BDD_G_CACHE_MAX 8192
+#define BDD_G_CACHE_MAX 65536
 
 bdd*  bdd_apply(char,bdd*,bdd*,int,char**);
 
@@ -165,6 +170,8 @@ double bdd_probability(bdd_dictionary*, bdd*,char**, int, char**);
 #define IS_VALID_PROPERTY(P)    (((P)>=0)&&((P)<4))
 
 int    bdd_property_check(bdd*,int,char*,char**);
+
+int    bdd_test_equivalence(char* l_expr, char* r_expr, char** _errmsg);
 
 //
 //

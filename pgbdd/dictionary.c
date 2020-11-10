@@ -15,6 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,7 +57,6 @@ static bdd_dictionary* bdd_dictionary_serialize(bdd_dictionary* dict) {
         memcpy(res,dict,dict->bytesize);
         if ( !bdd_dictionary_relocate(res) )
             pg_fatal("bdd_dictionary_serialize: relocate error");
-        res->n_justcopy++;
     } else {
         int varsize = V_dict_var_bytesize(dict->variables);
         int valsize = V_dict_val_bytesize(dict->values);
@@ -73,6 +73,14 @@ static bdd_dictionary* bdd_dictionary_serialize(bdd_dictionary* dict) {
     return res;
 }
 
+static int bdd_dictionary_sort(bdd_dictionary* dict) {
+    if ( !dict->var_sorted ) {
+        V_dict_var_quicksort(dict->variables,cmpDict_var);
+        dict->var_sorted = 1;
+    }
+    return 1;
+}
+
 bdd_dictionary* dictionary_prepare2store(bdd_dictionary* dict) {
     bdd_dictionary *res = NULL;
 
@@ -83,18 +91,18 @@ bdd_dictionary* dictionary_prepare2store(bdd_dictionary* dict) {
          * these holes.
          */
         if ( dict->val_deleted > MAX_VAL_DELETED ) {
-            int newcnt = 0;
+            dindex newcnt = 0;
             for(int i=0; i<V_dict_var_size(dict->variables); i++) {
                 dict_var* old_varp = V_dict_var_getp(dict->variables,i);
                 dict_var* new_varp = V_dict_var_getp( res->variables,i);
                 
                 new_varp->offset = newcnt;
-                for(int j=old_varp->offset; j<(old_varp->offset+old_varp->card); j++) {
+                for(dindex j=old_varp->offset; j<(old_varp->offset+old_varp->card); j++) {
                     dict_val* valp = V_dict_val_getp(dict->values,j);
                     V_dict_val_set(res->values,newcnt++,*valp);
                 }
             }
-            res->values->size = newcnt; // ugly but it works
+            res->values->size = (int)newcnt; // ugly but it works
             // incomplete, check if capacity should be decreased
         }
         /* The dict was the parameter from Postgres. It was serialized in the
@@ -109,14 +117,12 @@ bdd_dictionary* dictionary_prepare2store(bdd_dictionary* dict) {
 
 bdd_dictionary* bdd_dictionary_create(bdd_dictionary* dict) {
     // incomplete, randomize for time ???
-    dict->magic       = rand();
     dict->bytesize    = sizeof(bdd_dictionary);
     dict->var_sorted  = 0;
     dict->var_offset  = 0;
     dict->val_deleted = 0;
-    dict->n_justcopy  = 0;
     dict->variables   = V_dict_var_init((V_dict_var*)(&dict->buff[dict->var_offset]));
-    dict->val_offset = sizeof(V_dict_var);
+    dict->val_offset  = sizeof(V_dict_var);
     dict->values     = V_dict_val_init((V_dict_val*)(&dict->buff[dict->val_offset]));
     if ( (dict->variables == NULL) || (dict->values == NULL) )
         return NULL;
@@ -148,15 +154,13 @@ void bdd_dictionary_print(bdd_dictionary* dict, int all, pbuff* pbuff) {
         bprintf(pbuff,"# values[size/cap]   = [%d/%d]\n",dict->values->size,dict->values->capacity);
         bprintf(pbuff,"# bytesize=%d\n",dict->bytesize);
         bprintf(pbuff,"# sorted=%d\n",dict->var_sorted);
-        bprintf(pbuff,"# n_justcopy=%d\n",dict->n_justcopy);
         bprintf(pbuff,"# val_deleted=%d\n",dict->val_deleted);
         bprintf(pbuff,"# serialized=%d\n",bdd_dictionary_is_serialized(dict));
-        bprintf(pbuff,"# magic#=%d\n",dict->magic);
     }
     if ( all ) {
         for(int i=0; i<V_dict_var_size(dict->variables); i++) {
             dict_var* varp = V_dict_var_getp(dict->variables,i);
-            bprintf(pbuff,"(%d)\t\"%s\"\t off(%d)\t card(%d)\n",i,varp->name,varp->offset,varp->card);
+            bprintf(pbuff,"(%d)\t\"%s\"\t off(%d)\t card(%d)\n",i,varp->name,(int)varp->offset,(int)varp->card);
         }
         bprintf(pbuff,"+ Values:\n");
         for(int i=0; i<V_dict_val_size(dict->values); i++) {
@@ -167,7 +171,7 @@ void bdd_dictionary_print(bdd_dictionary* dict, int all, pbuff* pbuff) {
     if ( 1 ) {
         for(int i=0; i<V_dict_var_size(dict->variables); i++) {
             dict_var* varp = V_dict_var_getp(dict->variables,i);
-            for(int j=varp->offset; j<(varp->offset+varp->card); j++) {
+            for(dindex j=varp->offset; j<(varp->offset+varp->card); j++) {
                 dict_val* valp = V_dict_val_getp(dict->values,j);
                 bprintf(pbuff,"%s=%d:%f; ",varp->name,valp->value,valp->prob);
             }
@@ -191,21 +195,16 @@ static dict_var* bdd_dictionary_lookup_var(bdd_dictionary* dict, char* name) {
     return (index < 0 ) ? NULL : V_dict_var_getp(dict->variables,index);
 }
 
-int bdd_dictionary_sort(bdd_dictionary* dict) {
-    if ( !dict->var_sorted ) {
-        V_dict_var_quicksort(dict->variables,cmpDict_var);
-        dict->var_sorted = 1;
-    }
-    return 1;
-}
-
 static dict_var* add_variable(bdd_dictionary* dict, char* name) {
-    dict_var newvar = { .offset=V_dict_val_size(dict->values), .card=0 };
+    dict_var newvar = { .offset=(dindex)V_dict_val_size(dict->values), .card=0 };
     strcpy(newvar.name,name);
 
     dict->var_sorted = 0; // INCOMPLETE, MAYBE KEEP SORTED LIKE BDD
     int index = V_dict_var_add(dict->variables,&newvar);
-    return (index<0) ? NULL : V_dict_var_getp(dict->variables,index);
+    if ( (index < 0) || (index >= MAX_DINDEX) )
+        return NULL;
+    else
+        return V_dict_var_getp(dict->variables,index);
 }
 
 static void del_variable(bdd_dictionary* dict, int var_index) {
@@ -222,12 +221,15 @@ static dict_val* add_value(bdd_dictionary* dict, int value, double prob) {
      * to be checked at all
      */
     int index = V_dict_val_add(dict->values,&newval);
-    return (index<0) ? NULL : V_dict_val_getp(dict->values,index);
+    if ( (index < 0) || (index >= MAX_DINDEX) )
+        return NULL;
+    else
+        return V_dict_val_getp(dict->values,index);
 }
 
 static int get_var_value_index(bdd_dictionary* dict, dict_var* varp, int val) {
     if ( val >= 0 ) {
-        for(int i=varp->offset; i<(varp->offset+varp->card); i++) {
+        for(dindex i=varp->offset; i<(varp->offset+varp->card); i++) {
             dict_val* valp = V_dict_val_getp(dict->values,i);
             if (  val == valp->value )
                 return i;
@@ -255,13 +257,13 @@ double lookup_probability(bdd_dictionary* dict,rva* rva) {
 static int normalize_var(bdd_dictionary* dict, dict_var* varp) { 
     double total = 0.0;
 
-    for(int i=varp->offset; i<(varp->offset+varp->card); i++) {
+    for(dindex i=varp->offset; i<(varp->offset+varp->card); i++) {
         dict_val* valp = V_dict_val_getp(dict->values,i);
         total += valp->prob;
     }
     if ( total<(1.0-0.0001) || total>(1.0+0.0001) ) {
         double factor = 1.0/total;
-        for(int i=varp->offset; i<(varp->offset+varp->card); i++) {
+        for(dindex i=varp->offset; i<(varp->offset+varp->card); i++) {
             dict_val* valp = V_dict_val_getp(dict->values,i);
             valp->prob *= factor;
         }
@@ -273,15 +275,15 @@ static int add2merged(bdd_dictionary *md,
                       dict_var       *srcvar,
                       V_dict_val     *srcvar_val,
                       V_dict_val     *merge_v,
-                      int             merge_offset,
-                      int             merge_card,
+                      dindex          merge_offset,
+                      dindex          merge_card,
                       char**          _errmsg) {
     dict_var *mv;
 
     if ( !(mv = add_variable(md,srcvar->name)) )
         return 0;
     //
-    for (int i=0; i<srcvar->card; i++) {
+    for (dindex i=0; i<srcvar->card; i++) {
         dict_val *dval = V_dict_val_getp(srcvar_val,srcvar->offset+i);
         if ( !add_value(md,dval->value,dval->prob)  )
             return 0;
@@ -444,9 +446,9 @@ int modify_dictionary(bdd_dictionary* dict, int mode, char* dictionary_def, char
                     // if not create a value 'hole' and copy all varp val/prob
                     // values to end of 'values' and add the new value.
                     if (!((varp->offset+varp->card)==V_dict_val_size(dict->values))) {
-                        int prev_offset    = varp->offset;
-                        varp->offset       = V_dict_val_size(dict->values);
-                        for (int i =0; i<varp->card; i++) {
+                        dindex prev_offset    = varp->offset;
+                        varp->offset       = (dindex)V_dict_val_size(dict->values);
+                        for (dindex i =0; i<varp->card; i++) {
                         if ( !add_value(dict,dict->values->items[prev_offset+i].value,dict->values->items[prev_offset+i].prob)  )
                             return pg_error(_errmsg,"modify_dictionary:add: internal error reorganzing values");
                         }
@@ -485,7 +487,7 @@ int modify_dictionary(bdd_dictionary* dict, int mode, char* dictionary_def, char
                     varp = NULL; // to prevent normalization
                 } else {
                     // V_dict_val_copy_range(dict->values,vvi,varp->offset+varp->card-vvi-1,vvi+1);
-                    for(int i=vvi; i<(varp->offset+varp->card); i++) {
+                    for(dindex i=vvi; i<(varp->offset+varp->card); i++) {
                         dict->values->items[i] = dict->values->items[i+1]; // INCOMPLETE: UGLY!!!!
                     }
                 }

@@ -19,7 +19,7 @@
 
 #include "dictionary.c"
 
-int test_bdd_dictionary_v0() {
+static int test_bdd_dictionary_v0() {
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
     bdd_dictionary dict_struct, *dict;
     char* errmsg;
@@ -89,7 +89,7 @@ static void tdmerge(char* ld_add, char* rd_add) {
     bdd_dictionary_print(md,0/*all*/,pbuff);pbuff_flush(pbuff,stdout);fputc('\n',stdout);
 }
 
-int test_bdd_dictionary_v2() {
+static int test_bdd_dictionary_v2() {
     tdmerge("y=1:1.0;","x=2:1.0;y=2:1.0");
     tdmerge("p=1:1.0;r=1:1.0","q=2:1.0;s=2:1.0");
     tdmerge("p=1:1.0;r=1:1.0;q=2:1.0;s=2:1.0","p=3:1.0;r=4:1.0;q=8:1.0;s=9:1.0");
@@ -97,7 +97,7 @@ int test_bdd_dictionary_v2() {
     return 1;
 }
 
-int test_bdd_dictionary_v1() {
+static int test_bdd_dictionary_v1() {
     bdd_dictionary dict_struct, *first_dict, *d;
     if ( !(first_dict = bdd_dictionary_create(&dict_struct)))
         return 0;
