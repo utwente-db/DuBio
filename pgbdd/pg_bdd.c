@@ -72,7 +72,7 @@ bdd_pg_operator(PG_FUNCTION_ARGS)
 
     if ( *operator == '&' || *operator == '|' )
         rhs_bdd    = PG_GETARG_BDD(2);
-    if ( !(return_bdd = bdd_operator(*operator,BY_TEXT,lhs_bdd,rhs_bdd,&_errmsg)))
+    if ( !(return_bdd = bdd_operator(*operator,BY_APPLY,lhs_bdd,rhs_bdd,&_errmsg)))
         ereport(ERROR,(errmsg("bdd_operator: error: %s ",(_errmsg ? _errmsg : "NULL"))));
     SET_VARSIZE(return_bdd,return_bdd->bytesize);
     PG_RETURN_BDD(return_bdd);

@@ -317,8 +317,8 @@ static void test_bdd_creation(){
     // problem cluster -> first xlates to second ()(OK) but result ->
     //
     // char* expr = "((c=1&c=1&a=0)&(d=0|b=1|!b=0)&(d=2|d=3|a=0))";
-    // char* expr = "(a=0&(b=0&(c=1&d=0)|c=0))"; // xlate from above
-    char* expr = "(a=0&(b=0&(c=0|(c=1&d=0))|c=0))"; // xlate from xlate
+    char* expr = "(a=0&(b=0&(c=1&d=0)|c=0))"; // xlate from above
+    // char* expr = "(a=0&(b=0&(c=0|(c=1&d=0))|c=0))"; // xlate from xlate
     
 
     bdd*  test_bdd;
@@ -606,7 +606,7 @@ void test_bdd() {
     if (1) test_trio();       // ,,
     if (1) random_test(1000/*n*/, 888/*seed*/);
     //
-    if (0) test_bdd_creation();
+    if (1) test_bdd_creation();
     if (0) test_bdd_probability();
     if (0) test_timings();
     if (0) compare_apply_text();
