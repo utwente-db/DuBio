@@ -140,7 +140,7 @@ static nodei bdd_lookup(bdd_runtime* bdd_rt, rva* rva, nodei low, nodei high) {
         rva_node* n = &tree->items[i];
         if ( (n->low == low) && 
              (n->high == high) &&
-             (n->rva.val = rva->val) &&
+             (n->rva.val == rva->val) &&
              (COMPARE_VAR((char*)&n->rva.var,(char*)&rva->var)==0)) {
             return i;
         }

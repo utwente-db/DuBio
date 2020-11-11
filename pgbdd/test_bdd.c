@@ -82,6 +82,7 @@ static int _regenerate_test(char* par_expr, char** _errmsg) {
     //
     if ( strcmp(bdd1_str,bdd2_str) != 0 ) {
         int res_eq = bdd_test_equivalence(bdd1_str,bdd1_str,_errmsg);
+        // int res_eq = 0;
         if ( res_eq < 0 )
             pg_fatal("regenerate_test:equivalence error: %s",_errmsg);
         if ( !res_eq ) {
@@ -323,7 +324,8 @@ static void test_bdd_creation(){
     bdd*  test_bdd;
     char* _errmsg = NULL;
 
-    if ( (test_bdd = create_bdd(BDD_DEFAULT,expr,&_errmsg,1/*verbose*/)) ) {
+    int verbose = 1;
+    if ( (test_bdd = create_bdd(BDD_DEFAULT,expr,&_errmsg,verbose)) ) {
         pbuff pbuff_struct, *pb=pbuff_init(&pbuff_struct);
         char* dot_filename = "./DOT/test.dot";
 
