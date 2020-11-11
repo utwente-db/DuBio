@@ -506,22 +506,27 @@ static int _bdd_equiv(int depth, V_rva* order, char* l_buff, int l_sz, char* r_b
         bdd_replace_str(&l_buff[l_sz*depth],&l_buff[l_sz*(depth-1)],rva_string,'0');
         bdd_replace_str(&r_buff[r_sz*depth],&r_buff[r_sz*(depth-1)],rva_string,'0');
         int l_res = _bdd_equiv(depth+1,order,l_buff,l_sz,r_buff,r_sz,_errmsg);
-        if ( l_res < 1 ) return l_res; // error or 'false'
+        if ( l_res < 1 ) return l_res; // error or 'FALSE'
         bdd_replace_str(&l_buff[l_sz*depth],&l_buff[l_sz*(depth-1)],rva_string,'1');
         bdd_replace_str(&r_buff[r_sz*depth],&r_buff[r_sz*(depth-1)],rva_string,'1');
         int r_res = _bdd_equiv(depth+1,order,l_buff,l_sz,r_buff,r_sz,_errmsg);
-        if ( r_res < 1 ) return r_res; // error or 'false'
+        if ( r_res < 1 ) return r_res; // error or 'FALSE'
     } else {
         int l_res = bee_eval(&l_buff[l_sz*(depth-1)],_errmsg);
         int r_res = bee_eval(&r_buff[r_sz*(depth-1)],_errmsg);
         if ( l_res < 0 || r_res < 0 ) 
             return -1;
         else
-            return (l_res == r_res);
+            return (l_res==r_res); // outcome of permutation TRUE or FALSE
     }
     return 1;
 }
  
+/*
+ * This function checks if two expressions result in two equivalent BDD trees.
+ * That is two graphs which, with all '0 and 1' permutations of their rva's
+ * have the same truth values.
+ */
 int bdd_test_equivalence(char* l_expr, char* r_expr, char** _errmsg) {
     V_rva l_order, r_order;
 
@@ -531,6 +536,11 @@ int bdd_test_equivalence(char* l_expr, char* r_expr, char** _errmsg) {
     if ( !compute_default_order(&r_order,r_expr,_errmsg) )
         return pg_error(_errmsg,"check_bdd_equivalence: error builing r_order: %s",_errmsg);
     if ( l_order.size != r_order.size ) {
+        /* INCOMPLETE when shortest_order is subset of longest just do the 
+         * computation with the longest and look if the outcomes are the same.
+         * In the shortes order some subtrees may have been 'cut out'
+         */
+        V_rva_free(&l_order); V_rva_free(&r_order);
         return 0;
     }
     int n_order = l_order.size;
@@ -932,14 +942,23 @@ void bdd_generate_dotfile(bdd* bdd, char* dotfile, char** extra) {
  *
  */
 
-#define B_0(I)       ((I)==0)
-#define B_1(I)       ((I)==1)
-#define B_NODE(I)    ((I)<2)
+#define BOOL_0(I)       ((I)==0)
+#define BOOL_1(I)       ((I)==1)
+#define BOOL_NODE(I)    ((I)<2)
 
+/*
+ * The D(T) define is used for debugging and documentation. In the expressen the
+ * symbols have the following meaning:
+ *  N           : current node 'v=d'
+ *  L, R        : Low and High branch from this node.
+ *  P(B)        : Genereted output of 'B' branch.
+ *  '!' '&' '|' : boolean operators
+ *  '0' '1'     : FALSE or TRUE constants
+ */
 // #define D(T)         fprintf(stdout,"+ [%s=%d]{L=%d,H=%d}\t--> %s\n",node->rva.var,node->rva.val,node->low,node->high,T)
 #define D(T)
 
-static void _bdd2string(pbuff *pb, bdd* bdd, nodei i, int notmode) {
+static void _bdd2string(pbuff *pb, bdd* bdd, nodei i) {
     rva_node *node = BDD_NODE(bdd,i);
 
     if ( IS_LEAF(node) ) {
@@ -947,8 +966,8 @@ static void _bdd2string(pbuff *pb, bdd* bdd, nodei i, int notmode) {
         bprintf(pb,"%s",node->rva.var);
         return;
     } else {
-        if ( B_NODE(node->low) && B_NODE(node->high) ) {
-            if ( node->low == (notmode ? 0 : 1) ) { // negated
+        if ( BOOL_NODE(node->low) && BOOL_NODE(node->high) ) {
+            if ( node->low == 1 ) { // negated
                 D("! N");
                 bprintf(pb,"!");
             } else 
@@ -957,43 +976,32 @@ static void _bdd2string(pbuff *pb, bdd* bdd, nodei i, int notmode) {
             return;
         } 
         bprintf(pb,"(");
-        if ( B_NODE(node->high) ) {
-            if ( B_1(node->high) ) {
+        if ( BOOL_NODE(node->high) ) {
+            if ( BOOL_1(node->high) ) {
                 D("N | P(L)");
-                bprintf(pb,"%s=%d",node->rva.var,node->rva.val);
-                bprintf(pb,"|");
-                _bdd2string(pb,bdd,node->low,notmode);
-            } else { // B_0(node->high)
+                bprintf(pb,"%s=%d|",node->rva.var,node->rva.val);
+                _bdd2string(pb,bdd,node->low);
+            } else { // BOOL_0(node->high)
                 D("! N & P(L)");
-                bprintf(pb,"!");
-                bprintf(pb,"%s=%d",node->rva.var,node->rva.val);
-                bprintf(pb,"&");
-                _bdd2string(pb,bdd,node->low,notmode);
+                bprintf(pb,"!%s=%d&",node->rva.var,node->rva.val);
+                _bdd2string(pb,bdd,node->low);
             }
-        } else if ( B_NODE(node->low) ) {
-            if ( B_0(node->low) ) {
+        } else if ( BOOL_NODE(node->low) ) {
+            if ( BOOL_0(node->low) ) {
                 D("N & P(H)");
-                bprintf(pb,"%s=%d",node->rva.var,node->rva.val);
-                bprintf(pb,"&");
-                _bdd2string(pb,bdd,node->high,notmode);
-            } else { // B_1(node->low
+                bprintf(pb,"%s=%d&",node->rva.var,node->rva.val);
+                _bdd2string(pb,bdd,node->high);
+            } else { // BOOL_1(node->low
                 D("! N | P(H)");
-                bprintf(pb,"!");
-                bprintf(pb,"%s=%d",node->rva.var,node->rva.val);
-                bprintf(pb,"|");
-                // _bdd2string(pb,bdd,node->high,!notmode);
-                _bdd2string(pb,bdd,node->high,notmode);
+                bprintf(pb,"!%s=%d|",node->rva.var,node->rva.val);
+                _bdd2string(pb,bdd,node->high);
             }
-        } else {
-            // Node without B_NODE() children
+        } else { // Node without BOOL_NODE(Branch) children
             D("(N & P(H)) | P(L)");
-            // bprintf(pb,"(");
-            bprintf(pb,"%s=%d",node->rva.var,node->rva.val);
-            bprintf(pb,"&");
-            _bdd2string(pb,bdd,node->high,notmode);
-            // bprintf(pb,")");
+            bprintf(pb,"%s=%d&",node->rva.var,node->rva.val);
+            _bdd2string(pb,bdd,node->high);
             bprintf(pb,"|");
-            _bdd2string(pb,bdd,node->low,notmode);
+            _bdd2string(pb,bdd,node->low);
         }
         bprintf(pb,")");
     }
@@ -1001,7 +1009,7 @@ static void _bdd2string(pbuff *pb, bdd* bdd, nodei i, int notmode) {
 
 void bdd2string(pbuff* pb, bdd* bdd, int encapsulate) {
     if ( encapsulate ) bprintf(pb,"Bdd(");
-    _bdd2string(pb,bdd,BDD_ROOT(bdd),0/*notmode*/);
+    _bdd2string(pb,bdd,BDD_ROOT(bdd));
     if ( encapsulate ) bprintf(pb,")");
 }
 

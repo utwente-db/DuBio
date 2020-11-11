@@ -316,10 +316,9 @@ static void test_bdd_creation(){
     //
     // problem cluster -> first xlates to second ()(OK) but result ->
     //
-    // char* expr = "((c=1&c=1&a=0)&(d=0|b=1|!b=0)&(d=2|d=3|a=0))";
-    char* expr = "(a=0&(b=0&(c=1&d=0)|c=0))"; // xlate from above
+    char* expr = "((c=1&c=1&a=0)&(d=0|b=1|!b=0)&(d=2|d=3|a=0))";
+    // char* expr = "(a=0&(b=0&(c=1&d=0)|c=0))"; // xlate from above
     // char* expr = "(a=0&(b=0&(c=0|(c=1&d=0))|c=0))"; // xlate from xlate
-    
 
     bdd*  test_bdd;
     char* _errmsg = NULL;
@@ -602,9 +601,9 @@ void test_bdd() {
 #ifdef BDD_VERBOSE
     fprintf(stdout,"# BDD_VERBOSE = ON!\n");
 #endif
-    if (1) test_regenerate(); // do this always, catches many errors
-    if (1) test_trio();       // ,,
+    if (1) test_regenerate(); // do these 3 tests always, catches many errors
     if (1) random_test(1000/*n*/, 888/*seed*/);
+    if (1) test_trio();       
     //
     if (1) test_bdd_creation();
     if (0) test_bdd_probability();
