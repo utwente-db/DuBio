@@ -31,8 +31,6 @@ typedef struct rva {
     RVANAME     var;
 } rva;
 
-DefVectorH(rva);
-
 int cmpRva(rva*, rva*);
 
 /*
@@ -63,42 +61,70 @@ DefVectorH(rva_node);
 
 int cmpRva_node(rva_node*, rva_node*);
 
-// #define BDD_STORE_EXPRESSION
-
 // The BDD core structure stored in the Postgres Database
 typedef struct bdd {
     char     vl_len[4]; // used by Postgres memory management
-#ifdef BDD_STORE_EXPRESSION
-    char    *expr; 
-#endif
     int      bytesize;  // size in bytes of serialized bdd
     V_rva_node tree;
     // because serialized tree grows in memory do not define attributes here!!!
 } bdd;
 
+/*
+ *
+ */
+
+typedef unsigned short locptr;
+
+#define LOC_EMPTY  USHRT_MAX
+
+typedef struct rva_order {
+    rva     rva; 
+    locptr  loc;
+} rva_order;  
+
+DefVectorH(rva_order);
+
+int cmpRva_order(rva_order*,rva_order*);
+
+typedef struct rva_epos { // position of rva in expression
+    locptr  pos;  // position of rva in bbase text
+    locptr  next; // next in chain of rva's, when emnpty -> LOC_EMPTY
+} rva_epos;
+
+/*
+ *
+ */
+
 typedef struct bdd_runtime {
 #ifdef BDD_VERBOSE
-    int      verbose;
-    int      mk_calls;
-    int      check_calls;
-    int      call_depth;
-    int      G_cache_hits;
+    char*     expr;             // base rva boolean expression
+    int       verbose;
+    int       mk_calls;
+    int       check_calls;
+    int       call_depth;
+    int       G_cache_hits;
 #endif
-    char*    expr;
-    int      len_expr;
-    int      n;
-    V_rva order;
-    unsigned short    G_l;
-    unsigned short    G_r;
-    unsigned short*   G_cache;
+    unsigned  short    G_l;
+    unsigned  short    G_r;
+    unsigned  short*   G_cache;
     //
-    bdd      core;
+    char*     e_stack;         // the boolean expr stack witch only '()!&|01'
+    int       e_stack_len;     // length of the e_stack
+    int       e_stack_framesz; // size of an expression stack block
+    //
+    int         n;             // number of distinct rva's in expression
+    V_rva_order rva_order;     // main rva order array
+    rva_epos*   rva_epos;      // positions of Rva in expression
+    int         c_rva;     
+    int         n_rva;         // total number of rva's in expression
+    //
+    bdd         core;
 } bdd_runtime;
 
 typedef struct bdd_alg bdd_alg; /*forward*/
 typedef struct bdd_alg {
     char name[32];
-    nodei  (*build)(bdd_alg*,bdd_runtime*,char*,int,char*,char**);
+    nodei  (*build)(bdd_alg*,bdd_runtime*,int,char**);
     nodei  (*mk)(bdd_runtime*,rva*,nodei,nodei,char**);
 } bdd_alg;
 

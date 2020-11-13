@@ -343,7 +343,7 @@ static unsigned char bee_token_xlate[256] = {
     255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
     255,255,255,255,255,255,255,255,255,255,255,255};
 
-static int parse_tokens(char* p, char** _errmsg) {
+int parse_tokens(char* p, char** _errmsg) {
     /* this functions assumes no spaces, they will generate an error */
     while (*p) {
         if ( (bee_token)(*p = bee_token_xlate[(int)*p]) == 255 ) {
@@ -428,3 +428,8 @@ static int bee_eval_fsm(char* t, char** _errmsg) {
 int bee_eval(char* boolean_expr, char** _errmsg) {
     return (parse_tokens(boolean_expr,_errmsg)!=-1) ? bee_eval_fsm(boolean_expr,_errmsg) : -1;
 }
+
+int bee_eval_raw(char* boolean_expr, char** _errmsg) {
+    return bee_eval_fsm(boolean_expr,_errmsg);
+}
+

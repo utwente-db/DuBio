@@ -219,7 +219,6 @@ void V_##type##_delete(V_##type *v, int index) \
 int V_##type##_insert_at(V_##type *v, int index, type *p_item) \
 { \
     VECTOR_ASSERT(v); \
-    RANGE_ASSERT(v,index); \
     if (v->capacity == v->size) \
         if (!V_##type##_resize(v, v->capacity+VECTOR_INCREASE(v->capacity))) return -1; \
     memmove(&(v->items[index+1]),&(v->items[index]),(v->size-index)*sizeof(type)); \

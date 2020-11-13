@@ -90,6 +90,8 @@ char* bdd_replace_str(char*,char*,char*,char);
 
 #define BEE_STACKMAX 1024 /* max stackdepth for boolean expressions */
 
+int parse_tokens(char*,char**);
+int bee_eval_raw(char*,char**);
 int bee_eval(char*,char**);
 
 /*

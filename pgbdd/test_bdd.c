@@ -48,7 +48,6 @@ static bdd* get_test_bdd(char* expr, int verbose, char** _errmsg) {
 }
 
 char *bdd_expr[] = {
-    "0",
     "1",
     "x=1",
     "(x=1|y=1)",
@@ -81,11 +80,17 @@ static int _regenerate_test(char* par_expr, char** _errmsg) {
     if (VERBOSE) fprintf(stdout,"TESTING: bdd2 = [%s]\n",bdd2_str);
     //
     if ( strcmp(bdd1_str,bdd2_str) != 0 ) {
+        if (0) {
+           fprintf(stdout,"expr = [%s]\n",par_expr);
+           fprintf(stdout,"bdd1 = [%s]\n",bdd1_str);
+           fprintf(stdout,"bdd2 = [%s]\n",bdd2_str);
+        }
+        if (VERBOSE) fprintf(stdout,"TESTING: NOT STRING EQUAL\n");
         int res_eq = bdd_test_equivalence(bdd1_str,bdd1_str,_errmsg);
-        // int res_eq = 0;
         if ( res_eq < 0 )
             pg_fatal("regenerate_test:equivalence error: %s",_errmsg);
         if ( !res_eq ) {
+            if (VERBOSE) fprintf(stdout,"TESTING: EQUIVALENT FALSE\n");
             if ( 1 ) {
                 fprintf(stdout,"/--------------------------------------------\n");
                 fprintf(stdout,"1> %s\n",bdd1_str);
@@ -94,6 +99,8 @@ static int _regenerate_test(char* par_expr, char** _errmsg) {
                 fprintf(stdout,"/--------------------------------------------\n");
             }
             return pg_error(_errmsg,"regenerated string not equivalent to original: %s <<<>>> %s", bdd1_str,bdd2_str);
+        } else {
+            if (VERBOSE) fprintf(stdout,"TESTING: EQUIVALENT TRUE\n");
         }
     }
     FREE(bdd1);
@@ -114,14 +121,20 @@ static int test_regenerate() {
     return 1;
 }
 
-
-static void test_timings(){
-    int REPEAT = 10000;
-    int n_bdd  = (sizeof(bdd_expr)/sizeof(char*)) - 1;
-    int count  = REPEAT * n_bdd;
+static void test_create_time(){
+    char* _errmsg;
+    bdd* pbdd  = NULL;
+    int  TOTAL = 1000000;
     CLOCK_START();
-    for (int r=0; r<REPEAT; r++) {
-        test_regenerate();
+    int count  = 0;
+    while ( count < TOTAL ) {
+        for (int i=0; bdd_expr[i]; i++) {
+            if ( !(pbdd = get_test_bdd(bdd_expr[i],0/*verbose*/,&_errmsg)))
+                pg_fatal("test_create: error creating bdd: %s",_errmsg);
+            FREE(pbdd);
+            if ( ++count >= TOTAL )
+                break;
+        }
     }
     CLOCK_STOP();
     int msec = CLOCK_MS();
@@ -174,21 +187,83 @@ static int test_trio() {
 //
 //
 
-#define N_LHS 3
+#define N_LHS 1
 static char *lhs_expr[N_LHS] = {
-"x=1|(!y=3)",
-"(x=2&z=4)",
-"x=3"
+"x=1"
+// "x=1|(!y=3)",
+// "(x=2&z=4)",
+// "x=3"
 };
 static bdd* lhs_bdd[N_LHS];
 
-#define N_RHS 3
+#define N_RHS 2
 static char *rhs_expr[N_RHS] = {
 "y=1",
-"(y=2|x=1|x=2)",
-"(y=3|z=4)"
+"y=1&z=2"
+// "y=1",
+// "(y=2|x=1|x=2)",
+// "(y=3|z=4)"
 };
 static bdd* rhs_bdd[N_RHS];
+
+static int check_apply_test(char op, bdd* l, bdd* r) {
+    pbuff t_pbuff_struct, *t_pbuff=pbuff_init(&t_pbuff_struct);
+    pbuff a_pbuff_struct, *a_pbuff=pbuff_init(&a_pbuff_struct);
+    char* _errmsg;
+    bdd *text_res, *apply_res;
+
+    int VERBOSE = 1;
+    if ( VERBOSE ) {
+        bprintf(t_pbuff,"check_apply_test:\n");
+        bprintf(t_pbuff,"L: ");
+        bdd2string(t_pbuff,l,0);
+        bprintf(t_pbuff,"\n");
+        bprintf(t_pbuff,"R: ");
+        bdd2string(t_pbuff,r,0);
+        bprintf(t_pbuff,"\n");
+        pbuff_flush(t_pbuff,stdout);
+    }
+    if (!(text_res=bdd_operator(op,BY_TEXT,l,r,&_errmsg)))
+        pg_fatal("check_apply_test: error: %s",_errmsg);
+    if (!(apply_res=bdd_operator(op,BY_APPLY,l,r,&_errmsg)))
+        pg_fatal("check_apply_test: error: %s",_errmsg);
+    bdd2string(t_pbuff,text_res,0);
+    bdd2string(a_pbuff,text_res,0);
+    if ( VERBOSE ) {
+        fprintf(stdout,"T: %s\n",t_pbuff->buffer);
+        fprintf(stdout,"A: %s\n",a_pbuff->buffer);
+    }
+    if ( strcmp(t_pbuff->buffer,t_pbuff->buffer) != 0 ) {
+        // NOT EQUAL
+        int eqv = bdd_test_equivalence(t_pbuff->buffer,t_pbuff->buffer,&_errmsg);
+        if ( eqv == BDD_FAIL )
+            pg_fatal("check_apply_test: error: %s",_errmsg);
+        if ( ! eqv ) 
+            pg_fatal("check_apply_test: NOT EQUAL");
+    }
+    //
+    pbuff_free(t_pbuff); pbuff_free(a_pbuff);
+    return 1;
+}
+
+static int run_check_apply() {
+    char* _errmsg;
+
+    for (int i=0; i<N_LHS; i++) 
+        if (!(lhs_bdd[i] = create_bdd(BDD_DEFAULT,lhs_expr[i],&_errmsg,0)))
+            pg_fatal("compare_apply_text: error: %s",_errmsg);
+    for (int i=0; i<N_RHS; i++) 
+        if (!(rhs_bdd[i] = create_bdd(BDD_DEFAULT,rhs_expr[i],&_errmsg,0)))
+            pg_fatal("compare_apply_text: error: %s",_errmsg);
+    //
+    for(int i=0; i<N_LHS; i++) {
+        for(int j=0; j<N_RHS; j++) {
+            if ( ! check_apply_test('&', lhs_bdd[i],rhs_bdd[j]) )
+                return 0;
+        }
+    }
+    return 1;
+} 
 
 
 static void run_apply_test(op_mode m) {
@@ -240,17 +315,17 @@ static int test_apply() {
     // char* dotfile = NULL;
     char* dotfile = "./DOT/test.dot";
   
-
-    char* la = "(x=1&y=2)";
+    char* la = "(x=1)";
+    //char* la = "(x=1&y=2)";
     char  op = '&';
     // char* ra = "y=2";
-    char* ra = "(x=1&y=2&z=3)";
+    char* ra = "(y=1|y=2)&x=2";
 
     lhs = create_bdd(BDD_DEFAULT,la,&_errmsg,0/*verbose*/);
     rhs = create_bdd(BDD_DEFAULT,ra,&_errmsg,0/*verbose*/);
     if ( !(lhs && rhs) )
         pg_fatal("test_apply: error: %s",_errmsg);
-    bdd* res = bdd_apply(op,lhs,rhs,0/*verbose*/,&_errmsg);
+    bdd* res = bdd_apply(op,lhs,rhs,1/*verbose*/,&_errmsg);
     if ( !res ) {
         fprintf(stderr,"test_apply:error: %s\n",_errmsg);
     } else {
@@ -315,11 +390,13 @@ static void test_bdd_creation(){
     // char* expr = "!(a=1 | b=2 | c=3)";
     // char* expr = "(x=1|y=1)";
     //
-    // problem cluster -> first xlates to second ()(OK) but result ->
-    //
-    char* expr = "((c=1&c=1&a=0)&(d=0|b=1|!b=0)&(d=2|d=3|a=0))";
-    // char* expr = "(a=0&(b=0&(c=1&d=0)|c=0))"; // xlate from above
-    // char* expr = "(a=0&(b=0&(c=0|(c=1&d=0))|c=0))"; // xlate from xlate
+    // nice example from random generator
+    char* expr = "((c=3&a=4&c=2)|!(b=0|c=2)|(c=3))";
+
+    // char* expr = "((x=1&y=1)|(x=2&y=2))&(z=1&y=2)"; // interesting cutout
+    // char* expr = "((c=1&d=1)|(d=2)|!(!c=4|a=4|d=0)|(a=3&c=4&c=2))"; // DIFFICULT!
+    // char* expr = "(  x=1 |((y=1) ) )";
+    // char* expr = "(b=0&(!c=2&c=3)|!c=2)";
 
     bdd*  test_bdd;
     char* _errmsg = NULL;
@@ -351,8 +428,8 @@ static void test_bdd_creation(){
         if ( 1 ) {
             char* _errmsg;
             if ( !_regenerate_test(expr,&_errmsg) )
-                exit(0);
-                // pg_fatal("regenerate_test:error: %s",_errmsg);
+                // exit(0);
+                pg_fatal("regenerate_test:error: %s",_errmsg);
         }
     } else {
         fprintf(stderr,"Test_bdd:error: %s\n",(_errmsg ? _errmsg : "NULL"));
@@ -588,6 +665,23 @@ static void random_test(int n, long seed) {
     pbuff_free(pbuff);
 }
 
+
+static void test_equiv_manual() {
+    char *_errmsg;
+    char *l = "((c=3&a=4&c=2)|!(b=0|c=2)|(c=3))";
+    char *r = "(b=0&(!c=2&c=3)|!c=2)";
+    // char *l = "x=1";
+    // char *r = "x=1";
+
+    fprintf(stdout,"test_equiv_manual():\n");
+    fprintf(stdout,"L=%s:\n",l);
+    fprintf(stdout,"R=%s:\n",r);
+    int res = bdd_test_equivalence(l,r,&_errmsg); 
+    if ( res < 0 ) 
+        pg_fatal("test_equiv_manual: %s\n",_errmsg);
+    fprintf(stdout,">=%d:\n",res);
+}
+
 //
 //
 //
@@ -607,10 +701,12 @@ void test_bdd() {
     if (1) random_test(1000/*n*/, 888/*seed*/);
     if (1) test_trio();       
     //
-    if (1) test_bdd_creation();
+    if (0) test_bdd_creation();
     if (0) test_bdd_probability();
-    if (0) test_timings();
+    if (0) test_create_time();
     if (0) compare_apply_text();
     if (0) test_static_bdd();
     if (0) test_apply();
+    if (0) run_check_apply();
+    if (0) test_equiv_manual();
 }
