@@ -31,11 +31,6 @@ select bdd('(x=1|x=2)&(!1)');
 select prob(dictionary(''),bdd('0'));
 select prob(dictionary(''),bdd('!(0&0)'));
 
--- different algorithms
-select alg_bdd('base',' (x=1&((y=1|y=2)&x=2))');
--- select alg_bdd('robdd','(x=1&((y=1|y=2)&x=2))');
-select alg_bdd('kaj',  '(x=1&((y=1|y=2)&x=2))');
-
 -- bdd property examples
 select istrue(bdd('0'));
 select isfalse(bdd('0'));

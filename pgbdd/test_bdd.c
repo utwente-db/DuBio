@@ -86,7 +86,9 @@ static int _regenerate_test(char* par_expr, char** _errmsg) {
            fprintf(stdout,"bdd2 = [%s]\n",bdd2_str);
         }
         if (VERBOSE) fprintf(stdout,"TESTING: NOT STRING EQUAL\n");
-        int res_eq = bdd_test_equivalence(bdd1_str,bdd1_str,_errmsg);
+        if (VERBOSE) fprintf(stdout,"TESTING: START EQUIV TEST\n");
+        int res_eq = bdd_test_equivalence(bdd1_str,bdd2_str,_errmsg);
+        if (VERBOSE) fprintf(stdout,"TESTING: END EQUIV TEST\n");
         if ( res_eq < 0 )
             pg_fatal("regenerate_test:equivalence error: %s",_errmsg);
         if ( !res_eq ) {
@@ -391,12 +393,12 @@ static void test_bdd_creation(){
     // char* expr = "(x=1|y=1)";
     //
     // nice example from random generator
-    char* expr = "((c=3&a=4&c=2)|!(b=0|c=2)|(c=3))";
+    // char* expr = "((c=3&a=4&c=2)|!(b=0|c=2)|(c=3))";
 
     // char* expr = "((x=1&y=1)|(x=2&y=2))&(z=1&y=2)"; // interesting cutout
     // char* expr = "((c=1&d=1)|(d=2)|!(!c=4|a=4|d=0)|(a=3&c=4&c=2))"; // DIFFICULT!
     // char* expr = "(  x=1 |((y=1) ) )";
-    // char* expr = "(b=0&(!c=2&c=3)|!c=2)";
+    char* expr = "(b=0&(!c=2&c=3)|!c=2)"; // look what happens
 
     bdd*  test_bdd;
     char* _errmsg = NULL;
@@ -642,7 +644,7 @@ static randexpr  RANDEXPR = {
 
 
 
-static void random_test(int n, long seed) {
+static void random_test(int n, long seed, int verbose) {
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
     srand(seed);
   
@@ -651,6 +653,7 @@ static void random_test(int n, long seed) {
         bdd*      bdd = NULL;
         char *expr    = random_expression(&RANDEXPR,pbuff);
 
+        if (verbose) fprintf(stdout,"random> %s\n",expr);
         if (!(bdd = create_bdd(BDD_DEFAULT,expr,&_errmsg,0))) {
             pg_fatal("random_test: error: %s",_errmsg);
         }
@@ -698,10 +701,10 @@ void test_bdd() {
     fprintf(stdout,"# BDD_VERBOSE = ON!\n");
 #endif
     if (1) test_regenerate(); // do these 3 tests always, catches many errors
-    if (1) random_test(1000/*n*/, 888/*seed*/);
+    if (0) random_test(100000/*n*/, 888/*seed*/, 0/*verbose*/);
     if (1) test_trio();       
     //
-    if (0) test_bdd_creation();
+    if (1) test_bdd_creation();
     if (0) test_bdd_probability();
     if (0) test_create_time();
     if (0) compare_apply_text();

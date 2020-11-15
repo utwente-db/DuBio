@@ -59,7 +59,7 @@ typedef struct rva_node {
 
 DefVectorH(rva_node);
 
-int cmpRva_node(rva_node*, rva_node*);
+/* int cmpRva_node(rva_node*, rva_node*); */
 
 // The BDD core structure stored in the Postgres Database
 typedef struct bdd {
@@ -121,6 +121,17 @@ typedef struct bdd_runtime {
     bdd         core;
 } bdd_runtime;
 
+#define E_FRAME(BCTX,DEPTH) &((BCTX)->e_stack[(BCTX)->e_stack_framesz*(DEPTH)])
+
+#ifdef BDD_OPTIMIZE
+#define ORDER_SIZE(BCTX)  ((BCTX)->rva_order.size)
+#define ORDER(BCTX,I)     (&(BCTX)->rva_order.items[I])
+#else
+#define ORDER_SIZE(BCTX)  V_rva_order_size(&(BCTX)->rva_order)
+#define ORDER(BCTX,I)     V_rva_order_getp(&(BCTX)->rva_order,I)
+#endif
+#define ORDER_RVA(BCTX,I) &(ORDER(BCTX,I)->rva)
+
 typedef struct bdd_alg bdd_alg; /*forward*/
 typedef struct bdd_alg {
     char name[32];
@@ -128,7 +139,7 @@ typedef struct bdd_alg {
     nodei  (*mk)(bdd_runtime*,rva*,nodei,nodei,char**);
 } bdd_alg;
 
-extern bdd_alg *BDD_DEFAULT, *BDD_BASE, *BDD_KAJ, *BDD_ROBDD;
+extern bdd_alg *BDD_DEFAULT, *BDD_BASE;
 
 bdd_alg* bdd_algorithm(char*, char** _errmsg);
 

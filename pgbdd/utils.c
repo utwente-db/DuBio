@@ -286,8 +286,6 @@ typedef unsigned char bee_state;
 #define bee_sparclose      14
 #define bee_NSTATES        15
 
-typedef unsigned char bee_token;
-
 #define bee_0               0
 #define bee_1               1
 #define bee_not             2
@@ -298,6 +296,15 @@ typedef unsigned char bee_token;
 #define bee_eof             7
 #define bee_NTOKEN          8
 
+static char *bee_token_STR[bee_NTOKEN] = {"0","1","!","&","|","(",")","E"};
+
+char bee_token2char(bee_token bt) {
+    if (bt >= bee_NTOKEN)
+        return -1;
+    else
+        return *bee_token_STR[bt];
+}
+
 #ifdef BEE_DEBUG
 
 static char *bee_state_STR[bee_NSTATES] = {
@@ -306,7 +313,6 @@ static char *bee_state_STR[bee_NSTATES] = {
         "bee_sresult0", "bee_sresult1", "bee_sparopen", "bee_error", 
         "bee_sparclose" };
 
-static char *bee_token_STR[bee_NTOKEN] = {"0","1","!","&","|","(",")","E"};
 
 static char *bee_token_STR[bee_NTOKEN] = {"0","1","NOT","AND","OR","(",")","END"};
 

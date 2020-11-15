@@ -26,6 +26,16 @@
 #include "dictionary.h"
 #include "bdd.h"
 
+/* 
+ * TODO:
+ * + equiv() als Postgres op
+ * equiv() met random gen gebruiken exotische equiv
+ * equiv() regeneration probleem oplossen.
+ * bdd_compare() als C, dan _equal(), _sm(), _gr(), = , < , >
+ */
+
+#define BDD_ASSERT
+
 int cmpRva(rva* l, rva* r) {  
     int res = COMPARE_VAR(l->var,r->var);
     if ( res == 0 )
@@ -35,15 +45,21 @@ int cmpRva(rva* l, rva* r) {
 
 DefVectorC(rva_node);
 
-int cmpRva_node(rva_node* l, rva_node* r) {
-    int res = (l->low - r->low);
-    if (res == 0) {
-        res = (l->high - r->high);
-        if ( res == 0 )
-            res = cmpRva(&l->rva,&r->rva); // most expensive comparisson last
-    }
-    return res;
-} 
+/*
+ * int cmpRva_node(rva_node* l, rva_node* r) {
+ *     int res = COMPARE_VAR(l->rva.var,r->rva.var);
+ *     if ( res == 0 ) {
+ *         res = l->rva.var - r->rva.var;
+ *         if (res == 0) {
+ *             res = (l->low - r->low);
+ *             if (res == 0) {
+ *                 res = (l->high - r->high);
+ *             }
+ *         }
+ *     }
+ *     return res;
+ * } 
+ */
 
 DefVectorC(rva_order);
 
@@ -126,8 +142,8 @@ static void bdd_print_rva_expr(bdd_runtime* bctx, pbuff* pbuff) {
     bprintf(pbuff,"+ stack_len = %d\n",bctx->e_stack_len);
     // bprintf(pbuff,"+ [n/c]_rva = %d/%d\n",bctx->n_rva,bctx->c_rva);
     bprintf(pbuff,"+ Sorted/Uniq RVA list (n=%d):\n",bctx->n);
-    for (int i=0; i<V_rva_order_size(&bctx->rva_order); i++) {
-        rva_order* rl = V_rva_order_getp(&bctx->rva_order,i);
+    for (int i=0; i<ORDER_SIZE(bctx); i++) {
+        rva_order* rl = ORDER(bctx,i);
         
         bprintf(pbuff,"[%2d]: <%s=%d> pos{",i,rl->rva.var,rl->rva.val);
         locptr p = rl->loc;
@@ -150,6 +166,65 @@ static void bdd_print_V_rva_order(V_rva_order* v, pbuff* pbuff) {
         bprintf(pbuff,"%s=%d ",rva->var,rva->val);
     }
     bprintf(pbuff,"}");
+}
+
+static void bdd_print_frame(bdd_runtime* bctx, int depth, int with_rva, pbuff* pbuff) {
+    char* pframe = E_FRAME(bctx,depth);
+    
+    for(int pos=0; pos<bctx->e_stack_framesz-1; pos++) {
+        char c = bee_token2char((bee_token)pframe[pos]);
+        if ( c < 0 )
+            c = '*'; // ERROR
+        if ( ! (c=='0' || c=='1' ) )
+            bprintf(pbuff,"%c",c);
+        else {
+            for (int i=0; i<ORDER_SIZE(bctx); i++) {
+                rva_order* rl = ORDER(bctx,i);
+                for(locptr p = rl->loc;p!=LOC_EMPTY;p = bctx->rva_epos[p].next){
+                    if ( pos == bctx->rva_epos[p].pos ) {
+                        if ( with_rva ) {
+                            rva* rva = ORDER_RVA(bctx,i);
+                            bprintf(pbuff,"<%s=%d>",rva->var,rva->val);
+                        }
+                        if ( i < depth )
+                            bprintf(pbuff,"%c",c);
+                        else
+                            bprintf(pbuff,"%c",'X');
+
+                    }
+                }
+            }
+        }
+    }
+}
+
+static nodei bctx_eval_top(bdd_runtime*,int,char**);
+
+static void bdd_reconstruct(bdd_runtime* bctx, int depth) {
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    char* _errmsg;
+    char* frame = E_FRAME(bctx,depth);
+
+     
+    bprintf(pbuff,"#Reconstruct RVA top expr.\n");
+    bprintf(pbuff,"--------------------------\n");
+#ifdef BDD_VERBOSE
+    bprintf(pbuff,"+ Base expr: %s: \n",bctx->expr);
+#endif
+    bprintf(pbuff,"+ Topframe : ");
+    bdd_print_frame(bctx,depth,1,pbuff);
+    bprintf(pbuff,"\n+ Topexpr. : ");
+    bdd_print_frame(bctx,depth,0,pbuff);
+    bprintf(pbuff," = %d: \n",bctx_eval_top(bctx,depth,&_errmsg));
+    for (int i=0; i<ORDER_SIZE(bctx); i++) {
+        rva_order* rl = ORDER(bctx,i);
+        
+        bprintf(pbuff," <%s=%d> = ",rl->rva.var,rl->rva.val);
+        bprintf(pbuff,"%d\n",(int)frame[bctx->rva_epos[rl->loc].pos]);
+    }
+    bprintf(pbuff,"\n");
+    pbuff_flush(pbuff, stdout);
+    pbuff_free(pbuff);
 }
 
 static void bdd_print(bdd_runtime* bdd_rt, pbuff* pbuff) {
@@ -242,10 +317,10 @@ static int add2rva_order(bdd_runtime* bctx, rva_order* new_rva) {
         index = -(index + VECTOR_BSEARCH_NEG_OFFSET);
         if ( (index = V_rva_order_insert_at(&bctx->rva_order,index,new_rva)) < 0)
             return BDD_FAIL;
-        rl = V_rva_order_getp(&bctx->rva_order,index);
+        rl = ORDER(bctx,index);
         rl->loc = LOC_EMPTY;
     } else {
-        rl = V_rva_order_getp(&bctx->rva_order,index);
+        rl = ORDER(bctx,index);
     } 
     rva_epos* rp = &(bctx->rva_epos[bctx->c_rva]);
     bctx->e_stack[bctx->e_stack_len] = '1'; // initial test value
@@ -315,19 +390,25 @@ static int compute_rva_order(bdd_runtime* bctx, char* bdd_expr, char** _errmsg) 
     if ( !_compute_order(bctx,bdd_expr,_errmsg) )
         return BDD_FAIL;
     //
-    bctx->n                            = V_rva_order_size(&bctx->rva_order);
+    bctx->n                            = ORDER_SIZE(bctx);
     bctx->e_stack[bctx->e_stack_len++] = 0; // terminate the base frame with 0
     bctx->e_stack_framesz              = bctx->e_stack_len;
     bctx->e_stack_len = (bctx->n+1)*bctx->e_stack_framesz; // block 0 is base!
     bctx->e_stack     = (char*)REALLOC(bctx->e_stack,bctx->e_stack_len);
     //
+#ifdef BDD_ASSERT
+    for (int i=1; i<bctx->n; i++) {
+        if ( cmpRva_order(ORDER(bctx,i-1),ORDER(bctx,i)) > 0 )
+            pg_fatal("compute_rva_order: order not correctly sorted");
+    }
+#endif
     if ( bctx->c_rva != bctx->n_rva )
         pg_fatal("bctx_init: assert: rva count unexpected!");
     // now convert the baseframe expression to the 'raw' bee fsm input. 
-    if ( parse_tokens(bctx->e_stack /* bottom frame */, _errmsg) < 0 )
+    if ( parse_tokens(E_FRAME(bctx,0), _errmsg) < 0 )
         return BDD_FAIL;
     // now run 1 'dry' test of the bee evaluator
-    if ( bee_eval_raw(bctx->e_stack,_errmsg) < 0 )
+    if ( bee_eval_raw(E_FRAME(bctx,0),_errmsg) < 0 )
         return BDD_FAIL;
     return 1;
 }
@@ -336,68 +417,31 @@ static int compute_rva_order(bdd_runtime* bctx, char* bdd_expr, char** _errmsg) 
  *
  */
 
-# ifdef BDD_VERBOSE
-
-static char* bctx_depth_expr(bdd_runtime* bctx, int depth) {
-    return "INCOMPLETE";
-}
-
-#endif
-
 static int bctx_orderi_set(bdd_runtime* bctx, int depth, int v_0or1) {
-    char* srcframe   = & bctx->e_stack[bctx->e_stack_framesz * depth];
-    char* localframe = & bctx->e_stack[bctx->e_stack_framesz * (depth+1)];
-    memcpy(localframe,srcframe,bctx->e_stack_framesz);
-    rva_order* rl = V_rva_order_getp(&bctx->rva_order,depth);
-    locptr p = rl->loc;
-    while ( p != LOC_EMPTY ) {
-        localframe[bctx->rva_epos[p].pos] = v_0or1;
-        p = bctx->rva_epos[p].next;
-    }
-    // fprintf(stdout,"**DN[%d,[%s]=%d]: %s\n",depth,rvastr,v_0or1,localframe);
+    char* srcframe = E_FRAME(bctx,depth);
+    char* dstframe = E_FRAME(bctx,depth+1);
+    memcpy(dstframe,srcframe,bctx->e_stack_framesz);
+    rva_order* rl = ORDER(bctx,depth);
+    for(locptr p = rl->loc; p!=LOC_EMPTY; p = bctx->rva_epos[p].next)
+        dstframe[bctx->rva_epos[p].pos] = v_0or1;
+    // fprintf(stdout,"**DN[%d,[%s]=%d]: %s\n",depth,rvastr,v_0or1,dstframe);
     return 1;
 }
 
-#define FRAMECHAR_EMPTY 'X'
-
-static void bdd_clear_baseframe(bdd_runtime* bctx) {
-    for(int i=0; i<bctx->n_rva; i++) {
-        bctx->e_stack[bctx->rva_epos[i].pos] = FRAMECHAR_EMPTY;
-    }
-}
-
 static nodei bctx_eval_top(bdd_runtime* bctx, int depth, char** _errmsg) {
-    char* localframe = & bctx->e_stack[bctx->e_stack_framesz * depth];
+    char* topframe = E_FRAME(bctx,depth);
 
-    int new_res = bee_eval_raw(localframe, _errmsg);
+    int new_res = bee_eval_raw(topframe, _errmsg);
     if ( new_res < 0 )
         return NODEI_NONE; 
     return (nodei)new_res;
 }
 
-static void bdd_reconstruct(bdd_runtime* bctx, int depth) {
-    char* _errmsg;
-    char* frame = & bctx->e_stack[bctx->e_stack_framesz * depth];
-     
-    fprintf(stdout,"#Reconstruct RVA top expr.\n");
-    fprintf(stdout,"--------------------------\n");
-#ifdef BDD_VERBOSE
-    fprintf(stdout,"Expr: %s: \n",bctx->expr);
-#endif
-    fprintf(stdout,"Res:  %d: \n",bctx_eval_top(bctx,depth,&_errmsg));
-    for (int i=0; i<V_rva_order_size(&bctx->rva_order); i++) {
-        rva_order* rl = V_rva_order_getp(&bctx->rva_order,i);
-        
-        fprintf(stdout," <%s=%d> = ",rl->rva.var,rl->rva.val);
-        fprintf(stdout,"%d\n",(int)frame[bctx->rva_epos[rl->loc].pos]);
-    }
-}
-
 /*
- * The BASE build()/mk() algorithms
+ * The BASE build()/mk() algorithms impplementing Kaj's algorithm
  */
 
-static nodei bdd_mk_BASE(bdd_runtime* bdd_rt, rva *v, nodei l, nodei h, char** _errmsg) {
+static nodei bdd_mk(bdd_runtime* bdd_rt, rva *v, nodei l, nodei h, char** _errmsg) {
 #ifdef BDD_VERBOSE
     if ( bdd_rt->verbose ) {
         // for(int i=0;i<bdd_rt->call_depth; i++)
@@ -422,77 +466,59 @@ static nodei bdd_mk_BASE(bdd_runtime* bdd_rt, rva *v, nodei l, nodei h, char** _
     return res;
 } 
 
-/*
- * Kaj's algorithm
- */
-
-static nodei bdd_build_bdd_KAJ(bdd_alg* alg, bdd_runtime* bdd_rt, int depth, char** _errmsg) {
-#ifdef BDD_VERBOSE
-    if ( bdd_rt->verbose )
-        fprintf(stdout,"BUILD{%s}[i=%d]: %s\n",alg->name,depth,bctx_depth_expr(bdd_rt,depth));
-#endif
-    if ( depth >= bdd_rt->n ) {
-#ifdef BDD_VERBOSE
-        if ( bdd_rt->verbose )
-            fprintf(stdout,"EVAL{%s}[i=%d]: %s = ",alg->name,depth,bctx_depth_expr(bdd_rt,depth));
-#endif
-        int boolean_res = bctx_eval_top(bdd_rt,depth,_errmsg);
-#ifdef BDD_VERBOSE
-        if ( bdd_rt->verbose )
-            fprintf(stdout,"%d\n",boolean_res);
-#endif
-        return (boolean_res < 0) ? NODEI_NONE : (nodei)boolean_res;
-    }
-    rva* var = &V_rva_order_getp(&bdd_rt->rva_order,depth)->rva;
-    bctx_orderi_set(bdd_rt,depth,0);
-    nodei l = alg->build(alg,bdd_rt,depth+1,_errmsg);
-    if ( l == NODEI_NONE ) return NODEI_NONE;
-    bctx_orderi_set(bdd_rt,depth,1);
-    int scan_samevar_i = depth+1;
-    while ( scan_samevar_i < bdd_rt->n ) {
-         rva* next_in_order = & V_rva_order_getp(&bdd_rt->rva_order,scan_samevar_i)->rva;
+static void _bctx_skip_samevar(bdd_runtime* bctx, int* depth) {
+    rva* var = ORDER_RVA(bctx,*depth);
+    *depth += 1;
+    while ( *depth < bctx->n ) {
+         rva* next_in_order = ORDER_RVA(bctx,*depth);
          if ( !IS_SAMEVAR(var,next_in_order) )
-             break; // varname changed, continue build from this index
-         if ( var->val != next_in_order->val ) {
-             bctx_orderi_set(bdd_rt,scan_samevar_i,0);
-         }
-         scan_samevar_i++;
+             return; // varname changed, continue build from this index
+         if ( var->val != next_in_order->val )
+             bctx_orderi_set(bctx,*depth,0);
+         *depth += 1;
     }
-    nodei h = alg->build(alg,bdd_rt,scan_samevar_i/*newvar*/,_errmsg);
-    return (h == NODEI_NONE) ? NODEI_NONE : alg->mk(bdd_rt,var,l,h,_errmsg);
 }
 
-/*
- * BASE algorithm
- */
-
-static nodei bdd_build_bdd_BASE(bdd_alg* alg, bdd_runtime* bdd_rt, int depth, char** _errmsg) {
+static nodei bdd_build(bdd_alg* alg, bdd_runtime* bdd_rt, int depth, char** _errmsg) {
 #ifdef BDD_VERBOSE
-    if ( bdd_rt->verbose )
-        fprintf(stdout,"BUILD{%s}[i=%d]: %s\n",alg->name,depth,bctx_depth_expr(bdd_rt,depth));
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+
+    if ( bdd_rt->verbose ) {
+        bprintf(pbuff,"BUILD{%s}[d=%d]: ",alg->name,depth);
+        bdd_print_frame(bdd_rt,depth,1/*no rva*/,pbuff);
+        bprintf(pbuff,"\n");
+        pbuff_flush(pbuff,stdout);
+    }
 #endif
     if ( depth >= bdd_rt->n ) {
 #ifdef BDD_VERBOSE
-        if ( bdd_rt->verbose )
-            fprintf(stdout,"EVAL{%s}[i=%d]: %s = ",alg->name,depth,bctx_depth_expr(bdd_rt,depth));
+        if ( bdd_rt->verbose ) {
+            bprintf(pbuff,"EVAL{%s}[i=%d]: ",alg->name,depth);
+            bdd_print_frame(bdd_rt,depth,0/*no rva*/,pbuff);
+            bprintf(pbuff," = ");
+            pbuff_flush(pbuff,stdout);
+        }
 #endif
         int boolean_res = bctx_eval_top(bdd_rt,depth,_errmsg);
 #ifdef BDD_VERBOSE
         if ( bdd_rt->verbose )
-            fprintf(stdout,"%d\n",boolean_res);
+            bprintf(pbuff,"%d\n",boolean_res);
+        pbuff_flush(pbuff,stdout);
+        pbuff_free(pbuff);
 #endif
         return (boolean_res < 0) ? NODEI_NONE : (nodei)boolean_res;
     }
-    rva* var = &V_rva_order_getp(&bdd_rt->rva_order,depth)->rva;
+    rva* var = ORDER_RVA(bdd_rt,depth);
     bctx_orderi_set(bdd_rt,depth,0);
-    nodei l = alg->build(alg,bdd_rt,depth+1,_errmsg);
+    // nodei l = alg->build(alg,bdd_rt,depth+1,_errmsg);
+    nodei l = bdd_build(alg,bdd_rt,depth+1,_errmsg);
     if ( l == NODEI_NONE ) return NODEI_NONE;
     bctx_orderi_set(bdd_rt,depth,1);
-    nodei h = alg->build(alg,bdd_rt,depth+1,_errmsg);
-    if ( l == NODEI_NONE || h == NODEI_NONE )
-        return NODEI_NONE;
-    else
-        return alg->mk(bdd_rt,var,l,h,_errmsg);
+    _bctx_skip_samevar(bdd_rt,&depth);
+    // nodei h = alg->build(alg,bdd_rt,depth,_errmsg);
+    nodei h = bdd_build(alg,bdd_rt,depth,_errmsg);
+    // return (h == NODEI_NONE) ? NODEI_NONE : alg->mk(bdd_rt,var,l,h,_errmsg);
+    return (h == NODEI_NONE) ? NODEI_NONE : bdd_mk(bdd_rt,var,l,h,_errmsg);
 }
 
 /*
@@ -510,31 +536,33 @@ static int _bdd_equiv(int l_depth, bdd_runtime* l_ctx, int r_depth, bdd_runtime*
          (r_depth < r_ctx->rva_order.size) ) {
         int opt = -1;
         if ( r_depth == r_ctx->rva_order.size )
-           opt = 1; // do left
+           opt = 1; // do left, right is end of list
         else if ( l_depth == l_ctx->rva_order.size )
-           opt = 2; // do right
+           opt = 2; // do right, left is end of list
         else {
-           int cmp = cmpRva_order(V_rva_order_getp(&l_ctx->rva_order,l_depth),V_rva_order_getp(&r_ctx->rva_order,r_depth));
+           int cmp = cmpRva_order(ORDER(l_ctx,l_depth),ORDER(r_ctx,r_depth));
            if ( cmp == 0 ) 
-               opt = 3; // do both 
+               opt = 3; // same rva do both left and right 
            else if (cmp < 0)
-               opt = 1; // do left
+               opt = 1; // do left because is first in order
            else
-               opt = 2; // do right
+               opt = 2; // do right because is first in order
         }
         if (opt == 1) {
             bctx_orderi_set(l_ctx,l_depth,0);
             int res = _bdd_equiv(l_depth+1,l_ctx,r_depth,r_ctx,_errmsg);
             if ( res < 1 ) return res; // error or 'FALSE'
             bctx_orderi_set(l_ctx,l_depth,1);
-            res = _bdd_equiv(l_depth+1,l_ctx,r_depth,r_ctx,_errmsg);
+            _bctx_skip_samevar(l_ctx,&l_depth);
+            res = _bdd_equiv(l_depth,l_ctx,r_depth,r_ctx,_errmsg);
             if ( res < 1 ) return res; // error or 'FALSE'
         } else if (opt==2) {
             bctx_orderi_set(r_ctx,r_depth,0);
             int res = _bdd_equiv(l_depth,l_ctx,r_depth+1,r_ctx,_errmsg);
             if ( res < 1 ) return res; // error or 'FALSE'
             bctx_orderi_set(r_ctx,r_depth,1);
-            res = _bdd_equiv(l_depth,l_ctx,r_depth+1,r_ctx,_errmsg);
+            _bctx_skip_samevar(r_ctx,&r_depth);
+            res = _bdd_equiv(l_depth,l_ctx,r_depth,r_ctx,_errmsg);
             if ( res < 1 ) return res; // error or 'FALSE'
         } else { // opt == 3
             bctx_orderi_set(l_ctx,l_depth,0);
@@ -542,8 +570,10 @@ static int _bdd_equiv(int l_depth, bdd_runtime* l_ctx, int r_depth, bdd_runtime*
             int res = _bdd_equiv(l_depth+1,l_ctx,r_depth+1,r_ctx,_errmsg);
             if ( res < 1 ) return res; // error or 'FALSE'
             bctx_orderi_set(l_ctx,l_depth,1);
+            _bctx_skip_samevar(l_ctx,&l_depth);
             bctx_orderi_set(r_ctx,r_depth,1);
-            res = _bdd_equiv(l_depth+1,l_ctx,r_depth+1,r_ctx, _errmsg);
+            _bctx_skip_samevar(r_ctx,&r_depth);
+            res = _bdd_equiv(l_depth,l_ctx,r_depth,r_ctx, _errmsg);
             if ( res < 1 ) return res; // error or 'FALSE'
         }
     } else {
@@ -553,11 +583,13 @@ static int _bdd_equiv(int l_depth, bdd_runtime* l_ctx, int r_depth, bdd_runtime*
             return -1;
         else {
             int res = (l_res==r_res);
-            if ( 0 && !res ) {
+#ifdef BDD_VERBOSE
+            if ( !res ) {
                 bdd_reconstruct(l_ctx,l_depth);
                 bdd_reconstruct(r_ctx,r_depth);
             }
-            return (l_res==r_res); // outcome of permutation TRUE or FALSE
+#endif
+            return res; // outcome of permutation TRUE or FALSE
         }
     }
     return 1;
@@ -577,9 +609,6 @@ int bdd_test_equivalence(char* l_expr, char* r_expr, char** _errmsg) {
         return BDD_FAIL;
     if ( !bdd_rt_init(&r_ctx_s,r_expr,0,_errmsg) )
         return BDD_FAIL;
-    bdd_clear_baseframe(&l_ctx_s); // to catch unassigned rva's
-    bdd_clear_baseframe(&r_ctx_s); // ,,
-    //
     int res = _bdd_equiv(0, &l_ctx_s, 0, &r_ctx_s, _errmsg);
     //
     bdd_rt_free(&l_ctx_s);
@@ -599,7 +628,6 @@ static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd_rt, char** _errmsg) {
         bdd_print(bdd_rt,pbuff); pbuff_flush(pbuff,stdout);
         fprintf(stdout,"/--------------------------------\n");
     }
-    bdd_clear_baseframe(bdd_rt);
 #endif
     if (bdd_create_node(&bdd_rt->core,&RVA_0,NODEI_NONE,NODEI_NONE)==NODEI_NONE) return BDD_FAIL;
     if (bdd_create_node(&bdd_rt->core,&RVA_1,NODEI_NONE,NODEI_NONE)==NODEI_NONE) return BDD_FAIL;
@@ -628,19 +656,14 @@ static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd_rt, char** _errmsg) {
     return (res == NODEI_NONE) ? BDD_FAIL : BDD_OK;
 }
 
-bdd_alg S_BDD_BASE    = {.name = "BASE", .build = bdd_build_bdd_BASE, .mk = bdd_mk_BASE};
+bdd_alg S_BDD_BASE    = {.name = "BASE", .build = bdd_build, .mk = bdd_mk};
 bdd_alg *BDD_BASE    = &S_BDD_BASE;
 
-bdd_alg S_BDD_KAJ     = {.name = "KAJ" , .build = bdd_build_bdd_KAJ,  .mk = bdd_mk_BASE};
-bdd_alg *BDD_KAJ     = &S_BDD_KAJ;
-
-bdd_alg *BDD_DEFAULT = &S_BDD_KAJ;
+bdd_alg *BDD_DEFAULT = &S_BDD_BASE;
 
 bdd_alg* bdd_algorithm(char* alg_name, char** _errmsg) {
     if ( (strcmp(alg_name,"base")==0) || (strcmp(alg_name,"default")==0) )
         return BDD_BASE;
-    else if ( strcmp(alg_name,"kaj") == 0)
-        return BDD_KAJ;
     else {
         pg_error(_errmsg,"bdd_algorithm: unknown algorithm: \'%s\'",alg_name);
         return NULL;
@@ -663,8 +686,31 @@ bdd* create_bdd(bdd_alg* alg, char* expr, char** _errmsg, int verbose) {
     return res;
 }
 
+#define BDD_BASE_SIZE   (sizeof(bdd) - sizeof(V_rva_node))
+
+bdd* serialize_bdd(bdd* tbs) {
+    int bytesize, tree_size;
+
+    V_rva_node_shrink2size(&tbs->tree);
+    tree_size= V_rva_node_bytesize(&tbs->tree);
+    bytesize = BDD_BASE_SIZE + tree_size;
+    bdd* res = NULL;
+    if ( (res = (bdd*)MALLOC(bytesize)) ) {
+        res->bytesize = bytesize;
+        V_rva_node_serialize(&res->tree,&tbs->tree);
+        return res;
+    } 
+    else
+        return NULL; // incomplete, errmsg here
+}
+
+bdd* relocate_bdd(bdd* tbr) {
+    V_rva_node_relocate(&tbr->tree);
+    return tbr;
+}
+
 /*
- *
+ * BDD apply() and &,|,! operator section
  */
 
 #define BDD_G_CACHE_POSSIBLE(L,R) (((L+1)*(R+1)*sizeof(short)) < BDD_G_CACHE_MAX)
@@ -724,17 +770,17 @@ static nodei _bdd_apply(bdd_runtime* bdd_rt, char op, bdd* b1, nodei u1, bdd* b2
         } else {
             int cmp = cmpRva(&n_u1->rva,&n_u2->rva);
             if ( cmp == 0 ) {
-                u = bdd_mk_BASE(bdd_rt, &n_u1->rva,
+                u = bdd_mk(bdd_rt, &n_u1->rva,
                         _bdd_apply(bdd_rt,op,b1,n_u1->low,b2,n_u2->low,_errmsg),
                         _bdd_apply(bdd_rt,op,b1,n_u1->high,b2,n_u2->high,_errmsg),
                         _errmsg);
             } else if ( IS_LEAF(n_u1) || (cmp < 0) ) {
-                u = bdd_mk_BASE(bdd_rt, &n_u2->rva,
+                u = bdd_mk(bdd_rt, &n_u2->rva,
                         _bdd_apply(bdd_rt,op,b1,u1,b2,n_u2->low,_errmsg),
                         _bdd_apply(bdd_rt,op,b1,u1,b2,n_u2->high,_errmsg),
                         _errmsg);
             } else { /* IS_LEAF(n_u2) || (cmp > 0) */
-                u = bdd_mk_BASE(bdd_rt, &n_u1->rva,
+                u = bdd_mk(bdd_rt, &n_u1->rva,
                         _bdd_apply(bdd_rt,op,b1,n_u1->low, b2,u2,_errmsg),
                         _bdd_apply(bdd_rt,op,b1,n_u1->high,b2,u2,_errmsg),
                         _errmsg);
@@ -783,10 +829,6 @@ bdd* bdd_apply(char op,bdd* b1,bdd* b2,int verbose, char** _errmsg) {
     //
     return res;
 }
-
-/*
- *
- */
 
 static bdd* _bdd_not(bdd* par_bdd, char** _errmsg) {
     /* bdd ! operation. Could be even faster by switching node 0 and 1. But 
@@ -850,31 +892,8 @@ bdd* bdd_operator(char operator, op_mode m, bdd* lhs, bdd* rhs, char** _errmsg) 
     }
 }
 
-#define BDD_BASE_SIZE   (sizeof(bdd) - sizeof(V_rva_node))
-
-bdd* serialize_bdd(bdd* tbs) {
-    int bytesize, tree_size;
-
-    V_rva_node_shrink2size(&tbs->tree);
-    tree_size= V_rva_node_bytesize(&tbs->tree);
-    bytesize = BDD_BASE_SIZE + tree_size;
-    bdd* res = NULL;
-    if ( (res = (bdd*)MALLOC(bytesize)) ) {
-        res->bytesize = bytesize;
-        V_rva_node_serialize(&res->tree,&tbs->tree);
-        return res;
-    } 
-    else
-        return NULL; // incomplete, errmsg here
-}
-
-bdd* relocate_bdd(bdd* tbr) {
-    V_rva_node_relocate(&tbr->tree);
-    return tbr;
-}
-
 /*
- *
+ * BDD dot file generation
  */
 
 static void generate_label(pbuff* pbuff, int i, rva* base, char* extra) {
@@ -924,7 +943,7 @@ void bdd_generate_dotfile(bdd* bdd, char* dotfile, char** extra) {
 }
 
 /*
- *
+ * BDD string conversion functions / bdd2string()
  */
 
 #define BOOL_0(I)       ((I)==0)
@@ -998,6 +1017,9 @@ void bdd2string(pbuff* pb, bdd* bdd, int encapsulate) {
     if ( encapsulate ) bprintf(pb,")");
 }
 
+/*
+ * BDD probability function
+ */
 
 static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, nodei i,char** extra,int verbose,char** _errmsg) {
     rva *rva = BDD_RVA(bdd,i);
@@ -1063,6 +1085,10 @@ static int _contains_rva(bdd* bdd, char* var, int val) {
     }
     return 0;
 }
+
+/* 
+ * BDD property check function 
+ */
 
 int bdd_property_check(bdd* bdd, int prop, char* s, char** _errmsg) {
     if ( !(IS_VALID_PROPERTY(prop)) ) {
