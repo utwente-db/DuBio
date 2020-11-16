@@ -30,6 +30,100 @@ static clock_t _clock_start, _clock_stop;
 #define CLOCK_MS()    ((_clock_stop-_clock_start)*1000/CLOCKS_PER_SEC)
 
 
+/* 
+ *
+ * Random expression generaor
+ *
+ */
+
+
+typedef struct randexpr {
+    int MAX_LEVELS;
+    int MAX_CLUSTER;
+    int MAX_CLUSTER_SIZE;
+    int N_VARS;
+    int N_VALS;
+    int NOT_MODULO;
+} randexpr;
+
+static int randInRange(int min, int max)
+{
+  return min + (int)(((double)rand()/(double)RAND_MAX)*(double)(max-min+1));
+}
+
+static char* genvar(int n) {
+    static char vbuff[16];
+    int i = 0;
+    
+    do {
+        vbuff[i++] = 'a' + (n%26);
+        n /= 26;
+    } while ( n > 0 );
+    vbuff[i] = 0;
+    return vbuff;
+}
+
+static char* rand_var(randexpr* conf) {
+    return genvar(randInRange(0,conf->N_VARS));
+}
+
+static int rand_val(randexpr* conf) {
+    return randInRange(0,conf->N_VALS);
+}
+
+static char* rand_and_or(randexpr* conf) {
+    return (rand()%2) ? "&" : "|"; // 50 - 50 distribution
+}
+
+static char* rand_not(randexpr* conf) {
+    return (rand()%conf->NOT_MODULO) ? "" : "!"; // 1 : NOT-MODULO chance
+}
+
+static void generate_level(randexpr* conf, pbuff* pbuff, int level);
+
+static void generate_expression(randexpr* conf, pbuff* pbuff, int level) {
+    if ( randInRange(0,conf->MAX_LEVELS-1) > level )
+        generate_level(conf, pbuff,++level);
+    else {
+        bprintf(pbuff,rand_not(conf));
+        bprintf(pbuff,"%s=%d",rand_var(conf),rand_val(conf));
+    }
+}
+
+static void generate_cluster(randexpr* conf, pbuff* pbuff, int level) {
+    int n_expr = randInRange(1,conf->MAX_CLUSTER_SIZE); 
+    char* op = rand_and_or(conf);
+    bprintf(pbuff,rand_not(conf));
+    bprintf(pbuff,"(");
+    for (int i=0; i<n_expr; i++) {
+        if (i) bprintf(pbuff,op); 
+        generate_expression(conf,pbuff,level);
+    }
+    bprintf(pbuff,")");
+}
+
+static void generate_level(randexpr* conf, pbuff* pbuff, int level) {
+    int n_clusters = randInRange(1,conf->MAX_CLUSTER); 
+    char* op = rand_and_or(conf);
+    bprintf(pbuff,"(");
+    for (int i=0; i<n_clusters; i++) {
+        if (i) bprintf(pbuff,op); 
+        generate_cluster(conf,pbuff,level);
+    }
+    bprintf(pbuff,")");
+}
+
+static char* random_expression(randexpr* conf, pbuff* pbuff) {
+    pbuff_flush(pbuff,NULL);
+    generate_level(conf,pbuff,0);
+    return pbuff->buffer;
+}
+
+/*
+ *
+ *
+ */
+
 static bdd_dictionary* get_test_dictionary(char* dict_vars, char** _errmsg) {
     bdd_dictionary dict_struct, *new_dict;
 
@@ -534,94 +628,10 @@ static int test_static_bdd() {
     return 1;
 }
 
-/* 
+/*
  *
- * Random expression generaor
  *
  */
-
-
-typedef struct randexpr {
-    int MAX_LEVELS;
-    int MAX_CLUSTER;
-    int MAX_CLUSTER_SIZE;
-    int N_VARS;
-    int N_VALS;
-    int NOT_MODULO;
-} randexpr;
-
-static int randInRange(int min, int max)
-{
-  return min + (int)(((double)rand()/(double)RAND_MAX)*(double)(max-min+1));
-}
-
-static char* genvar(int n) {
-    static char vbuff[16];
-    int i = 0;
-    
-    do {
-        vbuff[i++] = 'a' + (n%26);
-        n /= 26;
-    } while ( n > 0 );
-    vbuff[i] = 0;
-    return vbuff;
-}
-
-static char* rand_var(randexpr* conf) {
-    return genvar(randInRange(0,conf->N_VARS));
-}
-
-static int rand_val(randexpr* conf) {
-    return randInRange(0,conf->N_VALS);
-}
-
-static char* rand_and_or(randexpr* conf) {
-    return (rand()%2) ? "&" : "|"; // 50 - 50 distribution
-}
-
-static char* rand_not(randexpr* conf) {
-    return (rand()%conf->NOT_MODULO) ? "" : "!"; // 1 : NOT-MODULO chance
-}
-
-static void generate_level(randexpr* conf, pbuff* pbuff, int level);
-
-static void generate_expression(randexpr* conf, pbuff* pbuff, int level) {
-    if ( randInRange(0,conf->MAX_LEVELS-1) > level )
-        generate_level(conf, pbuff,++level);
-    else {
-        bprintf(pbuff,rand_not(conf));
-        bprintf(pbuff,"%s=%d",rand_var(conf),rand_val(conf));
-    }
-}
-
-static void generate_cluster(randexpr* conf, pbuff* pbuff, int level) {
-    int n_expr = randInRange(1,conf->MAX_CLUSTER_SIZE); 
-    char* op = rand_and_or(conf);
-    bprintf(pbuff,rand_not(conf));
-    bprintf(pbuff,"(");
-    for (int i=0; i<n_expr; i++) {
-        if (i) bprintf(pbuff,op); 
-        generate_expression(conf,pbuff,level);
-    }
-    bprintf(pbuff,")");
-}
-
-static void generate_level(randexpr* conf, pbuff* pbuff, int level) {
-    int n_clusters = randInRange(1,conf->MAX_CLUSTER); 
-    char* op = rand_and_or(conf);
-    bprintf(pbuff,"(");
-    for (int i=0; i<n_clusters; i++) {
-        if (i) bprintf(pbuff,op); 
-        generate_cluster(conf,pbuff,level);
-    }
-    bprintf(pbuff,")");
-}
-
-static char* random_expression(randexpr* conf, pbuff* pbuff) {
-    pbuff_flush(pbuff,NULL);
-    generate_level(conf,pbuff,0);
-    return pbuff->buffer;
-}
 
 /*
  * static randexpr  RANDEXPR = {
@@ -643,12 +653,10 @@ static randexpr  RANDEXPR = {
     .N_VALS           =  4
 };
 
-
-
 static void random_test(int n, long seed, int verbose) {
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
-    srand(seed);
   
+    srand(seed);
     for (int i=0; i<n; i++) {
         char* _errmsg = NULL;
         bdd*      bdd = NULL;
@@ -659,16 +667,72 @@ static void random_test(int n, long seed, int verbose) {
             pg_fatal("random_test: error: %s",_errmsg);
         }
         FREE(bdd);
-        if ( 1 ) {
-            char* _errmsg;
-            if ( !_regenerate_test(expr,&_errmsg) ) {
-                pg_fatal("regenerate_test:error: %s",_errmsg);
-            }
+        if ( !_regenerate_test(expr,&_errmsg) ) {
+            pg_fatal("regenerate_test:error: %s",_errmsg);
         }
     }
     pbuff_free(pbuff);
 }
 
+
+
+#define EQV_HUNT_LHS_SIZE 10000
+#define EQV_HUNT_RHS_SIZE 10000
+
+static void expr_bdd2string(pbuff* pbuff, char* expr) {
+    char* _errmsg = NULL;
+
+    bdd* bdd = create_bdd(BDD_DEFAULT,expr,&_errmsg,0);
+    if ( !bdd )
+        pg_fatal("expr_bdd2string: %s",_errmsg);
+    bdd2string(pbuff,bdd,0);
+    FREE(bdd);
+}
+
+static void random_equiv_hunt(long seed) {
+    pbuff pbuff_struct_1, *pb1=pbuff_init(&pbuff_struct_1);
+    pbuff pbuff_struct_2, *pb2=pbuff_init(&pbuff_struct_2);
+    char *_errmsg = NULL;
+    char *lhs[EQV_HUNT_LHS_SIZE];
+  
+    srand(seed);
+    for (int l_i=0; l_i<EQV_HUNT_LHS_SIZE; l_i++) {
+        lhs[l_i] = strdup(random_expression(&RANDEXPR,pb1));
+    }
+    for (int r_i=0; r_i<EQV_HUNT_RHS_SIZE; r_i++) {
+        char *r_expr    = random_expression(&RANDEXPR,pb1);
+        for (int l_i=0; l_i<EQV_HUNT_RHS_SIZE; l_i++) {
+            int eqv = bdd_test_equivalence(lhs[l_i],r_expr,&_errmsg);
+            if ( eqv < 0 )
+                pg_fatal("random_equiv_hunt: error during equiv hunt");
+            if ( eqv ) {
+                //
+                pbuff_flush(pb2,NULL);
+                expr_bdd2string(pb2,lhs[l_i]);
+                //
+                if (strlen(pb2->buffer) == 1 )
+                    continue;
+                //
+                char *l = strdup(pb2->buffer);
+                pbuff_flush(pb2,NULL);
+                expr_bdd2string(pb2,r_expr);
+                //
+                if ( strcmp(l,pb2->buffer) == 0 ) {
+                    FREE(l);
+                    continue;
+                }
+                fprintf(stdout,"Found equivalence:\n");
+                fprintf(stdout,"LG: %s\n",l);
+                fprintf(stdout,"LG: %s\n",pb2->buffer);
+                FREE(l);
+            }
+        }
+    }
+    for (int l_i=0; l_i<EQV_HUNT_LHS_SIZE; l_i++) {
+        FREE(lhs[l_i]);
+    }
+    pbuff_free(pb1);pbuff_free(pb2);
+}
 
 //
 //
@@ -764,10 +828,8 @@ static void _wb(char* l, char op, char *r, int rg, int vb, int dot)  {
 }
 
 static void workbench() {
-    char* expr = "((c=3)|(a=4|b=3)|(d=4&b=2&d=2)|(a=1&c=2))";
-    // char* expr = "((a=4|!d=1)&(d=4|!c=1)&!(a=1&!d=1&b=0)&(d=3|a=1))";
-    // char* expr = "(a=1&(!b=0&(c=1&(!d=1&(!d=3&d=4))|!d=1))|(!c=1&(!d=1&d=3)))";
-    _wb(expr,0,0,0/*rg*/,0/*vb*/,1/*dot*/);
+    _wb("x=1|(y=2&x=4)|(z=3&x=4)",0,0,0/*rg*/,1/*vb*/,1/*dot*/);
+    // _wb("x=87943579265023650826531",0,0,0/*rg*/,0/*vb*/,1/*dot*/);
     // _wb("x=1",'&',"x=2",0/*rg*/,1/*vb*/,1/*dot*/);
 }
 
@@ -784,9 +846,10 @@ void test_bdd() {
     fprintf(stdout,"# BDD_VERBOSE = ON!\n");
 #endif
     if (1) test_regenerate(); // do these 3 tests always, catches many errors
-    if (1) random_test(10000/*n*/, 888/*seed*/, 0/*verbose*/);
+    if (1) random_test(1000/*n*/, 888/*seed*/, 0/*verbose*/);
     if (1) test_trio();       
     //
+    if (0) random_equiv_hunt(999);
     if (0) test_bdd_creation();
     if (0) test_bdd_probability();
     if (0) test_create_time();
@@ -794,5 +857,5 @@ void test_bdd() {
     if (0) test_static_bdd();
     if (0) test_apply();
     if (0) run_check_apply();
-    if (0) workbench();
+    if (1) workbench();
 }

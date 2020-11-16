@@ -27,12 +27,9 @@
 #include "bdd.h"
 
 /* 
- * TODO:
- * + equiv() als Postgres op
- * equiv() met random gen gebruiken exotische equiv
- * equiv() regeneration probleem oplossen.
+ * TODO: (Maurice overleggen)
+ * equiv() als Postgres op
  * bdd_compare() als C, dan _equal(), _sm(), _gr(), = , < , >
- * create workbench() function
  */
 
 #define BDD_ASSERT
@@ -45,22 +42,6 @@ int cmpRva(rva* l, rva* r) {
 }
 
 DefVectorC(rva_node);
-
-/*
- * int cmpRva_node(rva_node* l, rva_node* r) {
- *     int res = COMPARE_VAR(l->rva.var,r->rva.var);
- *     if ( res == 0 ) {
- *         res = l->rva.var - r->rva.var;
- *         if (res == 0) {
- *             res = (l->low - r->low);
- *             if (res == 0) {
- *                 res = (l->high - r->high);
- *             }
- *         }
- *     }
- *     return res;
- * } 
- */
 
 DefVectorC(rva_order);
 
@@ -195,7 +176,7 @@ static void print_order_and_stack(bdd_runtime* bctx, pbuff* pbuff) {
                 bprintf(pbuff,",");
         }
         bprintf(pbuff,"}");
-#ifdef BDD_STATISTICS
+#ifdef BDD_COUNT_RVA_INSTANTIATIONS
         bprintf(pbuff," \t#(0/1)=(%d/%d)",rl->bcount[0],rl->bcount[1]);
         bprintf(pbuff,"\n");
 #endif
@@ -286,14 +267,6 @@ static nodei bdd_create_node(bdd* bdd, rva* rva, nodei low, nodei high) {
  *
  */
 
-//
-//
-//
-//
-//
-//
-//
-
 static int count_rva(char* p) {
     char c;
     int n_rva = 0;
@@ -305,35 +278,49 @@ static int count_rva(char* p) {
     return n_rva;
 }
 
-static int create_rva_order(rva_order* res, char* var, int var_len, char* val, char** _errmsg) {
+static int add2rva_order(bdd_runtime* bctx, char* var, int var_len, char* valp, char** _errmsg) {
     if ( var_len > MAX_RVA_NAME )
         return pg_error(_errmsg,"rva_name too long (max=%d) / %s",MAX_RVA_NAME, var);   
-    memcpy(res->rva.var,var,var_len);
-    res->rva.var[var_len] = 0;
-    if ( strcmp(res->rva.var,"not")==0||strcmp(res->rva.var,"and")==0||strcmp(res->rva.var,"or")==0 )
-        return pg_error(_errmsg, "bdd-expr: do not use and/or/not keywords but use '&|!': %s",var);
-    if ( (res->rva.val = bdd_atoi(val)) == NODEI_NONE )
-        return pg_error(_errmsg,"bad rva value %s= %s",res->rva.var,val);   
-    return BDD_OK;
-}
-
-static int add2rva_order(bdd_runtime* bctx, rva_order* new_rva) {
+    rva_order new_rva_order;
+    memcpy(new_rva_order.rva.var,var,var_len);
+    new_rva_order.rva.var[var_len] = 0;
+    var = new_rva_order.rva.var;
+    //
+    int val = bdd_atoi(valp);
+    if ( val == NODEI_NONE )
+        return pg_error(_errmsg,"bad rva value %s=%s",var,valp);   
     rva_order* rl = NULL;
-    int index = V_rva_order_bsearch(&bctx->rva_order,cmpRva_order,new_rva);
-    if ( index < 0 ) {
-        index = -(index + VECTOR_BSEARCH_NEG_OFFSET);
-        if ( (index = V_rva_order_insert_at(&bctx->rva_order,index,new_rva)) < 0)
-            return BDD_FAIL;
-        rl = ORDER(bctx,index);
-        rl->loc = LOC_EMPTY;
-    } else {
-        rl = ORDER(bctx,index);
+    rva_order* rva_list = bctx->rva_order.items;
+    int l = 0;
+    int r = bctx->rva_order.size-1;
+    while (l<=r) 
+    { 
+        int m = l + (r-l)/2; 
+        int cmp = strcmp(rva_list[m].rva.var,var);
+        if ( cmp == 0 ) cmp = rva_list[m].rva.val - val;
+        if (cmp == 0) { 
+            rl = ORDER(bctx,m);;
+            break;
+        }
+        if ( cmp<0 )  
+            l = m + 1;  
+        else 
+            r = m - 1;  
     } 
+    if ( !rl )  {
+        new_rva_order.rva.val = val;
+        int index;
+        if ( (index = V_rva_order_insert_at(&bctx->rva_order,l,&new_rva_order)) < 0)
+            return BDD_FAIL;
+        rl      = ORDER(bctx,index);
+        rl->loc = LOC_EMPTY;
+    }
     rva_epos* rp = &(bctx->rva_epos[bctx->c_rva]);
     bctx->e_stack[bctx->e_stack_len] = '1'; // initial test value
     rp->pos  = bctx->e_stack_len++;
     rp->next = rl->loc;
     rl->loc = bctx->c_rva++;
+    // 
     return BDD_OK;
 }
 
@@ -373,10 +360,7 @@ static int _compute_order(bdd_runtime* bctx, char* expr, char** _errmsg) {
                     p++;
                 if ( !isdigit(*p) ) 
                     return pg_error(_errmsg,"missing value after \'=\' in expr: \"%s\"",start);
-                rva_order new_rva_order;
-                if ( !create_rva_order(&new_rva_order,start,len,p,_errmsg) )
-                    return BDD_FAIL;
-                if ( !add2rva_order(bctx,&new_rva_order) )
+                if ( !add2rva_order(bctx,start,len,p,_errmsg) )
                     return BDD_FAIL;
                 while (isdigit(*p) )
                     p++;
@@ -409,7 +393,7 @@ static int compute_rva_order(bdd_runtime* bctx, char* bdd_expr, char** _errmsg) 
             pg_fatal("compute_rva_order: order not correctly sorted");
     }
 #endif
-#ifdef BDD_STATISTICS
+#ifdef BDD_COUNT_RVA_INSTANTIATIONS
     for (int i=0; i<bctx->n; i++) {
         rva_order* rl = ORDER(bctx,i);
         rl->bcount[0] = rl->bcount[1] = 0;
@@ -433,11 +417,11 @@ static int compute_rva_order(bdd_runtime* bctx, char* bdd_expr, char** _errmsg) 
 static int bctx_orderi_set(bdd_runtime* bctx, int depth, int v_0or1) {
     char* srcframe = E_FRAME(bctx,depth);
     char* dstframe = E_FRAME(bctx,depth+1);
+
     memcpy(dstframe,srcframe,bctx->e_stack_framesz);
     rva_order* rl = ORDER(bctx,depth);
     for(locptr p = rl->loc; p!=LOC_EMPTY; p = bctx->rva_epos[p].next)
         dstframe[bctx->rva_epos[p].pos] = v_0or1;
-    // fprintf(stdout,"**DN[%d,[%s]=%d]: %s\n",depth,rvastr,v_0or1,dstframe);
     return 1;
 }
 
@@ -447,7 +431,7 @@ static nodei bctx_eval_top(bdd_runtime* bctx, int depth, char** _errmsg) {
     int new_res = bee_eval_raw(topframe, _errmsg);
     if ( new_res < 0 )
         return NODEI_NONE; 
-#ifdef BDD_STATISTICS
+#ifdef BDD_COUNT_RVA_INSTANTIATIONS
     for (int i=0; i<bctx->n; i++) {
         rva_order* rl = ORDER(bctx,i);
         short cval = bdd_frame_current_val(bctx,depth,i);
@@ -549,9 +533,7 @@ static nodei bdd_build(bdd_alg* alg, bdd_runtime* bdd_rt, int depth, char** _err
  * The left must be the largest order size to function correctly
  */
 static int _bdd_equiv(int l_depth, bdd_runtime* l_ctx, int r_depth, bdd_runtime* r_ctx, char** _errmsg) {
-    //
-    // fprintf(stdout,"L=|%s| l_depth=%d\n",l_ctx->expr,l_depth);
-    // fprintf(stdout,"R=|%s| r_depth=%d\n",r_ctx->expr,r_depth);
+
     if ( (l_depth < l_ctx->rva_order.size) || 
          (r_depth < r_ctx->rva_order.size) ) {
         int opt = -1;
@@ -604,7 +586,7 @@ static int _bdd_equiv(int l_depth, bdd_runtime* l_ctx, int r_depth, bdd_runtime*
         else {
             int res = (l_res==r_res);
 #ifdef BDD_VERBOSE
-            if ( !res ) {
+            if ( 0 && !res ) {
                 bdd_reconstruct(l_ctx,l_depth);
                 bdd_reconstruct(r_ctx,r_depth);
             }

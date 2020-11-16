@@ -74,7 +74,7 @@ typedef struct bdd {
  */
 
 #ifdef BDD_VERBOSE
-#define BDD_STATISTICS
+#define BDD_COUNT_RVA_INSTANTIATIONS
 #endif
 
 typedef unsigned short locptr;
@@ -84,7 +84,7 @@ typedef unsigned short locptr;
 typedef struct rva_order {
     rva     rva; 
     locptr  loc;
-#ifdef BDD_STATISTICS
+#ifdef BDD_COUNT_RVA_INSTANTIATIONS
     short   bcount[2];
 #endif
 } rva_order;  
