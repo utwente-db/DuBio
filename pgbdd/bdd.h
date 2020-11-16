@@ -73,6 +73,10 @@ typedef struct bdd {
  *
  */
 
+#ifdef BDD_VERBOSE
+#define BDD_STATISTICS
+#endif
+
 typedef unsigned short locptr;
 
 #define LOC_EMPTY  USHRT_MAX
@@ -80,6 +84,9 @@ typedef unsigned short locptr;
 typedef struct rva_order {
     rva     rva; 
     locptr  loc;
+#ifdef BDD_STATISTICS
+    short   bcount[2];
+#endif
 } rva_order;  
 
 DefVectorH(rva_order);
