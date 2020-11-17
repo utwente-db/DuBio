@@ -32,8 +32,6 @@
  * bdd_compare() als C, dan _equal(), _sm(), _gr(), = , < , >
  */
 
-#define BDD_ASSERT
-
 int cmpRva(rva* l, rva* r) {  
     int res = COMPARE_VAR(l->var,r->var);
     if ( res == 0 )
@@ -76,11 +74,15 @@ static bdd_runtime* bdd_rt_init(bdd_runtime* bdd_rt, char* expr, int verbose, ch
     bdd_rt->rva_epos    = NULL;
     bdd_rt->e_stack     = NULL;
     // 
+    int est_sz = VECTOR_INIT_CAPACITY;
     if ( expr ) { // apply() does init without expr
         if ( !compute_rva_order(bdd_rt,expr,_errmsg) )
             return NULL;
+        // INCOMPLETE, find better estimate for tree size
+        est_sz = 2 * bdd_rt->n_rva;
+        est_sz = (est_sz <= 256) ? est_sz : 256;
     }
-    if ( !V_rva_node_init(&bdd_rt->core.tree) ) {
+    if ( !V_rva_node_init_estsz(&bdd_rt->core.tree,est_sz) ) {
         pg_error(_errmsg,"bdd_rt: error creating tree");
         return NULL;
     }
@@ -242,7 +244,8 @@ static nodei lookup_bdd_node(bdd_runtime* bdd_rt, rva* rva, nodei low, nodei hig
     // return V_rva_node_find(&bdd_rt->core.tree,cmpRva_node,&tofind);
     // OPTIMIZED:
     V_rva_node *tree = &bdd_rt->core.tree;
-    for (nodei i=0; i<tree->size; i++) {
+    // start iteration @max(low,high)+1 because it cannot be below this in tree
+    for (nodei i=((low > high)?low:high)+1; i<tree->size; i++) {
         rva_node* n = &tree->items[i];
         if ( (n->low == low) && 
              (n->high == high) &&
@@ -267,7 +270,7 @@ static nodei bdd_create_node(bdd* bdd, rva* rva, nodei low, nodei high) {
  *
  */
 
-static int count_rva(char* p) {
+static int count_rva(const char* p) {
     char c;
     int n_rva = 0;
 
@@ -373,8 +376,8 @@ static int _compute_order(bdd_runtime* bctx, char* expr, char** _errmsg) {
 static int compute_rva_order(bdd_runtime* bctx, char* bdd_expr, char** _errmsg) {
     bctx->e_stack     = (char*)MALLOC(strlen(bdd_expr));
     bctx->e_stack_len = 0; /* during build len grows to determine framesize */
-    V_rva_order_init(&bctx->rva_order);
     bctx->n_rva   = count_rva(bdd_expr);
+    V_rva_order_init_estsz(&bctx->rva_order,(bctx->n_rva<=128)?bctx->n_rva:128);
     bctx->c_rva   = 0;
     bctx->rva_epos = (rva_epos*)MALLOC(bctx->n_rva*sizeof(rva_epos));;
     //
@@ -386,13 +389,6 @@ static int compute_rva_order(bdd_runtime* bctx, char* bdd_expr, char** _errmsg) 
     bctx->e_stack_framesz              = bctx->e_stack_len;
     bctx->e_stack_len = (bctx->n+1)*bctx->e_stack_framesz; // block 0 is base!
     bctx->e_stack     = (char*)REALLOC(bctx->e_stack,bctx->e_stack_len);
-    //
-#ifdef BDD_ASSERT
-    for (int i=1; i<bctx->n; i++) {
-        if ( cmpRva_order(ORDER(bctx,i-1),ORDER(bctx,i)) > 0 )
-            pg_fatal("compute_rva_order: order not correctly sorted");
-    }
-#endif
 #ifdef BDD_COUNT_RVA_INSTANTIATIONS
     for (int i=0; i<bctx->n; i++) {
         rva_order* rl = ORDER(bctx,i);
@@ -751,8 +747,8 @@ static nodei _bdd_apply(bdd_runtime* bdd_rt, char op, bdd* b1, nodei u1, bdd* b2
 
 #ifdef BDD_VERBOSE
     if ( bdd_rt->verbose ) {
-        bdd_rt->call_depth++;
         pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+        bdd_rt->call_depth++;
         // for(int i=0;i<bdd_rt->call_depth; i++)
         //     bprintf(pbuff,">>");
         bprintf(pbuff," _bdd_apply(");
@@ -958,7 +954,7 @@ void bdd_generate_dotfile(bdd* bdd, char* dotfile, char** extra) {
  * symbols have the following meaning:
  *  N           : current node 'v=d'
  *  L, R        : Low and High branch from this node.
- *  P(B)        : Genereted output of 'B' branch.
+ *  P(B)        : Generated output of 'B' branch.
  *  '!' '&' '|' : boolean operators
  *  '0' '1'     : FALSE or TRUE constants
  */

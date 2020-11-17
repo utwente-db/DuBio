@@ -59,8 +59,6 @@ typedef struct rva_node {
 
 DefVectorH(rva_node);
 
-/* int cmpRva_node(rva_node*, rva_node*); */
-
 // The BDD core structure stored in the Postgres Database
 typedef struct bdd {
     char     vl_len[4]; // used by Postgres memory management
