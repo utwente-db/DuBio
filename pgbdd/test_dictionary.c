@@ -131,9 +131,61 @@ static int test_bdd_dictionary_v1() {
     return 1;
 }
 
+static char* load_file(char const* path)
+{
+    char* buffer = 0;
+    long length = -1;
+    FILE * f = fopen (path, "rb"); //was "rb"
+
+    if (f)
+    {
+      fseek (f, 0, SEEK_END);
+      length = ftell (f);
+      fseek (f, 0, SEEK_SET);
+      buffer = (char*)malloc ((length+1)*sizeof(char));
+      if (buffer)
+      {
+        fread (buffer, sizeof(char), length, f);
+      }
+      fclose (f);
+    } else {
+      fprintf(stderr,"Unable to open file: %s\n",path);
+      exit(-1);
+    }
+    buffer[length] = '\0';
+    return buffer;
+}
+
+static int test_bdd_dictionary_v3() {
+    char *_errmsg;
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    bdd_dictionary dict_struct, *dict, *d;
+
+    fprintf(stdout,"Testing BIG dictionary start\n");
+    if ( !(dict = bdd_dictionary_create(&dict_struct)))
+        return 0;
+    // char* input = "x=1:0.6; x=2:0.4";
+    char* input = load_file("/Users/flokstra/dictstring_val.txt");
+    // td(dict,DICT_ADD,input);
+    //
+    if ( !modify_dictionary(dict,DICT_ADD,input,&_errmsg) ) {
+        fprintf(stderr,"Dictionary Error: %s",_errmsg); exit(0);
+    }
+    bdd_dictionary_print(dict,0/*all*/,pbuff);pbuff_flush(pbuff,stdout);fputc('\n',stdout);
+    //
+    if ( 1 && !(d = dictionary_prepare2store(dict)))
+        return 0;
+    bdd_dictionary_free(d);
+    FREE(d);
+    fprintf(stdout,"Testing BIG dictionary finish\n");
+    //
+    return 1;
+}
+
 int test_dictionary() {
     if (0) test_bdd_dictionary_v0();
     if (0) test_bdd_dictionary_v1();
-    if (1) test_bdd_dictionary_v2();
+    if (0) test_bdd_dictionary_v2();
+    if (0) test_bdd_dictionary_v3();
     return 1;
 }

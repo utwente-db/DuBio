@@ -828,7 +828,8 @@ static void _wb(char* l, char op, char *r, int rg, int vb, int dot)  {
 }
 
 static void workbench() {
-    _wb("x=1|(y=2&x=4)|(z=3&x=4)",0,0,0/*rg*/,1/*vb*/,1/*dot*/);
+    _wb("x=1",'=',"(x=1)&!!(x=1)",0/*rg*/,1/*vb*/,1/*dot*/);
+    // _wb("x=1|(y=2&x=4)|(z=3&x=4)",0,0,0/*rg*/,1/*vb*/,1/*dot*/);
     // _wb("x=87943579265023650826531",0,0,0/*rg*/,0/*vb*/,1/*dot*/);
     // _wb("x=1",'&',"x=2",0/*rg*/,1/*vb*/,1/*dot*/);
 }

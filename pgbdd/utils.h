@@ -40,7 +40,7 @@ void dp_print(const char *fmt,...);
  */
 
 #define PBUFF_MAX_BPRINTF       1024 /* max # printed chars in 1 bprintf() */
-#define PBUFF_MAX_TOTAL       130000 /* max # printed chars in 1 buffer()  */
+#define PBUFF_MAX_TOTAL   2147483647 /* max # printed chars in 1 buffer()  */
 #define PBUFF_INITIAL_SIZE      1024 /* initial PBUFF size without alloc */
 
 #define PBUFF_MAGIC          3789291 /* magic number should be OK */
