@@ -556,24 +556,26 @@ static double bdd_prob_test(char* expr, char* dict_vars, char* dotfile, int verb
     bdd_dictionary *dict = get_test_dictionary(dict_vars,_errmsg);
     bdd            *pbdd = get_test_bdd(expr,0/*verbose*/,_errmsg);
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    char** extra = NULL;
+    double prob;
 
     if ( !dict || !pbdd )
         return -1.0;
-    if ( verbose )
+    if ( verbose ) {
         bdd_info(pbdd,pbuff); pbuff_flush(pbuff,stdout);
-
-    char** extra = NULL;
+    }
     if ( dotfile && show_prob_in_dot ) {
+        char* extra_str_base;
         int n = V_rva_node_size(&pbdd->tree);
         int sz_ptrs = n * sizeof(char*);
         extra = (char**)MALLOC(sz_ptrs + (n * EXTRA_PRINT_SIZE));
-        char* extra_str_base = ((char*)extra)+sz_ptrs;
+        extra_str_base = ((char*)extra)+sz_ptrs;
         for(int i=0; i<n; i++) {
             extra[i]    = extra_str_base + i*EXTRA_PRINT_SIZE;
             *(extra[i]) = 0;
         }
     }
-    double prob = bdd_probability(dict,pbdd,extra,verbose,_errmsg);
+    prob = bdd_probability(dict,pbdd,extra,verbose,_errmsg);
     if ( prob < 0.0 )
         return -1.0;
     else {
@@ -719,14 +721,15 @@ static void random_equiv_hunt(long seed) {
             if ( eqv < 0 )
                 pg_fatal("random_equiv_hunt: error during equiv hunt");
             if ( eqv ) {
-                //
+                char *l;
+
                 pbuff_flush(pb2,NULL);
                 expr_bdd2string(pb2,lhs[l_i]);
                 //
                 if (strlen(pb2->buffer) == 1 )
                     continue;
                 //
-                char *l = strdup(pb2->buffer);
+                l = strdup(pb2->buffer);
                 pbuff_flush(pb2,NULL);
                 expr_bdd2string(pb2,r_expr);
                 //
@@ -786,10 +789,11 @@ static bdd* _wb_op(bdd* bdd_l,char op, bdd* bdd_r,int vb,char**_errmsg)  {
 
 static int _wb_regen(char* label, bdd* par_bdd, int vb, int dot, char**_errmsg)  {
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    char* bdd_str;
+    bdd* bdd_regen;
 
     bdd2string(pbuff,par_bdd,0);
-    char* bdd_str = pbuff_preserve_or_alloc(pbuff);
-    bdd* bdd_regen;
+    bdd_str = pbuff_preserve_or_alloc(pbuff);
     CHECK0("_wb_regen",bdd_regen=create_bdd(BDD_DEFAULT,bdd_str,_errmsg,0));
     if (dot) bdd_generate_dotfile(bdd_regen,_wb_dot(label,"_regen"),NULL);
     _wb_equiv(par_bdd,bdd_regen,vb,_errmsg);
