@@ -91,8 +91,10 @@ static void generate_expression(randexpr* conf, pbuff* pbuff, int level) {
 }
 
 static void generate_cluster(randexpr* conf, pbuff* pbuff, int level) {
-    int n_expr = randInRange(1,conf->MAX_CLUSTER_SIZE); 
-    char* op = rand_and_or(conf);
+    int n_expr;
+    char* op;
+    n_expr = randInRange(1,conf->MAX_CLUSTER_SIZE); 
+    op = rand_and_or(conf);
     bprintf(pbuff,rand_not(conf));
     bprintf(pbuff,"(");
     for (int i=0; i<n_expr; i++) {
@@ -103,8 +105,10 @@ static void generate_cluster(randexpr* conf, pbuff* pbuff, int level) {
 }
 
 static void generate_level(randexpr* conf, pbuff* pbuff, int level) {
-    int n_clusters = randInRange(1,conf->MAX_CLUSTER); 
-    char* op = rand_and_or(conf);
+    int n_clusters;
+    char* op;
+    n_clusters = randInRange(1,conf->MAX_CLUSTER); 
+    op = rand_and_or(conf);
     bprintf(pbuff,"(");
     for (int i=0; i<n_clusters; i++) {
         if (i) bprintf(pbuff,op); 
@@ -156,6 +160,7 @@ char *bdd_expr[] = {
 static int _regenerate_test(char* par_expr, char** _errmsg) {
     pbuff pbgen_struct, *pbgen=pbuff_init(&pbgen_struct);
     bdd *bdd1, *bdd2;
+    char *bdd1_str, *bdd2_str;
 
     int VERBOSE = 0;
 
@@ -163,14 +168,14 @@ static int _regenerate_test(char* par_expr, char** _errmsg) {
     if ( !(bdd1 = create_bdd(BDD_DEFAULT,par_expr,_errmsg,0)) )
         return 0;
     bdd2string(pbgen,bdd1,0);
-    char* bdd1_str = pbuff_preserve_or_alloc(pbgen);
+    bdd1_str = pbuff_preserve_or_alloc(pbgen);
     if (VERBOSE) fprintf(stdout,"TESTING: bdd1 = [%s]\n",bdd1_str);
     //
     pbgen=pbuff_init(&pbgen_struct);
     if ( !(bdd2 = create_bdd(BDD_DEFAULT,bdd1_str,_errmsg,0)) )
         return 0;
     bdd2string(pbgen,bdd2,0);
-    char* bdd2_str = pbuff_preserve_or_alloc(pbgen);
+    bdd2_str = pbuff_preserve_or_alloc(pbgen);
     if (VERBOSE) fprintf(stdout,"TESTING: bdd2 = [%s]\n",bdd2_str);
     //
     if ( strcmp(bdd1_str,bdd2_str) != 0 ) {
@@ -220,10 +225,13 @@ static int test_regenerate() {
 
 static void test_create_time(){
     char* _errmsg;
-    bdd* pbdd  = NULL;
-    int  TOTAL = 1000000;
+    bdd* pbdd;
+    int  TOTAL, count, msec;
+
+    pbdd = NULL;
+    TOTAL = 1000000;
     CLOCK_START();
-    int count  = 0;
+    count  = 0;
     while ( count < TOTAL ) {
         for (int i=0; bdd_expr[i]; i++) {
             if ( !(pbdd = get_test_bdd(bdd_expr[i],0/*verbose*/,&_errmsg)))
@@ -234,7 +242,7 @@ static void test_create_time(){
         }
     }
     CLOCK_STOP();
-    int msec = CLOCK_MS();
+    msec = CLOCK_MS();
     fprintf(stdout,"+ Time %ds/%dms\n",msec/1000,msec%1000);
     fprintf(stdout,"+ Created %d bdd's (%d/s)\n",count, (int)((double)count/((double)msec/1000)));
 }
@@ -262,14 +270,16 @@ static int test_trio() {
     char* _errmsg = NULL;
     bdd_dictionary* dict;
     bdd* pbdd;
+    double total;
 
     if ( ! (dict = get_test_dictionary(TRIO_DICTIONARY,&_errmsg)))
         pg_fatal("test_trio: error creating dictionary: %s",_errmsg);
-    double total = 0.0;
+    total = 0.0;
     for (int i=0; trio_expr[i]; i++) {
+        double prob;
         if ( !(pbdd = get_test_bdd(trio_expr[i],0/*verbose*/,&_errmsg)))
             pg_fatal("test_trio: error creating bdd: %s",_errmsg);
-        double prob = bdd_probability(dict,pbdd,NULL,0,&_errmsg);
+        prob = bdd_probability(dict,pbdd,NULL,0,&_errmsg);
         if ( prob < 0.0 )
             pg_fatal("test_trio: error computing prob: %s",_errmsg);
         // fprintf(stderr,"+ PROB[%s] = %f\n",trio_expr[i],prob);

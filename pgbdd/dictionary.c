@@ -196,11 +196,12 @@ static dict_var* bdd_dictionary_lookup_var(bdd_dictionary* dict, char* name) {
 }
 
 static dict_var* add_variable(bdd_dictionary* dict, char* name) {
+    int index;
     dict_var newvar = { .offset=(dindex)V_dict_val_size(dict->values), .card=0 };
     strcpy(newvar.name,name);
 
     dict->var_sorted = 0; // INCOMPLETE, MAYBE KEEP SORTED LIKE BDD
-    int index = V_dict_var_add(dict->variables,&newvar);
+    index = V_dict_var_add(dict->variables,&newvar);
     if ( (index < 0) || (index >= MAX_DINDEX) )
         return NULL;
     else

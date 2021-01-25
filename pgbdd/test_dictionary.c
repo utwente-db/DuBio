@@ -69,6 +69,8 @@ static void tdmerge(char* ld_add, char* rd_add) {
     char* _errmsg;
     bdd_dictionary ldict, *ld;
     bdd_dictionary rdict, *rd;
+    bdd_dictionary mdict, *md;
+
     if ( !(ld = bdd_dictionary_create(&ldict)))
         {fprintf(stderr,"Dictionary create failed\n"); exit(0);}
     if ( !modify_dictionary(ld,DICT_ADD,ld_add,&_errmsg) ) { 
@@ -84,7 +86,6 @@ static void tdmerge(char* ld_add, char* rd_add) {
     fprintf(stdout,"+ rd: \n");
     bdd_dictionary_print(rd,0/*all*/,pbuff);pbuff_flush(pbuff,stdout);fputc('\n',stdout);
     //
-    bdd_dictionary mdict, *md;
     if ( !(md = merge_dictionary(&mdict,ld,rd,&_errmsg))) {
         fprintf(stderr,"Dictionary merge:error: %s",_errmsg); exit(0); }
     fprintf(stdout,"+ md: \n");
@@ -160,6 +161,7 @@ static char* load_file(char const* path)
 
 static int test_bdd_dictionary_v3() {
     char *_errmsg;
+    char *input;
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
     bdd_dictionary dict_struct, *dict, *d;
 
@@ -167,7 +169,7 @@ static int test_bdd_dictionary_v3() {
     if ( !(dict = bdd_dictionary_create(&dict_struct)))
         return 0;
     // char* input = "x=1:0.6; x=2:0.4";
-    char* input = load_file("/Users/flokstra/dictstring_val.txt");
+    input = load_file("/Users/flokstra/dictstring_val.txt");
     // td(dict,DICT_ADD,input);
     //
     if ( !modify_dictionary(dict,DICT_ADD,input,&_errmsg) ) {

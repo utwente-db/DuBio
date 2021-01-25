@@ -61,6 +61,7 @@ static rva RVA_1 = {.var = "1", .val = -1};
 static int  compute_rva_order(bdd_runtime*, char*,char**);
 
 static bdd_runtime* bdd_rt_init(bdd_runtime* bdd_rt, char* expr, int verbose, char** _errmsg) {
+    int est_sz = VECTOR_INIT_CAPACITY;
 #ifdef BDD_VERBOSE
     bdd_rt->expr        = expr;
     if ( verbose ) 
@@ -74,7 +75,6 @@ static bdd_runtime* bdd_rt_init(bdd_runtime* bdd_rt, char* expr, int verbose, ch
     bdd_rt->rva_epos    = NULL;
     bdd_rt->e_stack     = NULL;
     // 
-    int est_sz = VECTOR_INIT_CAPACITY;
     if ( expr ) { // apply() does init without expr
         if ( !compute_rva_order(bdd_rt,expr,_errmsg) )
             return NULL;
@@ -168,9 +168,9 @@ static void print_order_and_stack(bdd_runtime* bctx, pbuff* pbuff) {
     bprintf(pbuff,"+ Sorted/Uniq RVA list (n=%d):\n",bctx->n);
     for (int i=0; i<ORDER_SIZE(bctx); i++) {
         rva_order* rl = ORDER(bctx,i);
+        locptr p = rl->loc;
         
         bprintf(pbuff,"[%2d]: <%s=%d> pos{",i,rl->rva.var,rl->rva.val);
-        locptr p = rl->loc;
         while ( p != LOC_EMPTY ) {
             bprintf(pbuff,"%d",bctx->rva_epos[p].pos);
             p = bctx->rva_epos[p].next;
@@ -282,17 +282,19 @@ static int count_rva(const char* p) {
 }
 
 static int add2rva_order(bdd_runtime* bctx, char* var, int var_len, char* valp, char** _errmsg) {
+    rva_order new_rva_order;
+    int val;
+    rva_order* rl = NULL;
+
     if ( var_len > MAX_RVA_NAME )
         return pg_error(_errmsg,"rva_name too long (max=%d) / %s",MAX_RVA_NAME, var);   
-    rva_order new_rva_order;
     memcpy(new_rva_order.rva.var,var,var_len);
     new_rva_order.rva.var[var_len] = 0;
     var = new_rva_order.rva.var;
     //
-    int val = bdd_atoi(valp);
+    val = bdd_atoi(valp);
     if ( val == NODEI_NONE )
         return pg_error(_errmsg,"bad rva value %s=%s",var,valp);   
-    rva_order* rl = NULL;
     rva_order* rva_list = bctx->rva_order.items;
     int l = 0;
     int r = bctx->rva_order.size-1;
