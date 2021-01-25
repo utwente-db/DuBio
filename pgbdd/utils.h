@@ -25,7 +25,7 @@ extern FILE* _debug_file;
 
 #define START_DP(F) _debug_file=fopen(F,"w")
 
-void dp_print(const char *fmt,...);
+void dp_print(const char *fmt,...) __attribute__ ((format (printf, 1, 2)));
 
 #define DP if (_debug_file) dp_print
 
@@ -64,7 +64,7 @@ pbuff* pbuff_reset(pbuff*f);
 char*  pbuff_preserve_or_alloc(pbuff* pbuff);
 void   pbuff_free(pbuff*);
 void   pbuff_flush(pbuff*, FILE*);
-int    bprintf(pbuff* pbuff, const char *fmt,...);
+int    bprintf(pbuff* pbuff, const char *fmt,...) __attribute__ ((format (printf, 2, 3)));
 
 /*
  * Handling of errors and fatalities!

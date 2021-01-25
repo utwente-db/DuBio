@@ -85,7 +85,7 @@ static void generate_expression(randexpr* conf, pbuff* pbuff, int level) {
     if ( randInRange(0,conf->MAX_LEVELS-1) > level )
         generate_level(conf, pbuff,++level);
     else {
-        bprintf(pbuff,rand_not(conf));
+        bprintf(pbuff,"%s",rand_not(conf));
         bprintf(pbuff,"%s=%d",rand_var(conf),rand_val(conf));
     }
 }
@@ -95,10 +95,10 @@ static void generate_cluster(randexpr* conf, pbuff* pbuff, int level) {
     char* op;
     n_expr = randInRange(1,conf->MAX_CLUSTER_SIZE); 
     op = rand_and_or(conf);
-    bprintf(pbuff,rand_not(conf));
+    bprintf(pbuff,"%s",rand_not(conf));
     bprintf(pbuff,"(");
     for (int i=0; i<n_expr; i++) {
-        if (i) bprintf(pbuff,op); 
+        if (i) bprintf(pbuff,"%s",op); 
         generate_expression(conf,pbuff,level);
     }
     bprintf(pbuff,")");
@@ -111,7 +111,7 @@ static void generate_level(randexpr* conf, pbuff* pbuff, int level) {
     op = rand_and_or(conf);
     bprintf(pbuff,"(");
     for (int i=0; i<n_clusters; i++) {
-        if (i) bprintf(pbuff,op); 
+        if (i) bprintf(pbuff,"%s",op); 
         generate_cluster(conf,pbuff,level);
     }
     bprintf(pbuff,")");
