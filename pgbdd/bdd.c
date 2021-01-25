@@ -285,6 +285,8 @@ static int add2rva_order(bdd_runtime* bctx, char* var, int var_len, char* valp, 
     rva_order new_rva_order;
     int val;
     rva_order* rl = NULL;
+    rva_order* rva_list;
+    int l, r;
 
     if ( var_len > MAX_RVA_NAME )
         return pg_error(_errmsg,"rva_name too long (max=%d) / %s",MAX_RVA_NAME, var);   
@@ -295,9 +297,9 @@ static int add2rva_order(bdd_runtime* bctx, char* var, int var_len, char* valp, 
     val = bdd_atoi(valp);
     if ( val == NODEI_NONE )
         return pg_error(_errmsg,"bad rva value %s=%s",var,valp);   
-    rva_order* rva_list = bctx->rva_order.items;
-    int l = 0;
-    int r = bctx->rva_order.size-1;
+    rva_list = bctx->rva_order.items;
+    l = 0;
+    r = bctx->rva_order.size-1;
     while (l<=r) 
     { 
         int m = l + (r-l)/2; 
@@ -354,9 +356,11 @@ static int _compute_order(bdd_runtime* bctx, char* expr, char** _errmsg) {
                 } else 
                     return pg_error(_errmsg,"varnames cannot start with a digit: \"%s\"",p);
             } else {
+                int len;
+
                 while ( isalnum(*p) )
                     p++;
-                int len = p-start;;
+                len = p-start;;
                 while ( *p && *p != '=' )
                     p++;
                 if ( !(*p++ == '=') )
@@ -415,9 +419,10 @@ static int compute_rva_order(bdd_runtime* bctx, char* bdd_expr, char** _errmsg) 
 static int bctx_orderi_set(bdd_runtime* bctx, int depth, int v_0or1) {
     char* srcframe = E_FRAME(bctx,depth);
     char* dstframe = E_FRAME(bctx,depth+1);
+    rva_order* rl;
 
     memcpy(dstframe,srcframe,bctx->e_stack_framesz);
-    rva_order* rl = ORDER(bctx,depth);
+    rl = ORDER(bctx,depth);
     for(locptr p = rl->loc; p!=LOC_EMPTY; p = bctx->rva_epos[p].next)
         dstframe[bctx->rva_epos[p].pos] = v_0or1;
     return 1;
@@ -445,6 +450,8 @@ static nodei bctx_eval_top(bdd_runtime* bctx, int depth, char** _errmsg) {
 
 static nodei bdd_mk(bdd_runtime* bdd_rt, rva *v, nodei l, nodei h, char** _errmsg) {
 #ifdef BDD_VERBOSE
+    nodei node, res;
+
     if ( bdd_rt->verbose ) {
         // for(int i=0;i<bdd_rt->call_depth; i++)
         //     fprintf(stdout,">>");
@@ -454,10 +461,10 @@ static nodei bdd_mk(bdd_runtime* bdd_rt, rva *v, nodei l, nodei h, char** _errms
 #endif
     if ( l == h )
         return h;
-    nodei node = lookup_bdd_node(bdd_rt,v,l,h);
+    node = lookup_bdd_node(bdd_rt,v,l,h);
     if ( node != NODEI_NONE ) 
         return node; /* node already exists */ 
-    nodei res = bdd_create_node(&bdd_rt->core,v,l,h);
+    res = bdd_create_node(&bdd_rt->core,v,l,h);
 #ifdef BDD_VERBOSE
     if ( bdd_rt->verbose ) {
         // for(int i=0;i<bdd_rt->call_depth; i++)
@@ -484,6 +491,8 @@ static void _bctx_skip_samevar(bdd_runtime* bctx, int* depth) {
 static nodei bdd_build(bdd_alg* alg, bdd_runtime* bdd_rt, int depth, char** _errmsg) {
 #ifdef BDD_VERBOSE
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    rva* var;
+    nodei l, h;
 
     if ( bdd_rt->verbose ) {
         bprintf(pbuff,"BUILD{%s}[d=%d]: ",alg->name,depth);
@@ -493,6 +502,7 @@ static nodei bdd_build(bdd_alg* alg, bdd_runtime* bdd_rt, int depth, char** _err
     }
 #endif
     if ( depth >= bdd_rt->n ) {
+        int boolean_res;
 #ifdef BDD_VERBOSE
         if ( bdd_rt->verbose ) {
             bprintf(pbuff,"EVAL{%s}[i=%d]: ",alg->name,depth);
@@ -501,7 +511,7 @@ static nodei bdd_build(bdd_alg* alg, bdd_runtime* bdd_rt, int depth, char** _err
             pbuff_flush(pbuff,stdout);
         }
 #endif
-        int boolean_res = bctx_eval_top(bdd_rt,depth,_errmsg);
+        boolean_res = bctx_eval_top(bdd_rt,depth,_errmsg);
 #ifdef BDD_VERBOSE
         if ( bdd_rt->verbose )
             bprintf(pbuff,"%d\n",boolean_res);
@@ -510,15 +520,15 @@ static nodei bdd_build(bdd_alg* alg, bdd_runtime* bdd_rt, int depth, char** _err
 #endif
         return (boolean_res < 0) ? NODEI_NONE : (nodei)boolean_res;
     }
-    rva* var = ORDER_RVA(bdd_rt,depth);
+    var = ORDER_RVA(bdd_rt,depth);
     bctx_orderi_set(bdd_rt,depth,0);
     // nodei l = alg->build(alg,bdd_rt,depth+1,_errmsg);
-    nodei l = bdd_build(alg,bdd_rt,depth+1,_errmsg);
+    l = bdd_build(alg,bdd_rt,depth+1,_errmsg);
     if ( l == NODEI_NONE ) return NODEI_NONE;
     bctx_orderi_set(bdd_rt,depth,1);
     _bctx_skip_samevar(bdd_rt,&depth);
     // nodei h = alg->build(alg,bdd_rt,depth,_errmsg);
-    nodei h = bdd_build(alg,bdd_rt,depth,_errmsg);
+    h = bdd_build(alg,bdd_rt,depth,_errmsg);
     // return (h == NODEI_NONE) ? NODEI_NONE : alg->mk(bdd_rt,var,l,h,_errmsg);
     return (h == NODEI_NONE) ? NODEI_NONE : bdd_mk(bdd_rt,var,l,h,_errmsg);
 }
@@ -549,25 +559,28 @@ static int _bdd_equiv(int l_depth, bdd_runtime* l_ctx, int r_depth, bdd_runtime*
                opt = 2; // do right because is first in order
         }
         if (opt == 1) {
+            int res;
             bctx_orderi_set(l_ctx,l_depth,0);
-            int res = _bdd_equiv(l_depth+1,l_ctx,r_depth,r_ctx,_errmsg);
+            res = _bdd_equiv(l_depth+1,l_ctx,r_depth,r_ctx,_errmsg);
             if ( res < 1 ) return res; // error or 'FALSE'
             bctx_orderi_set(l_ctx,l_depth,1);
             _bctx_skip_samevar(l_ctx,&l_depth);
             res = _bdd_equiv(l_depth,l_ctx,r_depth,r_ctx,_errmsg);
             if ( res < 1 ) return res; // error or 'FALSE'
         } else if (opt==2) {
+            int res;
             bctx_orderi_set(r_ctx,r_depth,0);
-            int res = _bdd_equiv(l_depth,l_ctx,r_depth+1,r_ctx,_errmsg);
+            res = _bdd_equiv(l_depth,l_ctx,r_depth+1,r_ctx,_errmsg);
             if ( res < 1 ) return res; // error or 'FALSE'
             bctx_orderi_set(r_ctx,r_depth,1);
             _bctx_skip_samevar(r_ctx,&r_depth);
             res = _bdd_equiv(l_depth,l_ctx,r_depth,r_ctx,_errmsg);
             if ( res < 1 ) return res; // error or 'FALSE'
         } else { // opt == 3
+            int res;
             bctx_orderi_set(l_ctx,l_depth,0);
             bctx_orderi_set(r_ctx,r_depth,0);
-            int res = _bdd_equiv(l_depth+1,l_ctx,r_depth+1,r_ctx,_errmsg);
+            res = _bdd_equiv(l_depth+1,l_ctx,r_depth+1,r_ctx,_errmsg);
             if ( res < 1 ) return res; // error or 'FALSE'
             bctx_orderi_set(l_ctx,l_depth,1);
             _bctx_skip_samevar(l_ctx,&l_depth);
