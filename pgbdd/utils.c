@@ -108,8 +108,8 @@ char* bdd_replace_str(char *dst, char* src, char *find, char replace) {
  */
 
 int bdd_atoi(char* a) {
-    errno = 0;
     char* next;
+    errno = 0;
     long val = strtol (a, &next, 10);
     if (errno == 0)
         return (int)val; // incomplete, can still be too big
@@ -141,6 +141,9 @@ static u_int16_t const str100p[100] = {
 void fast_itoa(char *dst, u_int32_t val)
 {
     char buf[16], *p = &buf[10];
+    char* res;
+    size_t res_len;
+
     *p = '\0';
     while(val >= 100)
     {
@@ -151,8 +154,8 @@ void fast_itoa(char *dst, u_int32_t val)
     }
     p -= 2;
     memcpy(p, &str100p[val], sizeof(u_int16_t));
-    char* res =  &p[val < 10];
-    size_t res_len =  10 - (size_t)(res - buf);
+    res =  &p[val < 10];
+    res_len =  10 - (size_t)(res - buf);
     memcpy(dst,res,res_len+1);
 }
 
@@ -399,16 +402,18 @@ static int bee_eval_fsm(char* t, char** _errmsg) {
             }
             state = bee_svalstart;
             break;
-         case bee_sparclose:
-            if ( (state < 2) || (ss.sp == 0) ) {
-                pg_error(_errmsg,"bee_eval: parenthese mismatch?");
-                return -1;
-            }
-            bee_state pop_state = ss.stack[--ss.sp];
+         case bee_sparclose: {
+                bee_state pop_state;
+                if ( (state < 2) || (ss.sp == 0) ) {
+                    pg_error(_errmsg,"bee_eval: parenthese mismatch?");
+                    return -1;
+                }
+                pop_state = ss.stack[--ss.sp];
 #ifdef BEE_DEBUG
-            fprintf(stderr,"- pop S[%s]\n",bee_state_STR[pop_state]); 
+                fprintf(stderr,"- pop S[%s]\n",bee_state_STR[pop_state]); 
 #endif
-            state = fsm[pop_state][(bee_token)prev_state];
+                state = fsm[pop_state][(bee_token)prev_state];
+            }
             break;
          case bee_sresult0:
          case bee_sresult1:

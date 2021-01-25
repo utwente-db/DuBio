@@ -131,9 +131,11 @@ static void run_bee_testset() {
     char *_errmsg=NULL;
 
     for (int i=0; i<sizeof(testset)/sizeof(bee_test); i++) {
+        int res;
+
         strcpy(testbuff,testset[i].q);
         fprintf(stderr,"Test: \"%s\"\n",testset[i].q);
-        int res = bee_eval(testbuff,&_errmsg);
+        res = bee_eval(testbuff,&_errmsg);
         if ( res != testset[i].r ) {
             if ( res < 1 ) {
                 fprintf(stderr,"Error: %s",(_errmsg)?_errmsg:"none");
@@ -160,6 +162,8 @@ static int parse_dictionary(dict_mode mode, char* dictionary_def, char** _errmsg
         int    scan_var_len = -1;
         int    scan_val     = -1;
         double scan_prob    = -1;
+        char buff[32];
+
         while ( *p && !isalnum(*p) )
             p++;
         if ( isalnum(*p) ) {
@@ -187,11 +191,11 @@ static int parse_dictionary(dict_mode mode, char* dictionary_def, char** _errmsg
             // 
             scan_prob = -1;
             if ( mode != DICT_DEL ) {
+                char * endptr;
                 while ( isspace(*p) ) p++;
                 if ( !(*p++ == ':') )
                     return pg_error(_errmsg,"parse_dict: missing \':\' in dictionay def: \"%s\"",scan_var);
                 while ( isspace(*p) ) p++;
-                char * endptr;
                 scan_prob = strtod(p, &endptr);
                 if ( p == endptr )
                     return pg_error(_errmsg,"parse_dict: bad probability value : \"%s\"",p);
@@ -204,7 +208,6 @@ static int parse_dictionary(dict_mode mode, char* dictionary_def, char** _errmsg
             }
         }
         // 
-        char buff[32];
         memcpy(buff,scan_var,scan_var_len);
         buff[scan_var_len] = 0;
         fprintf(stderr,"SCANNED: var=%s, val=%d, prob=%f\n",buff,scan_val,scan_prob);
