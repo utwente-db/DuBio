@@ -709,11 +709,11 @@ bdd* create_bdd(bdd_alg* alg, char* expr, char** _errmsg, int verbose) {
 
 bdd* serialize_bdd(bdd* tbs) {
     int bytesize, tree_size;
+    bdd* res = NULL;
 
     V_rva_node_shrink2size(&tbs->tree);
     tree_size= V_rva_node_bytesize(&tbs->tree);
     bytesize = BDD_BASE_SIZE + tree_size;
-    bdd* res = NULL;
     if ( (res = (bdd*)MALLOC(bytesize)) ) {
         res->bytesize = bytesize;
         V_rva_node_serialize(&res->tree,&tbs->tree);
@@ -817,6 +817,9 @@ static nodei _bdd_apply(bdd_runtime* bdd_rt, char op, bdd* b1, nodei u1, bdd* b2
 
 bdd* bdd_apply(char op,bdd* b1,bdd* b2,int verbose, char** _errmsg) {
     bdd_runtime bdd_rt_struct, *bdd_rt;
+    nodei ares;
+    bdd*  res;
+
     if ( !(bdd_rt = bdd_rt_init(&bdd_rt_struct,NULL,verbose/*verbose*/,_errmsg)) )
         return NULL;
     if (!init_G(bdd_rt,BDD_ROOT(b1),BDD_ROOT(b2),_errmsg))
@@ -831,7 +834,7 @@ bdd* bdd_apply(char op,bdd* b1,bdd* b2,int verbose, char** _errmsg) {
     bdd_rt->call_depth   = 0;
     bdd_rt->G_cache_hits = 0;
 #endif
-    nodei ares = _bdd_apply(bdd_rt,op,b1,BDD_ROOT(b1),b2,BDD_ROOT(b2),_errmsg);
+    ares = _bdd_apply(bdd_rt,op,b1,BDD_ROOT(b1),b2,BDD_ROOT(b2),_errmsg);
     if (ares == NODEI_NONE) {
         bdd_rt_free(bdd_rt);
         return NULL;
@@ -845,7 +848,7 @@ bdd* bdd_apply(char op,bdd* b1,bdd* b2,int verbose, char** _errmsg) {
             if (bdd_create_node(&bdd_rt->core,&RVA_1,NODEI_NONE,NODEI_NONE) == NODEI_NONE) return BDD_FAIL;
         }
     }
-    bdd* res = serialize_bdd(&bdd_rt->core);
+    res = serialize_bdd(&bdd_rt->core);
     bdd_rt_free(bdd_rt);
     //
     return res;
@@ -876,6 +879,7 @@ static bdd* _bdd_not(bdd* par_bdd, char** _errmsg) {
 
 static bdd* _bdd_binary_op_by_text(char operator, bdd* lhs_bdd, bdd* rhs_bdd, char** _errmsg) {
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    bdd* res;
 
     bprintf(pbuff,"(");
     bdd2string(pbuff,lhs_bdd,0);
@@ -883,7 +887,7 @@ static bdd* _bdd_binary_op_by_text(char operator, bdd* lhs_bdd, bdd* rhs_bdd, ch
     bdd2string(pbuff,rhs_bdd,0);
     bprintf(pbuff,")");
     // fprintf(stdout,"_bdd_binary_op_by_text: %s\n",pbuff->buffer);
-    bdd* res = create_bdd(BDD_DEFAULT,pbuff->buffer,_errmsg,0/*verbose*/);
+    res = create_bdd(BDD_DEFAULT,pbuff->buffer,_errmsg,0/*verbose*/);
     pbuff_free(pbuff);
     //
     return res;
@@ -954,8 +958,9 @@ void bdd_generate_dot(bdd* bdd, pbuff* pbuff, char** extra) {
 
 void bdd_generate_dotfile(bdd* bdd, char* dotfile, char** extra) {
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    FILE* f;
     bdd_generate_dot(bdd,pbuff,extra);
-    FILE* f = fopen(dotfile,"w");
+    f = fopen(dotfile,"w");
     if ( f ) {
         fputs(pbuff->buffer,f);
         fclose(f);
@@ -1044,10 +1049,10 @@ void bdd2string(pbuff* pb, bdd* bdd, int encapsulate) {
 
 static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, nodei i,char** extra,int verbose,char** _errmsg) {
     rva *rva = BDD_RVA(bdd,i);
+    double p_root, res;
     // INCOMPLETE: highly unefficient, store already computed results
     if (verbose )
         fprintf(stdout,"+ bdd_probability(node=%d,\'%s=%d\')\n",i,rva->var,rva->val);
-    double p_root, res;
     rva_node *node = BDD_NODE(bdd,i);
     if ( IS_LEAF(node) ) {
         // is a '0' or '1' leaf
@@ -1057,13 +1062,16 @@ static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, nodei i,char*
             fprintf(stdout,"++ is_leaf: P=%f\n",res);
 #endif
     } else {
+        nodei low, high;
+        double p_l, p_h;
+
         p_root = lookup_probability(dict,rva);
         if ( p_root < 0.0 ) {
             pg_error(_errmsg,"dictionary_lookup: rva[\'%s\'] not found.",rva);
             return -1.0;
         }
-        nodei low = node->low;
-        nodei high = node->high;
+        low = node->low;
+        high = node->high;
         while ( IS_SAMEVAR(BDD_RVA(bdd,high),rva) ) {
             high = bdd_low(bdd,high);
         }
@@ -1071,8 +1079,8 @@ static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, nodei i,char*
         if ( verbose )
             fprintf(stdout,"++ is_node(low=%d, high=%d)\n",low,high);
 #endif
-        double p_l = bdd_probability_node(dict,bdd,low,extra,verbose,_errmsg);
-        double p_h = bdd_probability_node(dict,bdd,high,extra,verbose,_errmsg);
+        p_l = bdd_probability_node(dict,bdd,low,extra,verbose,_errmsg);
+        p_h = bdd_probability_node(dict,bdd,high,extra,verbose,_errmsg);
         if ( p_l < 0.0 || p_h < 0.0 )
             return -1.0;
         res = (p_root * p_h) + p_l;
