@@ -313,15 +313,18 @@ bdd_dictionary* merge_dictionary(bdd_dictionary* md, bdd_dictionary* ld, bdd_dic
         return NULL;
     if ( !(bdd_dictionary_sort(ld) && bdd_dictionary_sort(rd)) )
         return NULL;
-    int lvars = V_dict_var_size(ld->variables);
-    int rvars = V_dict_var_size(rd->variables);
-    int lvals = V_dict_val_size(ld->values) - ld->val_deleted;
-    int rvals = V_dict_val_size(rd->values) - rd->val_deleted;
+    int lvars, rvars, lvals, rvals;
+    lvars = V_dict_var_size(ld->variables);
+    rvars = V_dict_var_size(rd->variables);
+    lvals = V_dict_val_size(ld->values) - ld->val_deleted;
+    rvals = V_dict_val_size(rd->values) - rd->val_deleted;
     if ( !V_dict_var_resize(md->variables,lvars+rvars) )
         return NULL;;
     if ( !V_dict_val_resize(md->values,lvals+rvals) )
         return NULL;;
-    int lvar_i = 0, rvar_i = 0;
+    int lvar_i, rvar_i;
+    lvar_i = 0; 
+    rvar_i = 0;
     while ( lvar_i < lvars || rvar_i < rvars ) {
         if ( lvar_i == lvars ) { // no more left vars
             if ( !add2merged(md,V_dict_var_getp(rd->variables,rvar_i++),ld->values,NULL,-1,-1,_errmsg) )
@@ -363,7 +366,8 @@ int modify_dictionary(bdd_dictionary* dict, int mode, char* dictionary_def, char
         int    scan_var_len = -1;
         int    scan_val     = -1;
         double scan_prob    = -1;
-
+        char   varname[MAX_RVA_NAME+1];
+        int    vvi;
 
         while ( *p && !isalnum(*p) )
             p++;
@@ -395,11 +399,12 @@ int modify_dictionary(bdd_dictionary* dict, int mode, char* dictionary_def, char
             // 
             scan_prob = -1;
             if ( mode != DICT_DEL ) {
+                char *endptr;
+
                 while ( isspace(*p) ) p++;
                 if ( !(*p++ == ':') )
                     return pg_error(_errmsg,"modify_dictionary: missing \':\' in dictionay def: \"%s\"",scan_var);
                 while ( isspace(*p) ) p++;
-                char * endptr;
                 scan_prob = strtod(p, &endptr);
                 if ( p == endptr )
                     return pg_error(_errmsg,"modify_dictionary: bad probability value : \"%s\"",p);
@@ -418,7 +423,6 @@ int modify_dictionary(bdd_dictionary* dict, int mode, char* dictionary_def, char
         }
         if ( scan_var_len > MAX_RVA_NAME )
             return pg_error(_errmsg,"modify_dictionary: varname too long, max(%d) : %s",MAX_RVA_NAME,scan_var);
-        char varname[MAX_RVA_NAME+1];
         memcpy(varname,scan_var,scan_var_len);
         varname[scan_var_len] = 0;
         // fprintf(stderr,"SCANNED: [%d] %s=%d : %f;\n",mode,varname,scan_val,scan_prob);
@@ -437,7 +441,6 @@ int modify_dictionary(bdd_dictionary* dict, int mode, char* dictionary_def, char
                     return pg_error(_errmsg,"modify_dictionary:upd/del: unknown var \"%s\"",varname);
             } 
         }
-        int vvi;
         if ( mode == DICT_ADD || mode == DICT_UPD ) {
             vvi = get_var_value_index(dict,varp,scan_val);
             if ( vvi < 0 ) { // no variable/value
@@ -470,9 +473,10 @@ int modify_dictionary(bdd_dictionary* dict, int mode, char* dictionary_def, char
             }
         } else { // mode == DICT_DEL
             if ( scan_val == VALUE_WILDCARD ) {
+                int var_index;
                 // delete entire var
                 dict->val_deleted += varp->card;
-                int var_index = lookup_var_index(dict,varname);
+                var_index = lookup_var_index(dict,varname);
                 del_variable(dict,var_index);
                 varp = NULL; // to prevent normalization
             } else {
@@ -481,8 +485,9 @@ int modify_dictionary(bdd_dictionary* dict, int mode, char* dictionary_def, char
                     return pg_error(_errmsg,"modify_dictionary:del: variable/value %s=%d does not exists ",varname,scan_val);
                 dict->val_deleted++;
                 if ( --varp->card == 0) { // delete entire var
+                    int var_index;
                     dict->val_deleted += varp->card;
-                    int var_index = lookup_var_index(dict,varname);
+                    var_index = lookup_var_index(dict,varname);
                     del_variable(dict,var_index);
                     varp = NULL; // to prevent normalization
                 } else {

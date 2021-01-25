@@ -132,7 +132,8 @@ int V_##type##_is_serialized(V_##type *v) { \
  \
 V_##type *V_##type##_serialize(void *void_dst, V_##type *src) { \
     VECTOR_ASSERT(src); \
-    V_##type *dst = (V_##type *)void_dst; \
+    V_##type *dst; \
+    dst = (V_##type *)void_dst; \
     *dst = *src; \
     memcpy(dst->fixed,src->items,src->size*sizeof(type)); \
     return V_##type##_relocate(dst); \
