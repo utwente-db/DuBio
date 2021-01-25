@@ -28,15 +28,17 @@ static int test_bdd_dictionary_v0() {
     if ( !(dict = bdd_dictionary_create(&dict_struct) ))
         return 0;;
     if (modify_dictionary(dict,DICT_ADD,input,&errmsg)) {
+        bdd_dictionary *new_dict, *relocate_dict;
+
         bdd_dictionary_print(dict,0/*all*/,pbuff);
         // pbuff_flush(pbuff,stdout);
-        bdd_dictionary* new_dict = bdd_dictionary_serialize(dict);
+        new_dict = bdd_dictionary_serialize(dict);
         bdd_dictionary_free(dict);
         bdd_dictionary_sort(new_dict);
         bdd_dictionary_lookup_var(new_dict,"x");
         bdd_dictionary_print(new_dict,0/*all*/,pbuff);
         // pbuff_flush(pbuff,stdout);
-        bdd_dictionary* relocate_dict = (bdd_dictionary*)MALLOC(new_dict->bytesize);
+        relocate_dict = (bdd_dictionary*)MALLOC(new_dict->bytesize);
         memcpy(relocate_dict,new_dict,new_dict->bytesize);
         bdd_dictionary_relocate(relocate_dict);
         bdd_dictionary_free(new_dict);

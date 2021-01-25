@@ -309,11 +309,12 @@ static int add2merged(bdd_dictionary *md,
 }
 
 bdd_dictionary* merge_dictionary(bdd_dictionary* md, bdd_dictionary* ld, bdd_dictionary* rd, char** _errmsg) {
+    int lvars, rvars, lvals, rvals;
+    int lvar_i, rvar_i;
     if ( !bdd_dictionary_create(md) )
         return NULL;
     if ( !(bdd_dictionary_sort(ld) && bdd_dictionary_sort(rd)) )
         return NULL;
-    int lvars, rvars, lvals, rvals;
     lvars = V_dict_var_size(ld->variables);
     rvars = V_dict_var_size(rd->variables);
     lvals = V_dict_val_size(ld->values) - ld->val_deleted;
@@ -322,7 +323,6 @@ bdd_dictionary* merge_dictionary(bdd_dictionary* md, bdd_dictionary* ld, bdd_dic
         return NULL;;
     if ( !V_dict_val_resize(md->values,lvals+rvals) )
         return NULL;;
-    int lvar_i, rvar_i;
     lvar_i = 0; 
     rvar_i = 0;
     while ( lvar_i < lvars || rvar_i < rvars ) {
