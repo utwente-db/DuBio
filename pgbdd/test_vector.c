@@ -114,7 +114,6 @@ static void test_IV(){
     print_IV(&svv);
     V_IV_insert_at(&svv,5,&iiv);
     print_IV(&svv);
-    if (1) exit(0);
     //
     buff = MALLOC(V_IV_bytesize(vv));
     vc = V_IV_serialize(buff,vv);
