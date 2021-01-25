@@ -459,7 +459,7 @@ int modify_dictionary(bdd_dictionary* dict, int mode, char* dictionary_def, char
                         dict->val_deleted += varp->card; // 'hole' size
                     }
                     if ( !add_value(dict,scan_val,scan_prob)  )
-                        return pg_error(_errmsg,"modify_dictionary:add: internal error %s=%f ",varname,scan_var,scan_prob);
+                        return pg_error(_errmsg,"modify_dictionary:add: internal error %s=%d:%f ",varname,scan_val,scan_prob);
                     varp->card++;
                 } else {
                     return pg_error(_errmsg,"modify_dictionary:add: variable/value %s=%d does not exist ",varname,scan_val);

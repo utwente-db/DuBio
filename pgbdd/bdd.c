@@ -740,7 +740,7 @@ static int init_G(bdd_runtime* bdd_rt,int l_root, int r_root, char** _errmsg) {
     size_t sz;
 
     if ( ! BDD_G_CACHE_POSSIBLE(l_root,r_root) )
-        return pg_error(_errmsg,"bdd_operation:init_G:apply too complex: (%d x %d x %d) > %d",l_root+1,r_root+1,sizeof(short),BDD_G_CACHE_MAX);
+        return pg_error(_errmsg,"bdd_operation:init_G:apply too complex: (%d x %d x %d) > %d",l_root+1,r_root+1,(int)sizeof(short),BDD_G_CACHE_MAX);
     bdd_rt->G_l = (unsigned short)l_root+1;
     bdd_rt->G_r = (unsigned short)r_root+1;
     sz = bdd_rt->G_l * bdd_rt->G_r * sizeof(short); 
@@ -1068,7 +1068,7 @@ static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, nodei i,char*
 
         p_root = lookup_probability(dict,rva);
         if ( p_root < 0.0 ) {
-            pg_error(_errmsg,"dictionary_lookup: rva[\'%s\'] not found.",rva);
+            pg_error(_errmsg,"dictionary_lookup: rva[\'%s\'] not found.",rva->var);
             return -1.0;
         }
         low = node->low;

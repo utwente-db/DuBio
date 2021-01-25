@@ -71,8 +71,8 @@ int    bprintf(pbuff* pbuff, const char *fmt,...) __attribute__ ((format (printf
  *
  */
 
-int pg_fatal(const char*,...);
-int pg_error(char**, const char*,...);
+int pg_fatal(const char*,...) __attribute__ ((format (printf, 1, 2)));
+int pg_error(char**, const char*,...) __attribute__ ((format (printf, 2, 3)));
 
 /*
  * String and numeric utility functions

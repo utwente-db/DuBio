@@ -192,7 +192,7 @@ static int _regenerate_test(char* par_expr, char** _errmsg) {
         res_eq = bdd_test_equivalence(bdd1_str,bdd2_str,_errmsg);
         if (VERBOSE) fprintf(stdout,"TESTING: END EQUIV TEST\n");
         if ( res_eq < 0 )
-            pg_fatal("regenerate_test:equivalence error: %s",_errmsg);
+            pg_fatal("regenerate_test:equivalence error: %s",*_errmsg);
         if ( !res_eq ) {
             if (VERBOSE) fprintf(stdout,"TESTING: EQUIVALENT FALSE\n");
             if ( 1 ) {
@@ -754,8 +754,8 @@ static void random_equiv_hunt(long seed) {
 //
 //
 
-#define CHECK0(L,STAT) if ( !(STAT) )    pg_fatal("%s: %s",L,_errmsg)
-#define CHECKN(L,STAT) if ( (STAT) < 0 ) pg_fatal("%s: %s",L,_errmsg)
+#define CHECK0(L,STAT,E) if ( !(STAT) )    pg_fatal("%s: %s",L,E)
+#define CHECKN(L,STAT,E) if ( (STAT) < 0 ) pg_fatal("%s: %s",L,E)
 
 static char* _wb_dot(char* base, char* extra) {
     static char fnbuff[32];
@@ -772,7 +772,7 @@ static int _wb_equiv(bdd* l,bdd* r,int vb,char**_errmsg)  {
     bdd2string(pbuff_r,r,0);
     if (vb) fprintf(stdout,"EQV-L=%s:\n",pbuff_l->buffer);
     if (vb) fprintf(stdout,"EQV-R=%s:\n",pbuff_r->buffer);
-    CHECKN("_wb_equiv",res = bdd_test_equivalence(pbuff_l->buffer,pbuff_r->buffer,_errmsg));
+    CHECKN("_wb_equiv",res = bdd_test_equivalence(pbuff_l->buffer,pbuff_r->buffer,_errmsg),*_errmsg);
     if (vb) fprintf(stdout,"EQV-RES=%d:\n",res);
     return res;
 }
@@ -781,8 +781,8 @@ static bdd* _wb_op(bdd* bdd_l,char op, bdd* bdd_r,int vb,char**_errmsg)  {
     bdd* bdd_res_t;
     bdd* bdd_res_a;
 
-    CHECK0("_wb_op",bdd_res_t=bdd_operator(op,BY_TEXT,bdd_l,bdd_r,_errmsg));
-    CHECK0("_wb_op",bdd_res_a=bdd_operator(op,BY_APPLY,bdd_l,bdd_r,_errmsg));
+    CHECK0("_wb_op",bdd_res_t=bdd_operator(op,BY_TEXT,bdd_l,bdd_r,_errmsg),*_errmsg);
+    CHECK0("_wb_op",bdd_res_a=bdd_operator(op,BY_APPLY,bdd_l,bdd_r,_errmsg),*_errmsg);
 
     return bdd_res_a;
 }
@@ -794,7 +794,7 @@ static int _wb_regen(char* label, bdd* par_bdd, int vb, int dot, char**_errmsg) 
 
     bdd2string(pbuff,par_bdd,0);
     bdd_str = pbuff_preserve_or_alloc(pbuff);
-    CHECK0("_wb_regen",bdd_regen=create_bdd(BDD_DEFAULT,bdd_str,_errmsg,0));
+    CHECK0("_wb_regen",bdd_regen=create_bdd(BDD_DEFAULT,bdd_str,_errmsg,0),*_errmsg);
     if (dot) bdd_generate_dotfile(bdd_regen,_wb_dot(label,"_regen"),NULL);
     _wb_equiv(par_bdd,bdd_regen,vb,_errmsg);
     pbuff_free(pbuff);
@@ -809,24 +809,24 @@ static void _wb(char* l, char op, char *r, int rg, int vb, int dot)  {
 
     switch ( op ) {
         case 0:
-            CHECK0("_wb",bdd_l=create_bdd(BDD_DEFAULT,l,&_errmsg,vb));
+            CHECK0("_wb",bdd_l=create_bdd(BDD_DEFAULT,l,&_errmsg,vb),_errmsg);
             bdd2string(pbuff,bdd_l,0);
             fprintf(stdout,"ORIGINAL  : %s\n",l);
             fprintf(stdout,"REGENERATE: %s\n",pbuff->buffer);
             break;
         case '!':
-            CHECK0("_wb",bdd_l=create_bdd(BDD_DEFAULT,l,&_errmsg,vb));
-            CHECK0("_wb",bdd_res=_wb_op(bdd_l,op,NULL,vb,&_errmsg));
+            CHECK0("_wb",bdd_l=create_bdd(BDD_DEFAULT,l,&_errmsg,vb),_errmsg);
+            CHECK0("_wb",bdd_res=_wb_op(bdd_l,op,NULL,vb,&_errmsg),_errmsg);
             break;
         case '&':
         case '|':
-            CHECK0("_wb",bdd_l=create_bdd(BDD_DEFAULT,l,&_errmsg,vb));
-            CHECK0("_wb",bdd_r=create_bdd(BDD_DEFAULT,r,&_errmsg,vb));
-            CHECK0("_wb",bdd_res=_wb_op(bdd_l,op,bdd_r,vb,&_errmsg));
+            CHECK0("_wb",bdd_l=create_bdd(BDD_DEFAULT,l,&_errmsg,vb),_errmsg);
+            CHECK0("_wb",bdd_r=create_bdd(BDD_DEFAULT,r,&_errmsg,vb),_errmsg);
+            CHECK0("_wb",bdd_res=_wb_op(bdd_l,op,bdd_r,vb,&_errmsg),_errmsg);
             break;
         case '=':
-            CHECK0("_wb",bdd_l=create_bdd(BDD_DEFAULT,l,&_errmsg,vb));
-            CHECK0("_wb",bdd_r=create_bdd(BDD_DEFAULT,r,&_errmsg,vb));
+            CHECK0("_wb",bdd_l=create_bdd(BDD_DEFAULT,l,&_errmsg,vb),_errmsg);
+            CHECK0("_wb",bdd_r=create_bdd(BDD_DEFAULT,r,&_errmsg,vb),_errmsg);
             _wb_equiv(bdd_l,bdd_r,vb,&_errmsg);
     }
     //
