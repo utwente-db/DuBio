@@ -109,8 +109,9 @@ char* bdd_replace_str(char *dst, char* src, char *find, char replace) {
 
 int bdd_atoi(char* a) {
     char* next;
+    long val;
     errno = 0;
-    long val = strtol (a, &next, 10);
+    val = strtol (a, &next, 10);
     if (errno == 0)
         return (int)val; // incomplete, can still be too big
     else 
@@ -222,8 +223,8 @@ static const char overflow_message[] = "[*PRINTBUFFER OVERFLOW*]\n";
 int bprintf(pbuff* pbuff, const char *fmt,...)
 {
     va_list ap;
-    PBUFF_ASSERT(pbuff);
     int  n_printed;
+    PBUFF_ASSERT(pbuff);
     char buffer[PBUFF_MAX_BPRINTF];
 
     va_start(ap, fmt);

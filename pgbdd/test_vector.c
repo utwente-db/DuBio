@@ -31,8 +31,12 @@ DefVectorC(int);
 static int cmpInt(int* l, int* r) { return *l - *r; }
 
 static void test_int(){
-    fprintf(stdout,"Test \"V_int\" start\n");
     V_int vv;
+    void* buff;
+    V_int* vc;
+    int tofind;
+
+    fprintf(stdout,"Test \"V_int\" start\n");
     V_int_init(&vv);
     for (int i=0; i<66; i++) {
         V_int_add(&vv,&i);
@@ -42,8 +46,8 @@ static void test_int(){
     V_int_set(&vv,5,5555);
     //
     V_int_shrink2size(&vv);
-    void* buff = MALLOC(V_int_bytesize(&vv));
-    V_int* vc = V_int_serialize(buff,&vv);
+    buff = MALLOC(V_int_bytesize(&vv));
+    vc = V_int_serialize(buff,&vv);
     //
     V_int_quicksort(&vv,cmpInt);
     V_int_quicksort(vc,cmpInt);
@@ -53,7 +57,7 @@ static void test_int(){
             pg_fatal("Should not happen 1");
     }
     // putc('\n', stdout);
-    int tofind = 9;
+    tofind = 9;
     if ( V_int_find(vc,cmpInt,&tofind) != V_int_bsearch(vc,cmpInt,&tofind) )
         pg_fatal("Should not happen-2");
     V_int_free(&vv);
@@ -87,9 +91,14 @@ static void print_IV(V_IV* v_iv) {
 }
 
 static void test_IV(){
-    fprintf(stdout,"Test \"V_IV\" start\n");
     V_IV svv;
-    V_IV* vv = V_IV_init(&svv);
+    V_IV* vv;
+    int last;
+    void* buff;
+    V_IV* vc;
+
+    fprintf(stdout,"Test \"V_IV\" start\n");
+    vv = V_IV_init(&svv);
     for (int i=0; i<20; i++) {
         IV iv;
         iv.i = i;
@@ -106,11 +115,11 @@ static void test_IV(){
     print_IV(&svv);
     exit(0);
     //
-    void* buff = MALLOC(V_IV_bytesize(vv));
-    V_IV* vc = V_IV_serialize(buff,vv);
+    buff = MALLOC(V_IV_bytesize(vv));
+    vc = V_IV_serialize(buff,vv);
     //
     //
-    int last = -1;
+    last = -1;
     V_IV_quicksort(vv,cmpIVi);
     for(int i=0; i<vv->size; i++) {
         if ( V_IV_get(vv,i).i < last )
