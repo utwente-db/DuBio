@@ -96,6 +96,8 @@ static void test_IV(){
     int last;
     void* buff;
     V_IV* vc;
+    IV iiv = { .i=55, .v=5500 };
+    float lastf;
 
     fprintf(stdout,"Test \"V_IV\" start\n");
     vv = V_IV_init(&svv);
@@ -110,7 +112,6 @@ static void test_IV(){
     // V_IV_copy_range(&svv,5,10,10);
     V_IV_delete(&svv,5);
     print_IV(&svv);
-    IV iiv = { .i=55, .v=5500 };
     V_IV_insert_at(&svv,5,&iiv);
     print_IV(&svv);
     exit(0);
@@ -127,13 +128,14 @@ static void test_IV(){
         last = V_IV_get(vv,i).i;
     }
     //
-    float lastf = -1;
+    lastf = -1;
     V_IV_quicksort(vc,cmpIVv);
     for(int i=0; i<vc->size; i++) {
+        int fi;;
         if ( V_IV_get(vc,i).v < last )
             pg_fatal("Should not happen, not sorted");
         lastf = V_IV_get(vv,i).v;
-        int fi = V_IV_bsearch(vv,cmpIVi,V_IV_getp(vc,i));
+        fi = V_IV_bsearch(vv,cmpIVi,V_IV_getp(vc,i));
         if ( V_IV_get(vv,fi).v != V_IV_get(vc,i).v )
             pg_fatal("Should not happen-9 fi=%d [%f <> %f]",fi,vv->items[fi].v,vc->items[i].v);
     }

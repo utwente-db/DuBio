@@ -224,8 +224,8 @@ int bprintf(pbuff* pbuff, const char *fmt,...)
 {
     va_list ap;
     int  n_printed;
-    PBUFF_ASSERT(pbuff);
     char buffer[PBUFF_MAX_BPRINTF];
+    PBUFF_ASSERT(pbuff);
 
     va_start(ap, fmt);
     n_printed = vsnprintf(buffer,PBUFF_MAX_BPRINTF,fmt,ap);
