@@ -219,7 +219,7 @@ select case when internal is NULL then next
 $$
  language SQL;
 
-create and replace aggregate agg_and (bdd)
+create or replace aggregate agg_and (bdd)
 (
  SFUNC = and_accum,
  STYPE = bdd
