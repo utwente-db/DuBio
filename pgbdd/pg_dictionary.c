@@ -59,8 +59,10 @@ dictionary_out(PG_FUNCTION_ARGS)
     bdd_dictionary  *dict = PG_GETARG_DICTIONARY(0);
 
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    char* result;
+
     bprintf(pbuff,"[Dictionary(#vars=%d, #values=%d)]",V_dict_var_size(dict->variables),V_dict_val_size(dict->values)-dict->val_deleted);
-    char* result = pbuff2cstring(pbuff,-1);
+    result = pbuff2cstring(pbuff,-1);
     PG_RETURN_CSTRING(result);
 }
 
@@ -78,10 +80,11 @@ Datum
 dictionary_print(PG_FUNCTION_ARGS)
 {
     bdd_dictionary  *dict = PG_GETARG_DICTIONARY(0);
-
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    text* result;
+
     bdd_dictionary_print(dict,0/*all*/,pbuff);
-    text* result = pbuff2text(pbuff,-1);
+    result = pbuff2text(pbuff,-1);
     PG_RETURN_TEXT_P(result);
 }
 
@@ -98,10 +101,11 @@ Datum
 dictionary_debug(PG_FUNCTION_ARGS)
 {
     bdd_dictionary  *dict = PG_GETARG_DICTIONARY(0);
-
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    text* result;
+
     bdd_dictionary_print(dict,1/*all*/,pbuff);
-    text* result = pbuff2text(pbuff,-1);
+    result = pbuff2text(pbuff,-1);
     PG_RETURN_TEXT_P(result);
 }
 

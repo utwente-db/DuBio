@@ -128,9 +128,10 @@ bdd_pg_info(PG_FUNCTION_ARGS)
 {
     bdd* par_bdd  = PG_GETARG_BDD(0);
 
+    text* result;
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
     bdd_info(par_bdd, pbuff);
-    text* result = pbuff2text(pbuff,-1);
+    result = pbuff2text(pbuff,-1);
     PG_RETURN_TEXT_P(result);
 }
 
@@ -147,6 +148,7 @@ bdd_pg_dot(PG_FUNCTION_ARGS)
     bdd*  par_bdd  = PG_GETARG_BDD(0);
     char* dotfile  = PG_GETARG_CSTRING(1);
 
+    text* result;
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
     bdd_generate_dot(par_bdd,pbuff,NULL);
 
@@ -158,7 +160,7 @@ bdd_pg_dot(PG_FUNCTION_ARGS)
             fclose(f);
         }
     }
-    text* result = pbuff2text(pbuff,-1);
+    result = pbuff2text(pbuff,-1);
     PG_RETURN_TEXT_P(result);
 }
 
