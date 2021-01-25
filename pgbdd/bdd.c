@@ -287,6 +287,7 @@ static int add2rva_order(bdd_runtime* bctx, char* var, int var_len, char* valp, 
     rva_order* rl = NULL;
     rva_order* rva_list;
     int l, r;
+    rva_epos* rp;
 
     if ( var_len > MAX_RVA_NAME )
         return pg_error(_errmsg,"rva_name too long (max=%d) / %s",MAX_RVA_NAME, var);   
@@ -315,14 +316,14 @@ static int add2rva_order(bdd_runtime* bctx, char* var, int var_len, char* valp, 
             r = m - 1;  
     } 
     if ( !rl )  {
-        new_rva_order.rva.val = val;
         int index;
+        new_rva_order.rva.val = val;
         if ( (index = V_rva_order_insert_at(&bctx->rva_order,l,&new_rva_order)) < 0)
             return BDD_FAIL;
         rl      = ORDER(bctx,index);
         rl->loc = LOC_EMPTY;
     }
-    rva_epos* rp = &(bctx->rva_epos[bctx->c_rva]);
+    rp = &(bctx->rva_epos[bctx->c_rva]);
     bctx->e_stack[bctx->e_stack_len] = '1'; // initial test value
     rp->pos  = bctx->e_stack_len++;
     rp->next = rl->loc;
@@ -449,8 +450,8 @@ static nodei bctx_eval_top(bdd_runtime* bctx, int depth, char** _errmsg) {
  */
 
 static nodei bdd_mk(bdd_runtime* bdd_rt, rva *v, nodei l, nodei h, char** _errmsg) {
-#ifdef BDD_VERBOSE
     nodei node, res;
+#ifdef BDD_VERBOSE
 
     if ( bdd_rt->verbose ) {
         // for(int i=0;i<bdd_rt->call_depth; i++)
@@ -489,10 +490,10 @@ static void _bctx_skip_samevar(bdd_runtime* bctx, int* depth) {
 }
 
 static nodei bdd_build(bdd_alg* alg, bdd_runtime* bdd_rt, int depth, char** _errmsg) {
-#ifdef BDD_VERBOSE
-    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
     rva* var;
     nodei l, h;
+#ifdef BDD_VERBOSE
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
 
     if ( bdd_rt->verbose ) {
         bprintf(pbuff,"BUILD{%s}[d=%d]: ",alg->name,depth);
@@ -617,12 +618,13 @@ static int _bdd_equiv(int l_depth, bdd_runtime* l_ctx, int r_depth, bdd_runtime*
 int bdd_test_equivalence(char* l_expr, char* r_expr, char** _errmsg) {
     bdd_runtime l_ctx_s;
     bdd_runtime r_ctx_s;
+    int res;
 
     if ( !bdd_rt_init(&l_ctx_s,l_expr,0,_errmsg) )
         return BDD_FAIL;
     if ( !bdd_rt_init(&r_ctx_s,r_expr,0,_errmsg) )
         return BDD_FAIL;
-    int res = _bdd_equiv(0, &l_ctx_s, 0, &r_ctx_s, _errmsg);
+    res = _bdd_equiv(0, &l_ctx_s, 0, &r_ctx_s, _errmsg);
     //
     bdd_rt_free(&l_ctx_s);
     bdd_rt_free(&r_ctx_s);
@@ -631,8 +633,10 @@ int bdd_test_equivalence(char* l_expr, char* r_expr, char** _errmsg) {
 }
 
 static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd_rt, char** _errmsg) {
+    nodei res;
 #ifdef BDD_VERBOSE
     pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+
     if ( bdd_rt->verbose )
         fprintf(stdout,"BDD start_build\n");
     bdd_rt->mk_calls = 0;
@@ -644,7 +648,7 @@ static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd_rt, char** _errmsg) {
 #endif
     if (bdd_create_node(&bdd_rt->core,&RVA_0,NODEI_NONE,NODEI_NONE)==NODEI_NONE) return BDD_FAIL;
     if (bdd_create_node(&bdd_rt->core,&RVA_1,NODEI_NONE,NODEI_NONE)==NODEI_NONE) return BDD_FAIL;
-    nodei res = alg->build(alg,bdd_rt,0,_errmsg);
+    res = alg->build(alg,bdd_rt,0,_errmsg);
     if ( (res != NODEI_NONE) && V_rva_node_size(&bdd_rt->core.tree) == 2 ) {
         // there have no nodes been created, expression is constant, no errors
         V_rva_node_reset(&bdd_rt->core.tree);
@@ -687,6 +691,7 @@ bdd_alg* bdd_algorithm(char* alg_name, char** _errmsg) {
 bdd* create_bdd(bdd_alg* alg, char* expr, char** _errmsg, int verbose) {
     bdd_runtime  bdd_struct;
     bdd_runtime* bdd_rt;
+    bdd* res;
 
     if ( !(bdd_rt = bdd_rt_init(&bdd_struct,expr,verbose,_errmsg)) )
         return NULL;
@@ -694,7 +699,7 @@ bdd* create_bdd(bdd_alg* alg, char* expr, char** _errmsg, int verbose) {
         // something may be wrong because of error, do not free bdd_rt !!!
         return NULL;
     }
-    bdd* res = serialize_bdd(&bdd_rt->core);
+    res = serialize_bdd(&bdd_rt->core);
     bdd_rt_free(bdd_rt);
 
     return res;
@@ -732,11 +737,13 @@ bdd* relocate_bdd(bdd* tbr) {
 #define G_INDEX(BRTP,L,R)         ((L)*((int)(BRTP)->G_l) + (R))
 
 static int init_G(bdd_runtime* bdd_rt,int l_root, int r_root, char** _errmsg) {
+    size_t sz;
+
     if ( ! BDD_G_CACHE_POSSIBLE(l_root,r_root) )
         return pg_error(_errmsg,"bdd_operation:init_G:apply too complex: (%d x %d x %d) > %d",l_root+1,r_root+1,sizeof(short),BDD_G_CACHE_MAX);
     bdd_rt->G_l = (unsigned short)l_root+1;
     bdd_rt->G_r = (unsigned short)r_root+1;
-    size_t sz = bdd_rt->G_l * bdd_rt->G_r * sizeof(short); 
+    sz = bdd_rt->G_l * bdd_rt->G_r * sizeof(short); 
     if ( !(bdd_rt->G_cache = (unsigned short*)MALLOC(sz)) )
         return BDD_FAIL;
     memset(bdd_rt->G_cache,0,sz);
