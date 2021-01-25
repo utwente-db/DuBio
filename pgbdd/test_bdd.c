@@ -130,6 +130,7 @@ static char* random_expression(randexpr* conf, pbuff* pbuff) {
 
 static bdd_dictionary* get_test_dictionary(char* dict_vars, char** _errmsg) {
     bdd_dictionary dict_struct, *new_dict;
+    bdd_dictionary* res;
 
     if ( ! (new_dict = bdd_dictionary_create(&dict_struct)) ) {
         pg_error(_errmsg,"get_test_dictionary: error creating dictionary");
@@ -137,7 +138,7 @@ static bdd_dictionary* get_test_dictionary(char* dict_vars, char** _errmsg) {
     }
     if ( ! modify_dictionary(new_dict,DICT_ADD,dict_vars,_errmsg))
         return NULL;
-    bdd_dictionary* res = dictionary_prepare2store(new_dict);
+    res = dictionary_prepare2store(new_dict);
     return res;
 }
 
@@ -179,6 +180,7 @@ static int _regenerate_test(char* par_expr, char** _errmsg) {
     if (VERBOSE) fprintf(stdout,"TESTING: bdd2 = [%s]\n",bdd2_str);
     //
     if ( strcmp(bdd1_str,bdd2_str) != 0 ) {
+        int res_eq;
         if (0) {
            fprintf(stdout,"expr = [%s]\n",par_expr);
            fprintf(stdout,"bdd1 = [%s]\n",bdd1_str);
@@ -187,7 +189,7 @@ static int _regenerate_test(char* par_expr, char** _errmsg) {
         }
         if (VERBOSE) fprintf(stdout,"TESTING: NOT STRING EQUAL\n");
         if (VERBOSE) fprintf(stdout,"TESTING: START EQUIV TEST\n");
-        int res_eq = bdd_test_equivalence(bdd1_str,bdd2_str,_errmsg);
+        res_eq = bdd_test_equivalence(bdd1_str,bdd2_str,_errmsg);
         if (VERBOSE) fprintf(stdout,"TESTING: END EQUIV TEST\n");
         if ( res_eq < 0 )
             pg_fatal("regenerate_test:equivalence error: %s",_errmsg);
@@ -378,6 +380,7 @@ static void run_apply_test(op_mode m) {
 
     int repeat = 100000;
     int count = 0;
+    int msec;
     CLOCK_START();
     for(int r=0; r<repeat; r++) {
         for(int i=0; i<N_LHS; i++) {
@@ -395,7 +398,7 @@ static void run_apply_test(op_mode m) {
         }
     }
     CLOCK_STOP();
-    int msec = CLOCK_MS();
+    msec = CLOCK_MS();
     fprintf(stdout,"+ result of \"%s\" test:\n",(m==BY_TEXT?"TEXT":"APPLY"));
     fprintf(stdout,"+ Time %ds/%dms, #op=%d, #op/s=%d\n",msec/1000,msec%1000,count,(int)((double)count/((double)msec/1000)));
 } 
@@ -418,7 +421,7 @@ static int compare_apply_text() {
 
 static int test_apply() {
     char* _errmsg = NULL;
-    bdd *lhs, *rhs;
+    bdd *lhs, *rhs,*res;
     // char* dotfile = NULL;
     char* dotfile = "./DOT/test.dot";
   
@@ -432,7 +435,7 @@ static int test_apply() {
     rhs = create_bdd(BDD_DEFAULT,ra,&_errmsg,0/*verbose*/);
     if ( !(lhs && rhs) )
         pg_fatal("test_apply: error: %s",_errmsg);
-    bdd* res = bdd_apply(op,lhs,rhs,1/*verbose*/,&_errmsg);
+    res = bdd_apply(op,lhs,rhs,1/*verbose*/,&_errmsg);
     if ( !res ) {
         fprintf(stderr,"test_apply:error: %s\n",_errmsg);
     } else {
@@ -552,10 +555,10 @@ static void test_bdd_creation(){
 static double bdd_prob_test(char* expr, char* dict_vars, char* dotfile, int verbose, int show_prob_in_dot, char** _errmsg) {
     bdd_dictionary *dict = get_test_dictionary(dict_vars,_errmsg);
     bdd            *pbdd = get_test_bdd(expr,0/*verbose*/,_errmsg);
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
 
     if ( !dict || !pbdd )
         return -1.0;
-    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
     if ( verbose )
         bdd_info(pbdd,pbuff); pbuff_flush(pbuff,stdout);
 

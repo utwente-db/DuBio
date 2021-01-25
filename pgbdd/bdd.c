@@ -1049,11 +1049,12 @@ void bdd2string(pbuff* pb, bdd* bdd, int encapsulate) {
 
 static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, nodei i,char** extra,int verbose,char** _errmsg) {
     rva *rva = BDD_RVA(bdd,i);
+    rva_node *node;
     double p_root, res;
     // INCOMPLETE: highly unefficient, store already computed results
     if (verbose )
         fprintf(stdout,"+ bdd_probability(node=%d,\'%s=%d\')\n",i,rva->var,rva->val);
-    rva_node *node = BDD_NODE(bdd,i);
+    node = BDD_NODE(bdd,i);
     if ( IS_LEAF(node) ) {
         // is a '0' or '1' leaf
         res = p_root = LEAF_BOOLVALUE(node) ? 1.0 : 0.0;
@@ -1141,8 +1142,8 @@ int bdd_property_check(bdd* bdd, int prop, char* s, char** _errmsg) {
                 eov = valp;
                 while ( *valp && *valp != '=') valp++;
                 if ( *valp == '=') {
-                    *eov = 0;
                     int val = bdd_atoi(++valp);
+                    *eov = 0;
                     if ( val != NODEI_NONE) {
                         return _contains_rva(bdd,varp,val);
                     }
