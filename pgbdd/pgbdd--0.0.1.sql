@@ -211,6 +211,34 @@ CREATE AGGREGATE sum (dictionary)
     stype = dictionary
 );
 
+create or replace function and_accum(internal bdd, next bdd) returns bdd
+ AS $$
+select case when internal is NULL then next
+ else bdd(concat('(',tostring($1),')','&','(',tostring($2),')'))
+ end;
+$$
+ language SQL;
+
+create and replace aggregate agg_and (bdd)
+(
+ SFUNC = and_accum,
+ STYPE = bdd
+);
+
+create or replace function or_accum(internal bdd, next bdd) returns bdd
+ AS $$
+select case when internal is NULL then next
+ else bdd(concat('(',tostring($1),')','|','(',tostring($2),')'))
+ end;
+$$
+ language SQL;
+
+create or replace aggregate agg_or (bdd)
+(
+ SFUNC = or_accum,
+ STYPE = bdd
+);
+
 /*
  *
  * Mixed DICTIONARY/BDD functions/operations
