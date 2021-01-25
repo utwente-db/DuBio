@@ -126,7 +126,7 @@ double bdd_atof(char* a) {
         return d;
 }
 
-static uint16_t const str100p[100] = {
+static u_int16_t const str100p[100] = {
   0x3030,0x3130,0x3230,0x3330,0x3430,0x3530,0x3630,0x3730,0x3830,0x3930,
   0x3031,0x3131,0x3231,0x3331,0x3431,0x3531,0x3631,0x3731,0x3831,0x3931,
   0x3032,0x3132,0x3232,0x3332,0x3432,0x3532,0x3632,0x3732,0x3832,0x3932,
@@ -138,19 +138,19 @@ static uint16_t const str100p[100] = {
   0x3038,0x3138,0x3238,0x3338,0x3438,0x3538,0x3638,0x3738,0x3838,0x3938,
   0x3039,0x3139,0x3239,0x3339,0x3439,0x3539,0x3639,0x3739,0x3839,0x3939,};
 
-void fast_itoa(char *dst, uint32_t val)
+void fast_itoa(char *dst, u_int32_t val)
 {
     char buf[16], *p = &buf[10];
     *p = '\0';
     while(val >= 100)
     {
-        uint32_t const old = val;
+        u_int32_t const old = val;
         p -= 2;
         val /= 100;
-        memcpy(p, &str100p[old - (val * 100)], sizeof(uint16_t));
+        memcpy(p, &str100p[old - (val * 100)], sizeof(u_int16_t));
     }
     p -= 2;
-    memcpy(p, &str100p[val], sizeof(uint16_t));
+    memcpy(p, &str100p[val], sizeof(u_int16_t));
     char* res =  &p[val < 10];
     size_t res_len =  10 - (size_t)(res - buf);
     memcpy(dst,res,res_len+1);

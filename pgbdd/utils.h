@@ -80,7 +80,7 @@ int pg_error(char**, const char*,...);
 
 int    bdd_atoi(char*);
 double bdd_atof(char*);
-void   fast_itoa(char *buf, uint32_t val);
+void   fast_itoa(char *buf, u_int32_t val);
 
 char* bdd_replace_str(char*,char*,char*,char);
 
