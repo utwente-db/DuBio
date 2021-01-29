@@ -844,6 +844,28 @@ static void _wb(char* l, char op, char *r, int rg, int vb, int dot)  {
     pbuff_free(pbuff);
 }
 
+static void test_nested_apply()  {
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    char* _errmsg;
+    bdd *bdd_1=0,*bdd_2=0,*bdd_3=0,*bdd_4=0;
+    bdd          *res_2=0,*res_3=0,*res_4=0;
+    bdd          *rxs_2 = 0;
+    CHECK0("_wb",bdd_1=create_bdd(BDD_DEFAULT,"s1=1",&_errmsg,0),_errmsg);
+    CHECK0("_wb",bdd_2=create_bdd(BDD_DEFAULT,"d2=1",&_errmsg,0),_errmsg);
+    CHECK0("_wb",bdd_3=create_bdd(BDD_DEFAULT,"t1=1",&_errmsg,0),_errmsg);
+    CHECK0("_wb",bdd_4=create_bdd(BDD_DEFAULT,"x1=1",&_errmsg,0),_errmsg);
+    CHECK0("_wb",rxs_2=create_bdd(BDD_DEFAULT,"s1=1&d2=1",&_errmsg,0),_errmsg);
+    //
+    bprintf(pbuff,"bdd_1: "); bdd2string(pbuff,bdd_1,0); pbuff_flush(pbuff,stdout); fputc('\n',stdout);
+    op_mode m = BY_APPLY;
+    CHECK0("_wb_op",res_2=bdd_operator('&',m,bdd_1,bdd_2,&_errmsg),_errmsg);
+    bprintf(pbuff,"res_2: "); bdd2string(pbuff,res_2,0); pbuff_flush(pbuff,stdout); fputc('\n',stdout);
+    CHECK0("_wb_op",res_3=bdd_operator('&',m,rxs_2,bdd_3,&_errmsg),_errmsg);
+    bprintf(pbuff,"res_3: "); bdd2string(pbuff,res_3,0); pbuff_flush(pbuff,stdout); fputc('\n',stdout);
+    CHECK0("_wb_op",res_4=bdd_operator('&',m,res_3,bdd_4,&_errmsg),_errmsg);
+    bprintf(pbuff,"res_4: "); bdd2string(pbuff,res_4,0); pbuff_flush(pbuff,stdout); fputc('\n',stdout);
+}
+
 static void workbench() {
     _wb("x=1",'=',"(x=1)&!!(x=1)",0/*rg*/,1/*vb*/,1/*dot*/);
     // _wb("x=1|(y=2&x=4)|(z=3&x=4)",0,0,0/*rg*/,1/*vb*/,1/*dot*/);
@@ -866,6 +888,7 @@ void test_bdd() {
     if (1) test_regenerate(); // do these 3 tests always, catches many errors
     if (1) random_test(1000/*n*/, 888/*seed*/, 0/*verbose*/);
     if (1) test_trio();       
+    if (0) test_nested_apply();       
     //
     if (0) random_equiv_hunt(999);
     if (0) test_bdd_creation();
@@ -875,5 +898,5 @@ void test_bdd() {
     if (0) test_static_bdd();
     if (0) test_apply();
     if (0) run_check_apply();
-    if (1) workbench();
+    if (0) workbench();
 }

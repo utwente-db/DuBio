@@ -100,6 +100,28 @@ typedef struct rva_epos { // position of rva in expression
  *
  */
 
+#define HASH_G(HM,L,R)  ((L*R)%hm->hash_sz)
+
+#define HBI_MAX        USHRT_MAX
+typedef short          hbi; // hash bucket index
+
+typedef struct hb { // hash bucket def, size = 8
+    nodei l;
+    nodei r;
+    nodei val;
+    hbi   next; // next in bucket chain
+} hb;
+
+typedef struct hash_matrix {
+    nodei sz_l;
+    nodei sz_r;
+    hbi   n_hb;
+    hbi   max_hb;
+    nodei hash_sz;
+    hb*   v_hb;
+    hbi   hash_tab[0];
+} hash_matrix;
+
 typedef struct bdd_runtime {
 #ifdef BDD_VERBOSE
     char*     expr;             // base rva boolean expression
@@ -109,9 +131,7 @@ typedef struct bdd_runtime {
     int       call_depth;
     int       G_cache_hits;
 #endif
-    unsigned  short    G_l;
-    unsigned  short    G_r;
-    unsigned  short*   G_cache;
+    hash_matrix* G_hash;
     //
     char*     e_stack;         // the boolean expr stack witch only '()!&|01'
     int       e_stack_len;     // length of the e_stack

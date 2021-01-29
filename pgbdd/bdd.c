@@ -71,7 +71,7 @@ static bdd_runtime* bdd_rt_init(bdd_runtime* bdd_rt, char* expr, int verbose, ch
     bdd_rt->check_calls = 0;
 #endif
     bdd_rt->n           = -1;
-    bdd_rt->G_cache     = NULL;
+    bdd_rt->G_hash      = NULL;
     bdd_rt->rva_epos    = NULL;
     bdd_rt->e_stack     = NULL;
     // 
@@ -90,8 +90,8 @@ static bdd_runtime* bdd_rt_init(bdd_runtime* bdd_rt, char* expr, int verbose, ch
 }
 
 void bdd_rt_free(bdd_runtime* bdd_rt) {
-    if ( bdd_rt->G_cache )
-        FREE(bdd_rt->G_cache);
+    if ( bdd_rt->G_hash )
+        FREE(bdd_rt->G_hash);
     if ( bdd_rt->e_stack )
         FREE(bdd_rt->e_stack);
     if ( bdd_rt->rva_epos )
@@ -732,36 +732,116 @@ bdd* relocate_bdd(bdd* tbr) {
  * BDD apply() and &,|,! operator section
  */
 
-#define BDD_G_CACHE_POSSIBLE(L,R) (((L+1)*(R+1)*sizeof(short)) < BDD_G_CACHE_MAX)
+#define WORD_MODULO    sizeof(int)
 
-#define G_INDEX(BRTP,L,R)         ((L)*((int)(BRTP)->G_l) + (R))
+#define HASH_MATRIX_SZ(SZ_H,SZ_B)  (sizeof(hash_matrix)+SZ_H*sizeof(hbi)+SZ_B*sizeof(hb))
 
-static int init_G(bdd_runtime* bdd_rt,int l_root, int r_root, char** _errmsg) {
-    size_t sz;
+static hash_matrix* create_G(nodei sz_l, nodei sz_r, char** _errmsg)  {
+    nodei hash_sz = (sz_l+sz_r+WORD_MODULO - 1)/WORD_MODULO*WORD_MODULO;
+    hash_matrix* res;
 
-    if ( ! BDD_G_CACHE_POSSIBLE(l_root,r_root) )
-        return pg_error(_errmsg,"bdd_operation:init_G:apply too complex: (%d x %d x %d) > %d",l_root+1,r_root+1,(int)sizeof(short),BDD_G_CACHE_MAX);
-    bdd_rt->G_l = (unsigned short)l_root+1;
-    bdd_rt->G_r = (unsigned short)r_root+1;
-    sz = bdd_rt->G_l * bdd_rt->G_r * sizeof(short); 
-    if ( !(bdd_rt->G_cache = (unsigned short*)MALLOC(sz)) )
-        return BDD_FAIL;
-    memset(bdd_rt->G_cache,0,sz);
-    return 1;
-}
-
-static void store_G(bdd_runtime* bdd_rt,int l, int r, int v) {
-    bdd_rt->G_cache[G_INDEX(bdd_rt,l,r)] = (unsigned short)(v+1);
-}
-
-static int lookup_G(bdd_runtime* bdd_rt, int l, int r) {
-    int res = (int)bdd_rt->G_cache[G_INDEX(bdd_rt,l,r)] - 1;
-#ifdef BDD_VERBOSE
-    if ( res >= 0 )
-        bdd_rt->G_cache_hits++;
-#endif
+    if ( !(res = MALLOC(HASH_MATRIX_SZ(hash_sz,hash_sz))) ) {
+        pg_error(_errmsg,"create_G: alloc fails");
+        return NULL;
+    }
+    res->sz_l    = sz_l;
+    res->sz_r    = sz_r;
+    res->hash_sz = hash_sz;
+    res->max_hb  = hash_sz;
+    res->n_hb    = 0;
+    res->v_hb    = (hb*)&res->hash_tab[res->hash_sz]; // area after hash area
+    for(int i=0; i<res->hash_sz; i++)
+        res->hash_tab[i] = -1;
     return res;
 }
+
+/* 
+ * static void print_G(hash_matrix *hm)  {
+ *     fprintf(stdout,"+ sz_l     = %d\n",(int)hm->sz_l);
+ *     fprintf(stdout,"+ sz_r     = %d\n",(int)hm->sz_r);
+ *     fprintf(stdout,"+ hash_sz  = %d\n",(int)hm->hash_sz);
+ *     fprintf(stdout,"+ n_hb     = %d\n",(int)hm->n_hb);
+ *     fprintf(stdout,"+ max_hb   = %d\n",(int)hm->max_hb);
+ *     fprintf(stdout,"+ hash_tab = [");
+ *         for(int i=0; i<hm->hash_sz; i++) {
+ *             hbi bptr = hm->hash_tab[i];
+ *             int cnt = 0;
+ *  
+ *             while ( bptr >= 0 ) {
+ *                 hb* b = &hm->v_hb[bptr];
+ *                 bptr = b->next;
+ *                 cnt++;
+ *             }
+ *             fprintf(stdout,"%d[#%d] ",(int)hm->hash_tab[i],cnt);
+ *         }
+ *     fprintf(stdout,"]\n");
+ * }
+ */
+
+static hash_matrix* extend_G(hash_matrix *hm, char** _errmsg)  {
+    hash_matrix* res;
+    if ( !(res = (hash_matrix*)REALLOC(hm, HASH_MATRIX_SZ(hm->hash_sz,2 * hm->max_hb))) ) {
+        pg_error(_errmsg,"extend_G: alloc fails");
+        return NULL;
+    }
+    res->max_hb  = 2 * res->max_hb;
+    res->v_hb    = (hb*)&res->hash_tab[res->hash_sz]; // area after hash area
+    return res;
+}
+
+static nodei lookup_G(hash_matrix *hm, nodei l, nodei r)  {
+    hbi bptr = hm->hash_tab[HASH_G(hm,l,r)];
+
+#ifdef BDD_VERBOSE
+    if ( l<0 || r<0 || l>=hm->sz_l || r>=hm->sz_r) 
+        pg_fatal("*_G: l(%d),r(%d) index out of range",(int)l,(int)r);
+#endif
+    while ( bptr >= 0 ) {
+        hb* b = &hm->v_hb[bptr];
+        if ( (b->l==l) && (b->r==r) )
+            return b->val;
+        bptr = b->next;
+    }
+    return NODEI_NONE;
+}
+
+static hash_matrix* store_G(hash_matrix *hm, nodei l, nodei r, nodei val, char** _errmsg)  {
+    hbi bptr = HASH_G(hm,l,r);
+    hb* b;
+#ifdef BDD_VERBOSE
+    if ( l<0 || r<0 || l>=hm->sz_l || r>=hm->sz_r) 
+        pg_fatal("*_G: l(%d),r(%d) index out of range",(int)l,(int)r);
+#endif
+    if (hm->n_hb >= hm->max_hb) {
+        if ( !(hm = extend_G(hm,_errmsg)) )
+            return NULL;
+    }
+    b = &hm->v_hb[hm->n_hb];
+    b->l = l;
+    b->r = r;
+    b->val = val;
+    b->next = hm->hash_tab[bptr];
+    hm->hash_tab[bptr] = hm->n_hb++;
+    return hm;
+}
+
+/*
+ * static void test_hashtable()  {
+ *     int i, j;
+ *     hash_matrix* hm;
+ * 
+ *     hm = create_G(10,20);
+ *     for(i=0; i<10; i++) for(j=0; j<20; j++) {
+ *         hm = H_store_G(hm,i,j,i*j);
+ *     }
+ *     // print_G(hm);
+ *     for(i=0; i<10; i++) for(j=0; j<20; j++) {
+ *         if ( H_lookup_G(hm,i,j) != (i*j) )
+ *             pg_fatal("UNEXPECTED");
+ *     }
+ *     FREE(hm);
+ * }
+ */
 
 static nodei _bdd_apply(bdd_runtime* bdd_rt, char op, bdd* b1, nodei u1, bdd* b2, nodei u2, char** _errmsg)
 {
@@ -773,7 +853,7 @@ static nodei _bdd_apply(bdd_runtime* bdd_rt, char op, bdd* b1, nodei u1, bdd* b2
         bdd_rt->call_depth++;
         // for(int i=0;i<bdd_rt->call_depth; i++)
         //     bprintf(pbuff,">>");
-        bprintf(pbuff," _bdd_apply(");
+        bprintf(pbuff," _bdd_apply(%c,",op);
         bdd_print_row(b1,u1,pbuff);
         bprintf(pbuff," , ");
         bdd_print_row(b2,u2,pbuff);
@@ -781,7 +861,7 @@ static nodei _bdd_apply(bdd_runtime* bdd_rt, char op, bdd* b1, nodei u1, bdd* b2
         pbuff_flush(pbuff,stdout);
     }
 #endif
-    if ( (u = lookup_G(bdd_rt,u1,u2)) < 0 ) {
+    if ( (u = lookup_G(bdd_rt->G_hash,u1,u2)) < 0 ) {
         rva_node *n_u1 = BDD_NODE(b1,u1);
         rva_node *n_u2 = BDD_NODE(b2,u2);
         if ( IS_LEAF(n_u1) && IS_LEAF(n_u2) ) {
@@ -807,8 +887,19 @@ static nodei _bdd_apply(bdd_runtime* bdd_rt, char op, bdd* b1, nodei u1, bdd* b2
                         _errmsg);
             }
         }
-        store_G(bdd_rt,u1,u2,u);
+#ifdef BDD_VERBOSE
+        if ( bdd_rt->verbose ) {
+            fprintf(stdout,"+ store_G(%d,%d) = %d\n",(int)u1,(int)u2,(int) u);
+        }
+#endif
+        if ( !(bdd_rt->G_hash = store_G(bdd_rt->G_hash,u1,u2,u,_errmsg)) )
+            return NODEI_NONE;
     }
+#ifdef BDD_VERBOSE
+        else if ( bdd_rt->verbose ) {
+            fprintf(stdout,"+ lookup_G(%d,%d) = %d\n",(int)u1,(int)u2,(int) u);
+        }
+#endif
 #ifdef BDD_VERBOSE
     bdd_rt->call_depth--;
 #endif
@@ -820,9 +911,25 @@ bdd* bdd_apply(char op,bdd* b1,bdd* b2,int verbose, char** _errmsg) {
     nodei ares;
     bdd*  res;
 
+
     if ( !(bdd_rt = bdd_rt_init(&bdd_rt_struct,NULL,verbose/*verbose*/,_errmsg)) )
         return NULL;
-    if (!init_G(bdd_rt,BDD_ROOT(b1),BDD_ROOT(b2),_errmsg))
+#ifdef BDD_VERBOSE
+    if ( bdd_rt->verbose ) {
+        pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+        bdd_rt->call_depth++;
+        // for(int i=0;i<bdd_rt->call_depth; i++)
+        //     bprintf(pbuff,">>");
+        bprintf(pbuff,"+ TOP LEVEL: bdd_apply(%c,",op);
+        bdd2string(pbuff,b1,0);
+        bprintf(pbuff," , ");
+        bdd2string(pbuff,b2,0);
+        bprintf(pbuff,")\n");
+        pbuff_flush(pbuff,stdout);
+        pbuff_free(pbuff);
+    }
+#endif
+    if ( !(bdd_rt->G_hash = create_G(BDD_ROOT(b1)+1,BDD_ROOT(b2)+1,_errmsg)) )
         return NULL;
     //
     if ( (bdd_create_node(&bdd_rt->core,&RVA_0,NODEI_NONE,NODEI_NONE)==NODEI_NONE) ||
@@ -905,12 +1012,10 @@ bdd* bdd_operator(char operator, op_mode m, bdd* lhs, bdd* rhs, char** _errmsg) 
              pg_error(_errmsg,"_bdd_operator: rhs bdd NULL");
              return NULL;
         }
-        if ( m == BY_APPLY ) {
-            if ( BDD_G_CACHE_POSSIBLE(BDD_ROOT(lhs),BDD_ROOT(rhs)) )
-                return bdd_apply(operator,lhs,rhs,0,_errmsg);
-        } // else  
-            // cache for apply would be too big, text variant is less complex ???
-        return _bdd_binary_op_by_text(operator,lhs,rhs,_errmsg);
+        if ( m == BY_APPLY )
+            return bdd_apply(operator,lhs,rhs,0,_errmsg);
+        else
+            return _bdd_binary_op_by_text(operator,lhs,rhs,_errmsg);
     } else {
              pg_error(_errmsg,"_bdd_operator: bad operator (%c)",operator);
              return NULL;

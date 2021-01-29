@@ -107,24 +107,24 @@ comment on function hasvar(bdd,text) is
 
 CREATE OR REPLACE FUNCTION _not(lbdd bdd) RETURNS bdd
     AS $$ SELECT _op_bdd('!',$1,NULL); $$
-    LANGUAGE SQL STRICT;
+    LANGUAGE SQL IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION _or(lbdd bdd,rbdd bdd) RETURNS bdd
     AS $$ SELECT _op_bdd('|',$1,$2); $$
-    LANGUAGE SQL STRICT;
+    LANGUAGE SQL IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION _and(lbdd bdd,rbdd bdd) RETURNS bdd
     AS $$ SELECT _op_bdd('&',$1,$2); $$
-    LANGUAGE SQL STRICT;
+    LANGUAGE SQL IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION _implies(lbdd bdd,rbdd bdd) RETURNS bdd
     AS $$ SELECT (_or(_not(lbdd),rbdd)); $$
-    LANGUAGE SQL STRICT;
+    LANGUAGE SQL IMMUTABLE STRICT;
 
 create operator !  (procedure  = _not                    , rightarg = bdd); 
-create operator &  (procedure  = _and     , leftarg = bdd, rightarg = bdd); 
+create operator &  (procedure  = _and     , leftarg = bdd, rightarg = bdd, commutator = &); 
 create operator |  (procedure  = _or      , leftarg = bdd, rightarg = bdd); 
-create operator -> (procedure  = _implies , leftarg = bdd, rightarg = bdd); 
+-- create operator -> (procedure  = _implies , leftarg = bdd, rightarg = bdd); 
 
 /*------------------------------
  * Definition of DICTIONARY type.
