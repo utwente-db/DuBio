@@ -124,7 +124,7 @@ CREATE OR REPLACE FUNCTION _implies(lbdd bdd,rbdd bdd) RETURNS bdd
 create operator !  (procedure  = _not                    , rightarg = bdd); 
 create operator &  (procedure  = _and     , leftarg = bdd, rightarg = bdd, commutator = &); 
 create operator |  (procedure  = _or      , leftarg = bdd, rightarg = bdd); 
--- create operator -> (procedure  = _implies , leftarg = bdd, rightarg = bdd); 
+create operator -> (procedure  = _implies , leftarg = bdd, rightarg = bdd); 
 
 /*------------------------------
  * Definition of DICTIONARY type.
@@ -214,7 +214,7 @@ CREATE AGGREGATE sum (dictionary)
 create or replace function and_accum(internal bdd, next bdd) returns bdd
  AS $$
 select case when internal is NULL then next
- else bdd(concat('(',tostring($1),')','&','(',tostring($2),')'))
+                                  else _and($1,$2)
  end;
 $$
  language SQL;
@@ -228,7 +228,7 @@ create or replace aggregate agg_and (bdd)
 create or replace function or_accum(internal bdd, next bdd) returns bdd
  AS $$
 select case when internal is NULL then next
- else bdd(concat('(',tostring($1),')','|','(',tostring($2),')'))
+                                  else _or($1,$2)
  end;
 $$
  language SQL;
