@@ -1248,10 +1248,14 @@ int bdd_property_check(bdd* bdd, int prop, char* s, char** _errmsg) {
                 while ( *valp && *valp != '=') valp++;
                 if ( *valp == '=') {
                     int val = bdd_atoi(++valp);
+                    char toggle = *eov;
+                    int res = -1;
                     *eov = 0;
                     if ( val != NODEI_NONE) {
-                        return _contains_rva(bdd,varp,val);
+                        res = _contains_rva(bdd,varp,val);
                     }
+                    *eov = toggle; // restore string
+                    return res;
                 }
             }
         }
