@@ -186,9 +186,31 @@ bdd_pg_prob(PG_FUNCTION_ARGS)
     // PG_RETURN_NUMERIC(prob); CRASHES SERVER
 }
 
+PG_FUNCTION_INFO_V1(pg_bdd_restrict);
+/**
+ * <code>bdd_restrict(bdd bdd, var cstring, val integer, torf boolean) returns bdd</code>
+ * Check a property of a bdd
+ *
+ */
+Datum
+pg_bdd_restrict(PG_FUNCTION_ARGS)
+{       
+    bdd  *par_bdd     = PG_GETARG_BDD(0);
+    char *var         = PG_GETARG_CSTRING(1);
+    int   val         = PG_GETARG_INT32(2);
+    int   torf        = PG_GETARG_BOOL(3);
+    bdd  *return_bdd  = NULL;
+    char *_errmsg     = NULL;
+
+    if ( !(return_bdd = bdd_restrict(par_bdd,var,val,torf,0,&_errmsg)) )
+        ereport(ERROR,(errmsg("bdd_restrict: %s=%d/%s: %s",var,val,(torf?"TRUE":"FALSE"),(_errmsg ? _errmsg : "NULL"))));
+    SET_VARSIZE(return_bdd,return_bdd->bytesize);
+    PG_RETURN_BDD(return_bdd);
+}
+
 PG_FUNCTION_INFO_V1(bdd_has_property);
 /**
- * <code>bdd_has_property(bdd bdd, mode integer, s cstring) returns bdd</code>
+ * <code>bdd_has_property(bdd bdd, mode integer, s cstring) returns boolean</code>
  * Check a property of a bdd
  *
  */

@@ -73,6 +73,11 @@ comment on function dot(bdd,cstring) is
 'create a Graphviz DOT string representation of dictionary. The second argument is optional filename to store dot file';
 
 create 
+function restrict(bdd bdd, var cstring, val integer, torf boolean) returns bdd
+     as '$libdir/pgbdd', 'pg_bdd_restrict'
+     language C immutable strict;
+
+create 
 function _bdd_has_property(bdd bdd, prop integer, str_prop cstring) returns BOOLEAN
      as '$libdir/pgbdd', 'bdd_has_property'
      language C immutable strict;

@@ -1264,3 +1264,59 @@ int bdd_property_check(bdd* bdd, int prop, char* s, char** _errmsg) {
     }
     return 0;
 }
+
+/* 
+ * BDD restrict function 
+ */
+
+static nodei _bdd_restrict(bdd_runtime* bdd_rt, bdd* p_bdd, nodei p_u, char* var, int val, int torf, char** _errmsg)
+{
+    nodei r_u = NODEI_NONE;
+
+    rva_node *n_u = BDD_NODE(p_bdd,p_u);
+    if ( IS_LEAF(n_u) )
+        r_u = p_u;
+    else
+        if ( (COMPARE_VAR(var,n_u->rva.var) == 0) && ((val < 0) || (val == n_u->rva.val)) )
+            r_u =_bdd_restrict(bdd_rt,p_bdd,(torf?n_u->high:n_u->low), var,val,torf,_errmsg);
+        else
+            r_u = bdd_mk(bdd_rt, &n_u->rva,
+                   _bdd_restrict(bdd_rt,p_bdd,n_u->low, var,val,torf,_errmsg),
+                   _bdd_restrict(bdd_rt,p_bdd,n_u->high,var,val,torf,_errmsg),
+                   _errmsg);
+    return r_u;
+}
+
+bdd* bdd_restrict(bdd* p_bdd, char* var, int val, int torf, int verbose, char** _errmsg) {
+    bdd_runtime bdd_rt_struct, *bdd_rt;
+    nodei rres;
+    bdd*  res;
+
+    if ( !(bdd_rt = bdd_rt_init(&bdd_rt_struct,NULL,verbose/*verbose*/,_errmsg)) )
+        return NULL;
+    if ( (bdd_create_node(&bdd_rt->core,&RVA_0,NODEI_NONE,NODEI_NONE)==NODEI_NONE) ||
+         (bdd_create_node(&bdd_rt->core,&RVA_1,NODEI_NONE,NODEI_NONE)==NODEI_NONE) ) {
+        pg_error(_errmsg,"bdd_restrict: tree init [0,1] fails");
+        return NULL;
+    }
+    //
+    rres = _bdd_restrict(bdd_rt,p_bdd,BDD_ROOT(p_bdd),var,val,torf,_errmsg);
+    if (rres == NODEI_NONE) {
+        bdd_rt_free(bdd_rt);
+        return NULL;
+    }
+    //
+    if ( V_rva_node_size(&bdd_rt->core.tree) == 2 ) {
+        // there have no nodes been created, expression is constant, no errors
+        V_rva_node_reset(&bdd_rt->core.tree);
+        if ( rres == 0 ) {
+            if (bdd_create_node(&bdd_rt->core,&RVA_0,NODEI_NONE,NODEI_NONE) == NODEI_NONE) return BDD_FAIL;
+        } else {
+            if (bdd_create_node(&bdd_rt->core,&RVA_1,NODEI_NONE,NODEI_NONE) == NODEI_NONE) return BDD_FAIL;
+        }
+    }
+    res = serialize_bdd(&bdd_rt->core);
+    bdd_rt_free(bdd_rt);
+    //
+    return res;
+}
