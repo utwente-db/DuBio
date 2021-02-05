@@ -452,7 +452,6 @@ static nodei bctx_eval_top(bdd_runtime* bctx, int depth, char** _errmsg) {
 static nodei bdd_mk(bdd_runtime* bdd_rt, rva *v, nodei l, nodei h, char** _errmsg) {
     nodei node, res;
 #ifdef BDD_VERBOSE
-
     if ( bdd_rt->verbose ) {
         // for(int i=0;i<bdd_rt->call_depth; i++)
         //     fprintf(stdout,">>");
@@ -911,7 +910,6 @@ bdd* bdd_apply(char op,bdd* b1,bdd* b2,int verbose, char** _errmsg) {
     nodei ares;
     bdd*  res;
 
-
     if ( !(bdd_rt = bdd_rt_init(&bdd_rt_struct,NULL,verbose/*verbose*/,_errmsg)) )
         return NULL;
 #ifdef BDD_VERBOSE
@@ -1208,6 +1206,10 @@ double bdd_probability(bdd_dictionary* dict, bdd* bdd,char** extra, int verbose,
     return bdd_probability_node(dict,bdd,BDD_ROOT(bdd),extra,verbose,_errmsg);
 }
 
+/* 
+ * BDD contains function to check if a bdd contains an rva
+ */
+
 static int _contains_rva(bdd* bdd, char* var, int val) {
     for (int i=0; i<V_rva_node_size(&bdd->tree); i++) {
         rva_node* node = BDD_NODE(bdd,i);
@@ -1221,10 +1223,15 @@ static int _contains_rva(bdd* bdd, char* var, int val) {
     return 0;
 }
 
+int bdd_contains(bdd* bdd, char* var, int val, char** _errmsg) {
+    return _contains_rva(bdd,var,val);
+}
+
 /* 
  * BDD property check function 
  */
 
+// INCOMPLETE, no parsing in this fun, var and val must be seperate args
 int bdd_property_check(bdd* bdd, int prop, char* s, char** _errmsg) {
     if ( !(IS_VALID_PROPERTY(prop)) ) {
         pg_error(_errmsg,"bdd_property_check: bad property (%d)",prop);

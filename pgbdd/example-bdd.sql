@@ -37,7 +37,11 @@ select isfalse(bdd('0'));
 select hasvar(bdd('x=1&y=2'),'y');
 select hasrva(bdd('x=1&y=2'),'x=1');
 
--- bdd restrict examples
+-- bdd contains / restrict examples
+select contains(bdd('(x=1|x=2|x=3)'),      'x',2);
+select contains(bdd('(x=1|x=2|x=3)'),      'x',9);
+select contains(bdd('(x=1|x=2|x=3)'),      'x',-1);
+
 select restrict(bdd('(x=1|x=2|x=3)'),      'x', 2,FALSE);
 select restrict(bdd('(x=1|x=2|x=3)'),      'x',-1,FALSE);
 select restrict(bdd('(x=1|x=2|x=3)&(y=1)'),'x', 2,TRUE);

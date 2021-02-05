@@ -186,10 +186,31 @@ bdd_pg_prob(PG_FUNCTION_ARGS)
     // PG_RETURN_NUMERIC(prob); CRASHES SERVER
 }
 
+
+PG_FUNCTION_INFO_V1(pg_bdd_contains);
+/**
+ * <code>bdd_contains(bdd bdd, var cstring, val int) returns boolean</code>
+ * Check if a bdd contains rva (var=val), val = -1 means all vars
+ *
+ */
+Datum
+pg_bdd_contains(PG_FUNCTION_ARGS)
+{       
+    bdd  *par_bdd     = PG_GETARG_BDD(0);
+    char *var         = PG_GETARG_CSTRING(1);
+    int   val         = PG_GETARG_INT32(2);
+    int   res         = -1;
+    char *_errmsg     = NULL;
+
+    if ( (res = bdd_contains(par_bdd,var,val,&_errmsg)) < 0 )
+        ereport(ERROR,(errmsg("bdd_contains: %s=%d: %s",var,val,(_errmsg ? _errmsg : "NULL"))));
+    PG_RETURN_BOOL(res);
+}
+
 PG_FUNCTION_INFO_V1(pg_bdd_restrict);
 /**
  * <code>bdd_restrict(bdd bdd, var cstring, val integer, torf boolean) returns bdd</code>
- * Check a property of a bdd
+ * Restrict the value of an rva (var = val) to a boolean value (torf). val = -1 means var=*
  *
  */
 Datum

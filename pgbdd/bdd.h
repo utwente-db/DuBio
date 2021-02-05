@@ -232,6 +232,7 @@ double bdd_probability(bdd_dictionary*, bdd*,char**, int, char**);
 #define IS_VALID_PROPERTY(P)    (((P)>=0)&&((P)<4))
 
 int    bdd_property_check(bdd*,int,char*,char**);
+int    bdd_contains(bdd*,char*,int,char**);
 bdd*   bdd_restrict(bdd*,char*,int,int,int,char**);
 
 int    bdd_test_equivalence(char* l_expr, char* r_expr, char** _errmsg);
