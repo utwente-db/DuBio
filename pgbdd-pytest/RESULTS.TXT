@@ -1,0 +1,135 @@
+Hard-/software used in measurements
+-----------------------------------
+Computer  : 15" MacBoook Pro 11,4
+Processor : Quad-Core Intel Core i7 2.2 GHz
+Memory    : 16Gb DDR3
+Disk      : 256Gb Apple SSD
+OS        : MacOS Catalina 10.15.7
+Database  : Postgres 12.1
+
+** Linear BDD creation and operation tests
+------------------------------------------
+The measurements are initialized by creating a simple <rand_bdd varchar> table
+which we fill using a Python program generating random BDD expressions.
+The current measurements are on BDD's with approx 3 RVA's per expression.
+
+Example: CREATE TABLE bdd_str_10M(rand_bdd varchar);
+
+Now we run a couple of queries from this table where query 2 translates the
+ strings into a new table with raw BDD's
+
+
+[0-red-dash] SELECT rand_bdd INTO tmp FROM bdd_str_10M;
+* Select all strings into a new <rand_bdd string> table. this is done to
+compare with [1] which does only tghe conversion of a bdd to a string extra.
+
+[1-red-solid] SELECT bdd(rand_bdd) INTO bdd_raw_10M FROM bdd_str_10M;
+* Select the string tablle and create a new table where all strings are
+translated into a a raw/real bdd
+
+[2-green-solid] SELECT bdd, prob(dict,bdd)  FROM bdd_raw_10M, Dict WHERE Dict.name='base';
+* Compute the probability of all BDD's into a result cursor. So for every BDD
+the probability is computed and stored in the cursor with the BDD
+
+[3-green-dots] SELECT max(prob(dict,bdd))  FROM bdd_raw_10M, Dict WHERE Dict.name='base';
+* Same as 3 but now only compute the max() of the prob() and only store the
+resulting float in the cursor
+
+[4-blue-dashed] SELECT concat(rand_bdd,'(a=1|b=2)') FROM bdd_str_10M;
+* Select the concatenation of 2 strings into a result cursor. This is usefull
+to compare it with [5] where instead of a string concatenation we do a BDD &.
+
+[5-blue-solid] SELECT bdd & bdd('(a=1|b=2)') FROM bdd_raw_10M;
+* Select the result of BDD & operation between the BDD table bdd and a constant
+BDD into a result cursor
+
+[6-blue-dots] SELECT max(prob(dict,bdd&bdd('(a=1|b=2)')))  FROM bdd_raw_10M, Dict WHERE Dict.name='base';
+* Same as [5] but now only compute the max() of the prob of the &
+
+Query-> 0:         1:        2:        3:        4:        5:        6:     
+size\/  ---------  --------  --------  --------  --------  --------  --------
+  1K         7.07     11.17      5.39      2.34      2.06      9.78      8.84  
+  5K        14.02     24.19     12.19      6.37      6.62     31.88     28.42  
+ 10K        22.63     36.25     20.90     10.95     11.30     58.53     51.74  
+ 50K        82.00    259.38     86.71     37.33     41.04    270.94    238.99  
+100K       202.36    588.61    168.99     70.45     76.90    538.52    473.87  
+500K      1162.53   2758.34    827.01    336.00    364.34   2706.79   2369.57  
+  1M      2279.31   5097.94   1642.93    693.74    714.43   5514.74   4784.20  
+  5M     12896.26  29311.17  11675.97   3848.06   3648.58  27159.66  23874.56  
+ 10M     25226.79  54471.42  16996.36   6835.25   7323.33  54150.26  60146.01  
+[Times are in ms]
+
+PLOT HERE
+
+Most important observations:
+
++ The results seem to be linear over the size of the input relation:-)
++ NO large Overhead for bdd() creation compared to string() creation
++ BDD operations & | are equally expensive as BDD creation []
++ Creation performance BDD from string [1:red-solid] including table storage is 183K bdd/s
++ Computing an & between a table BDD and a constant BDD [5-blue-solid] and store result in cursor is 184K ops/s
++ Computing prob() from BDD [2-green-solid] and store in result cursor is 588K/s  
++ There a more observations here but I will keep it brief:-) So concluding:
+
+* Postgres BDD creation speed:          183.000 bdd/s
+* Postgres BDD & operation speed        184.000 &/s
+* Postgres BDD prob() computation speed 588.000 prob/s
+
+But this last result has a snake! See next chapter:
+
+
+** Growing Dictionary test
+--------------------------
+This experiment measures the timings of a prob() query on a fixed table with 
+a variable dictionary size. In the ideal case the performance should be nearly
+'flat'.
+The base BDD table contains 1000 elements and we look what happens when we vary
+the dictionary size between 1.000 bytes and 1.000.000 bytes.
+In the experiment we see a linear degrading performance. In case of the
+smallest 1K dictionary we see a response time of 4.3 ms. And in the 960K version
+the response time is 2846 seconds!!!! As we see in the plot the degradation is
+linear and large (660%)
+
+select max(prob(dict,bdd))  FROM bdd_raw_1K, Dict WHERE Dict.name='dict_1K';
+Time: 4.3040 ms.
+select max(prob(dict,bdd))  FROM bdd_raw_1K, Dict WHERE Dict.name='dict_10K';
+Time: 45.2371 ms.
+select max(prob(dict,bdd))  FROM bdd_raw_1K, Dict WHERE Dict.name='dict_40K';
+Time: 190.6336 ms.
+select max(prob(dict,bdd))  FROM bdd_raw_1K, Dict WHERE Dict.name='dict_80K';
+Time: 372.8139 ms.
+select max(prob(dict,bdd))  FROM bdd_raw_1K, Dict WHERE Dict.name='dict_160K';
+Time: 726.5436 ms.
+select max(prob(dict,bdd))  FROM bdd_raw_1K, Dict WHERE Dict.name='dict_320K';
+Time: 1437.9143 ms.
+select max(prob(dict,bdd))  FROM bdd_raw_1K, Dict WHERE Dict.name='dict_480K';
+Time: 2212.2525 ms.
+select max(prob(dict,bdd))  FROM bdd_raw_1K, Dict WHERE Dict.name='dict_640K';
+Time: 2846.2377 ms.
+select max(prob(dict,bdd))  FROM bdd_raw_1K, Dict WHERE Dict.name='dict_960K';
+Time: 4260.6955 ms.
+
+PLOT HERE!
+
+This degradation is cause by the 'TOASTING' of the dictionary in the database
+kernel. Large objects are stored in chunks in Postgres. And every time a 
+function is called the object is reconstructed from the chunks. This is a
+very costly operation!!!
+
+Solutions to the problem are:
+
++ Research if large objects can be stored without TOAST
+
++ Create a fuction with a collection BDD parameter returning a collection of
+prob() values! This is very hard I think!
+
++ Create a DictionaryRef type in Posgres which keeps a reference to a detoasted
+dictionary in the kernel of the transaction in memory which is automatically
+freed at the end of the transaction. This is the must promising solution think.
+The query for such a solution would be not much different.
+
+select max(prob(ref(dict),bdd)) FROM bdd_raw_1K, Dict WHERE Dict.name='dict_960K';
+
+And there is still another problem with our Dictionary solution. The maximum
+size of any Postgres object is 4Gb so the Dictionary will allways be limited 
+to 4G in our current solution.

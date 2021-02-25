@@ -1,7 +1,6 @@
-import sys
-import json
-import gzip
+import time
 from configparser import ConfigParser
+from bddgen import BddGenerator
 import psycopg2
 
 VERBOSE            = True
@@ -21,23 +20,6 @@ def init_db():
         print(error)
         exit() # pretty fatal
     
-def examplexxx(tablebase, cursor, offer):
-    try:
-        all_args = [offer['url'], offer['nodeID'], int(offer['cluster_id'])]
-        p_names  = ''
-        p_perc   = ''
-        #
-        prop = get_top_properties(offer)
-        for k in prop.keys():
-            p_names += ',p_'+k
-            p_perc  += ',%s'
-            all_args.append(prop[k])
-            # print(k,prop[k])
-        cursor.execute('INSERT INTO {}_offer(key,cluster_id{}) VALUES(insert_wdc_key(%s,%s),%s{});'.format(tablebase,p_names,p_perc),all_args)
-    except (Exception, psycopg2.DatabaseError) as error:
-        print(error)
-        exit() # pretty fatal
-
 def config(configname='database.ini', section='postgresql'):
     # create a parser
     parser = ConfigParser()
@@ -105,10 +87,192 @@ def execute_pg(sql_stat=None):
     except (Exception, psycopg2.DatabaseError) as error:
         print(error)
 
+def time_execute_pg(sql_stat=None):
+    """ Execute single command on the PostgreSQL database server """
+    try:
+        cur = conn_pg.cursor()
+        start = time.perf_counter()
+        cur.execute(sql_stat)
+        elapsed = time.perf_counter() - start
+        cur.close()
+        return elapsed * 1000 # ms
+    except (Exception, psycopg2.DatabaseError) as error:
+        print('# Postgres ERROR')
+        print('# SQL  : '+sql_stat)
+        print('# Error: '+str(error))
+        exit()
+#
+#
+#
+
+def delete_dictionary():
+  execute_pg("DROP TABLE IF EXISTS Dict;")
+
+def create_dictionary():
+  delete_dictionary();
+  execute_pg("CREATE TABLE Dict (name varchar(20), dict dictionary);");
+  brg = BddGenerator()
+  cursor   = conn_pg.cursor()
+  cursor.execute("INSERT INTO Dict (name,dict) VALUES(%s,%s);",['base',brg.base_dict()])
+  conn_pg.commit()
+
+INSERTS_PER_COMMIT = 1000 
+
+def generate_bdd_strings(n, table_name):
+  brg = BddGenerator()
+  execute_pg("DROP TABLE IF EXISTS {};".format(table_name))
+  execute_pg("CREATE TABLE {} (rand_bdd varchar);".format(table_name));
+  conn_pg.commit()
+  inserted = 0
+  cursor   = conn_pg.cursor()
+  for i in range(0,n):
+    cursor.execute("INSERT INTO {} (rand_bdd) VALUES(%s);".format(table_name), [brg.expression()])
+    inserted = inserted + 1
+    if inserted >= INSERTS_PER_COMMIT:
+      inserted = 0
+      conn_pg.commit()
+      cursor.close()
+      cursor   = conn_pg.cursor()
+  conn_pg.commit()
+  cursor.close()
+
+SLEEP = 2.0
+
+def clear_experiment(extension):
+  bdd_str_tab = 'bdd_str_'+extension
+  bdd_raw_tab = 'bdd_raw_'+extension
+  execute_pg("DROP TABLE IF EXISTS {};".format(bdd_str_tab))
+  execute_pg("DROP TABLE IF EXISTS {};".format(bdd_raw_tab))
+  execute_pg("DROP TABLE IF EXISTS {};".format('tmp'))
+
+def run_experiment(n,extension):
+  res = []
+  clear_experiment(extension)
+  #
+  bdd_str_tab     = 'bdd_str_'+extension
+  bdd_raw_tab     = 'bdd_raw_'+extension
+  #
+  generate_bdd_strings(n,bdd_str_tab)
+  #
+  time.sleep(SLEEP)
+  sql = 'SELECT rand_bdd INTO tmp FROM {};'.format(bdd_str_tab);
+  t = time_execute_pg(sql)
+  res.append(t)
+  execute_pg("DROP TABLE IF EXISTS {};".format('tmp'))
+  print("Executed: "+sql)
+  print("Time    : "+"{:.4f} ms.\n".format(t))
+  #
+  time.sleep(SLEEP)
+  sql = 'SELECT bdd(rand_bdd) INTO {} FROM {};'.format(bdd_raw_tab,bdd_str_tab);
+  t = time_execute_pg(sql)
+  res.append(t)
+  print("Executed: "+sql)
+  print("Time    : "+"{:.4f} ms.\n".format(t))
+  #
+  time.sleep(SLEEP)
+  sql = 'select bdd, prob(dict,bdd)  FROM {}, Dict WHERE Dict.name=\'base\';'.format(bdd_raw_tab);
+  t = time_execute_pg(sql)
+  res.append(t)
+  print("Executed: "+sql)
+  print("Time    : "+"{:.4f} ms.\n".format(t))
+  #
+  time.sleep(SLEEP)
+  sql = 'select max(prob(dict,bdd))  FROM {}, Dict WHERE Dict.name=\'base\';'.format(bdd_raw_tab);
+  t = time_execute_pg(sql)
+  res.append(t)
+  print("Executed: "+sql)
+  print("Time    : "+"{:.4f} ms.\n".format(t))
+  #
+  time.sleep(SLEEP)
+  sql = 'SELECT concat(rand_bdd,\'(a=1|b=2)\') FROM {};'.format(bdd_str_tab);
+  t = time_execute_pg(sql)
+  res.append(t)
+  print("Executed: "+sql)
+  print("Time    : "+"{:.4f} ms.\n".format(t))
+  #
+  time.sleep(SLEEP)
+  sql = 'SELECT bdd & bdd(\'(a=1|b=2)\') FROM {};'.format(bdd_raw_tab);
+  t = time_execute_pg(sql)
+  res.append(t)
+  print("Executed: "+sql)
+  print("Time    : "+"{:.4f} ms.\n".format(t))
+  #
+  time.sleep(SLEEP)
+  sql = 'select max(prob(dict,bdd&bdd(\'(a=1|b=2)\')))  FROM {}, Dict WHERE Dict.name=\'base\';'.format(bdd_raw_tab);
+  t = time_execute_pg(sql)
+  res.append(t)
+  print("Executed: "+sql)
+  print("Time    : "+"{:.4f} ms.\n".format(t))
+  #
+  clear_experiment(extension)
+  conn_pg.commit()
+  time.sleep(SLEEP)
+  #
+  return res
+
+def simple_bdd_experiment():
+  create_dictionary()
+  #
+  tab = []
+  tab.append(run_experiment(1000,     '1K'))
+  tab.append(run_experiment(5000,     '5K'))
+  tab.append(run_experiment(10000,   '10K'))
+  tab.append(run_experiment(50000,   '50K'))
+  tab.append(run_experiment(100000, '100K'))
+  tab.append(run_experiment(500000, '500K'))
+  tab.append(run_experiment(1000000,  '1M'))
+  tab.append(run_experiment(5000000,  '5M'))
+  tab.append(run_experiment(10000000,'10M'))
+  #
+  # delete_dictionary()
+  #
+  for row in tab:
+    for col in row:
+      print("{:8.2f}  ".format(col),end='')
+    print('')
+
+def growing_dictionary_experiment():
+  print("# Growing dictionary experiment.")
+  delete_dictionary();
+  execute_pg("CREATE TABLE Dict (name varchar(20), dict dictionary);");
+  brg = BddGenerator()
+  cursor   = conn_pg.cursor()
+  cursor.execute("INSERT INTO Dict (name,dict) VALUES(%s,%s);",['base',brg.base_dict()])
+  cursor.execute("INSERT INTO Dict (name,dict) VALUES(%s,%s);",['dict_1K',brg.extra_dict(4)])
+  cursor.execute("INSERT INTO Dict (name,dict) VALUES(%s,%s);",['dict_10K',brg.extra_dict(80)])
+  cursor.execute("INSERT INTO Dict (name,dict) VALUES(%s,%s);",['dict_40K',brg.extra_dict(400)])
+  cursor.execute("INSERT INTO Dict (name,dict) VALUES(%s,%s);",['dict_80K',brg.extra_dict(800)])
+  cursor.execute("INSERT INTO Dict (name,dict) VALUES(%s,%s);",['dict_160K',brg.extra_dict(1600)])
+  cursor.execute("INSERT INTO Dict (name,dict) VALUES(%s,%s);",['dict_320K',brg.extra_dict(3200)])
+  cursor.execute("INSERT INTO Dict (name,dict) VALUES(%s,%s);",['dict_480K',brg.extra_dict(4800)])
+  cursor.execute("INSERT INTO Dict (name,dict) VALUES(%s,%s);",['dict_640K',brg.extra_dict(6400)])
+  cursor.execute("INSERT INTO Dict (name,dict) VALUES(%s,%s);",['dict_960K',brg.extra_dict(9600)])
+  #
+  extension = '1K'
+  bdd_str_tab = 'bdd_str_'+extension
+  bdd_raw_tab = 'bdd_raw_'+extension
+  generate_bdd_strings(1000,bdd_str_tab)
+  sql = 'SELECT bdd(rand_bdd) INTO {} FROM {};'.format(bdd_raw_tab,bdd_str_tab);
+  time_execute_pg(sql)
+  res =  []
+  dicts = ['dict_1K','dict_10K','dict_40K','dict_80K', 'dict_160K', 'dict_320K', 'dict_480K','dict_640K','dict_960K']
+  for dsize in dicts:
+    time.sleep(SLEEP)
+    sql = 'select max(prob(dict,bdd))  FROM {}, Dict WHERE Dict.name=\'{}\';'.format(bdd_raw_tab,dsize);
+    t = time_execute_pg(sql)
+    res.append(t)
+    print("Executed: "+sql)
+    print("Time    : "+"{:.4f} ms.\n".format(t))
+  #
+  print(dicts)
+  print(res)
+  clear_experiment(extension)
+
 if __name__ == '__main__':
     connect_pg(configname='database.ini')
     init_db()
-    # analyze_json(jsonzip='./sample_offersenglish.json.gz')
-    # convert_json(jsonzip='./offers_english.json.gz',tablebase='WDC_ENG')
-    # convert_json(jsonzip='./sample_offersenglish.json.gz',tablebase='WDC_ENG')
+    #
+    simple_bdd_experiment()
+    # growing_dictionary_experiment()
+    #
     close_pg()

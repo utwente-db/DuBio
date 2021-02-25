@@ -1,2 +1,4 @@
 # project *.ini and compressed data files
 *.ini
+*.png
+__pycache__/
