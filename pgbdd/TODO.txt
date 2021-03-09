@@ -1,3 +1,6 @@
 * acces to dictionary tables via SPI (Server Programming interface)
 
 * programming dictionary via database
+
+* Make hashtable for apply more generic to be able to use it in the mk()
+  instead of the sorted approach.

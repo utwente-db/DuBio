@@ -30,7 +30,6 @@
 //
 //
 
-int   _debug_flag = 0;
 FILE* _debug_file = NULL;
 
 void dp_print(const char *fmt,...)

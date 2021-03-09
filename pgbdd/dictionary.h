@@ -86,4 +86,18 @@ double lookup_probability(bdd_dictionary*,rva*);
 
 int test_dictionary(void);
 
+/*
+ *
+ */
+
+# define BDR_MAGIC 8112261925143664796
+
+typedef struct bdd_dictionary_ref {
+    long            magic;
+    bdd_dictionary* ref;
+} bdd_dictionary_ref;
+
+bdd_dictionary*     get_dict_from_ref(bdd_dictionary_ref* bdr, char** _errmsg);
+bdd_dictionary_ref* create_ref_from_dict(bdd_dictionary* dict, char** _errmsg);
+
 #endif

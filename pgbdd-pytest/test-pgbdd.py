@@ -231,10 +231,18 @@ def simple_bdd_experiment():
       print("{:8.2f}  ".format(col),end='')
     print('')
 
+SINGULAR_FUN = """
+CREATE OR REPLACE FUNCTION singular_dict_ref(in dict_name varchar)
+RETURNS dictionary_ref AS $$
+   SELECT ref(Dict.dict) FROM Dict WHERE Dict.name = dict_name
+$$ LANGUAGE sql IMMUTABLE;
+"""
+
 def growing_dictionary_experiment():
   print("# Growing dictionary experiment.")
   delete_dictionary();
   execute_pg("CREATE TABLE Dict (name varchar(20), dict dictionary);");
+  execute_pg(SINGULAR_FUN)
   brg = BddGenerator()
   cursor   = conn_pg.cursor()
   cursor.execute("INSERT INTO Dict (name,dict) VALUES(%s,%s);",['base',brg.base_dict()])
@@ -254,25 +262,37 @@ def growing_dictionary_experiment():
   generate_bdd_strings(1000,bdd_str_tab)
   sql = 'SELECT bdd(rand_bdd) INTO {} FROM {};'.format(bdd_raw_tab,bdd_str_tab);
   time_execute_pg(sql)
-  res =  []
+  res_reg =  []
+  res_opt =  []
   dicts = ['dict_1K','dict_10K','dict_40K','dict_80K', 'dict_160K', 'dict_320K', 'dict_480K','dict_640K','dict_960K']
   for dsize in dicts:
     time.sleep(SLEEP)
-    sql = 'select max(prob(dict,bdd))  FROM {}, Dict WHERE Dict.name=\'{}\';'.format(bdd_raw_tab,dsize);
-    t = time_execute_pg(sql)
-    res.append(t)
-    print("Executed: "+sql)
-    print("Time    : "+"{:.4f} ms.\n".format(t))
+    #
+    sql_reg = 'select max(prob(dict,bdd))  FROM {}, Dict WHERE Dict.name=\'{}\';'.format(bdd_raw_tab,dsize);
+    t_reg = time_execute_pg(sql_reg)
+    res_reg.append(t_reg)
+    print("Executed: "+sql_reg)
+    print("Time_reg: "+"{:.4f} ms.\n".format(t_reg))
+    #
+    # sql_opt = 'select max(prob(ref(dict),bdd))  FROM {}, Dict WHERE Dict.name=\'{}\';'.format(bdd_raw_tab,dsize);
+    sql_opt = 'select max(prob(singular_dict_ref(\'{}\'),bdd))  FROM {};'.format(dsize,bdd_raw_tab);
+    t_opt = time_execute_pg(sql_opt)
+    res_opt.append(t_opt)
+    print("Executed: "+sql_opt)
+    print("Time_opt: "+"{:.4f} ms.\n".format(t_opt))
+    #
+    print("\n##\n")
   #
   print(dicts)
-  print(res)
+  print(res_reg)
+  print(res_opt)
   clear_experiment(extension)
 
 if __name__ == '__main__':
     connect_pg(configname='database.ini')
     init_db()
     #
-    simple_bdd_experiment()
-    # growing_dictionary_experiment()
+    # simple_bdd_experiment()
+    growing_dictionary_experiment()
     #
     close_pg()

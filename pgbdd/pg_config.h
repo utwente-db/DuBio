@@ -38,6 +38,12 @@
 
 #define PG_RETURN_DICTIONARY(x)      PG_RETURN_POINTER(x)
 
+
+
+#define DatumGetDictionaryRef(x)     ((bdd_dictionary_ref *) DatumGetPointer(x))
+#define PG_GETARG_DICTIONARY_REF(x)  DatumGetDictionaryRef(PG_GETARG_DATUM(x))
+#define PG_RETURN_DICTIONARY_REF(x)  PG_RETURN_POINTER(x)
+
 //
 
 #define DatumGetBdd(x)        relocate_bdd(((bdd *) DatumGetPointer(x)))

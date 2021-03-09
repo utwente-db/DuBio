@@ -72,8 +72,8 @@ bdd_pg_operator(PG_FUNCTION_ARGS)
 
     if ( *operator == '&' || *operator == '|' )
         rhs_bdd    = PG_GETARG_BDD(2);
-    // if ( !(return_bdd = bdd_operator(*operator,BY_APPLY,lhs_bdd,rhs_bdd,&_errmsg))) /* ERROR lhs nested */
-    if ( !(return_bdd = bdd_operator(*operator,BY_TEXT,lhs_bdd,rhs_bdd,&_errmsg)))
+    if ( !(return_bdd = bdd_operator(*operator,BY_APPLY,lhs_bdd,rhs_bdd,&_errmsg)))
+    // if ( !(return_bdd = bdd_operator(*operator,BY_TEXT,lhs_bdd,rhs_bdd,&_errmsg)))
         ereport(ERROR,(errmsg("bdd_operator: error: %s ",(_errmsg ? _errmsg : "NULL"))));
     SET_VARSIZE(return_bdd,return_bdd->bytesize);
     PG_RETURN_BDD(return_bdd);
@@ -186,6 +186,28 @@ bdd_pg_prob(PG_FUNCTION_ARGS)
     // PG_RETURN_NUMERIC(prob); CRASHES SERVER
 }
 
+PG_FUNCTION_INFO_V1(bdd_pg_prob_by_ref);
+/**
+ * <code>bdd_pg_prob(dict dictionary, bdd bdd) returns double</code>
+ * Computes probability of bdd expression with defined rva probs in dictionary
+ * This prob uses the cached dictionary_ref as dictionary to speed up 
+ *
+ */
+Datum
+bdd_pg_prob_by_ref(PG_FUNCTION_ARGS)
+{
+    bdd_dictionary_ref  *bdr = PG_GETARG_DICTIONARY_REF(0);
+    bdd_dictionary *dict     = NULL;
+    bdd             *par_bdd = PG_GETARG_BDD(1);
+
+    char* _errmsg;
+    if ( !(dict=get_dict_from_ref(bdr,&_errmsg) ))
+        ereport(ERROR,(errmsg("bdd_pg_prob_by_ref: %s",(_errmsg ? _errmsg : "NULL"))));
+    double prob = bdd_probability(dict,par_bdd,NULL,0,&_errmsg);
+    if ( prob < 0.0 )
+        ereport(ERROR,(errmsg("bdd_pg_prob: %s",(_errmsg ? _errmsg : "NULL"))));
+    PG_RETURN_FLOAT8(prob);
+}
 
 PG_FUNCTION_INFO_V1(pg_bdd_contains);
 /**

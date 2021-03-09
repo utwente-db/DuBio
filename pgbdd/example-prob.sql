@@ -32,4 +32,21 @@ drop table if exists T;
 create table T (name varchar(20), bdd bdd);
 insert into T VALUES('tuple1',bdd('(x=1|x=2)'));
 insert into T VALUES('tuple2',bdd('(x=1|y=1)'));
+insert into T VALUES('tuple2',bdd('(x=1&y=1)'));
 select T.name,tostring(T.bdd),prob(dict,T.bdd) from T,Dict WHERE Dict.name='mydict';
+--
+-- explain select T.name,tostring(T.bdd),prob(ref(dict),T.bdd) from T,Dict WHERE Dict.name='mydict';
+--
+-- select T.name,tostring(T.bdd),prob(refdict.d,T.bdd) FROM (select ref(dict) AS d from Dict WHERE Dict.name='mydict') AS refdict,T;
+--
+-- select prob(refdict.d,T.bdd) FROM T CROSS JOIN LATERAL (select ref(dict) AS d from Dict WHERE Dict.name='mydict') AS refdict;
+--
+-- WITH refdict AS (select ref(dict) AS d from Dict WHERE Dict.name='mydict') 
+--     SELECT T.name,tostring(T.bdd),prob(refdict.d,T.bdd) from T,refdict;
+--
+CREATE OR REPLACE FUNCTION singular_dict_ref(in dict_name varchar)
+RETURNS dictionary_ref AS $$
+   SELECT ref(Dict.dict) FROM Dict WHERE Dict.name = dict_name
+$$ LANGUAGE sql IMMUTABLE;
+
+SELECT T.name,tostring(T.bdd),prob(singular_dict_ref('mydict'),T.bdd) FROM T;

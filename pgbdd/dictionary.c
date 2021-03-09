@@ -130,6 +130,7 @@ bdd_dictionary* bdd_dictionary_create(bdd_dictionary* dict) {
         return dict;
 }
 
+
 bdd_dictionary* bdd_dictionary_relocate(bdd_dictionary* dict) {
     dict->variables  = (V_dict_var*)(&dict->buff[dict->var_offset]);
     V_dict_var_relocate(dict->variables);
@@ -503,4 +504,32 @@ int modify_dictionary(bdd_dictionary* dict, int mode, char* dictionary_def, char
     if ( varp )
         normalize_var(dict,varp);
     return 1;
+}
+
+/*
+ *
+ */
+
+bdd_dictionary_ref* create_ref_from_dict(bdd_dictionary* dict, char** _errmsg) {
+    bdd_dictionary_ref* ref = NULL;
+
+    // START_DP("/tmp/PG-DEBUG.TXT");
+    if (!(ref=(bdd_dictionary_ref*)MALLOC(sizeof(struct bdd_dictionary_ref)))) {
+        pg_error(_errmsg,"bdd_dictionary_ref: palloc failed");
+        return NULL;
+    }
+    ref->magic = BDR_MAGIC;
+    ref->ref   = dict; // warning, this dict should be in transaction valid storage
+    DP("+ CREATE_REF called, id=%ld\n",(long)ref->ref);
+    return ref;
+}
+
+bdd_dictionary* get_dict_from_ref(bdd_dictionary_ref* bdr, char** _errmsg) {
+    // INCOMPLETE, there should also be a magic number in the dictionary
+    // DP("+    GET_REF called, id=%ld\n",(long)bdr->ref);
+    if ( bdr->magic != BDR_MAGIC ) {
+        pg_error(_errmsg,"magic number not correct %ld",bdr->magic);
+        return NULL;
+    } else
+        return bdr->ref;
 }

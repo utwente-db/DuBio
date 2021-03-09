@@ -163,3 +163,69 @@ dictionary_modify(PG_FUNCTION_ARGS)
     SET_VARSIZE(storage_dict,storage_dict->bytesize);
     PG_RETURN_DICTIONARY(storage_dict);
 }
+
+/*
+ *
+ * 
+ */
+
+PG_FUNCTION_INFO_V1(dictionary_ref_create);
+/**
+ * <code>dictionary_create(vardef cstring) returns dictionary</code>
+ * Create a dictionary initialised from a text expression containg vardefs.
+ *
+ */
+Datum
+dictionary_ref_create(PG_FUNCTION_ARGS)
+{       
+    bdd_dictionary*     dict = PG_GETARG_DICTIONARY(0);
+    bdd_dictionary_ref* bdr  = NULL;
+    void*               persistent = NULL;
+    char *_errmsg = NULL;
+
+    if (!(persistent = MemoryContextAlloc(TopTransactionContext,dict->bytesize)))
+        ereport(ERROR,(errmsg("dictionary_ref_create: MemoryContextAlloc() error")));
+    memcpy(persistent,dict,dict->bytesize);
+    bdd_dictionary* persistent_dict = bdd_dictionary_relocate((bdd_dictionary*)persistent);
+    if (!(bdr=create_ref_from_dict(persistent_dict,&_errmsg)))
+        ereport(ERROR,(errmsg("dictionary_ref_create: %s",(_errmsg ? _errmsg : "NULL"))));
+    PG_RETURN_DICTIONARY_REF(bdr);
+}
+
+PG_FUNCTION_INFO_V1(dictionary_ref_in);
+/**
+ * <code>dictionary_in(vardef cstring) returns dictionary</code>
+ * Create a dictionary initialised from a text expression containg vardefs.
+ *
+ */
+Datum
+dictionary_ref_in(PG_FUNCTION_ARGS)
+{       
+    ereport(ERROR,(errmsg("a dictionary_ref cannot be constructed from string, use dictionary")));
+}
+
+PG_FUNCTION_INFO_V1(dictionary_ref_out);
+/**
+ * <code>dictionary_out(dictionary dictionary) returns cstring</code>
+ * Create a text representation of a dictionary expression.
+ *
+ * @param fcinfo Params as described_below
+ * <br><code>mystr dictionary</code> A dictionary object
+ * @return <code>cstring</code> the string representation of the dictionary
+ */
+Datum
+dictionary_ref_out(PG_FUNCTION_ARGS)
+{
+    bdd_dictionary_ref  *bdr = PG_GETARG_DICTIONARY_REF(0);
+    bdd_dictionary *dict     = NULL;
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    char* result;
+    char *_errmsg = NULL;
+
+    
+    if ( !(dict=get_dict_from_ref(bdr,&_errmsg) ))
+        ereport(ERROR,(errmsg("dictionary_ref_out: %s",(_errmsg ? _errmsg : "NULL"))));
+    bprintf(pbuff,"[DictionaryRef(#id=%ld, #vars=%d, #values=%d)]",(long)bdr->ref, V_dict_var_size(bdr->ref->variables),V_dict_val_size(bdr->ref->values)-bdr->ref->val_deleted);
+    result = pbuff2cstring(pbuff,-1);
+    PG_RETURN_CSTRING(result);
+}

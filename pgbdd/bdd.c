@@ -27,9 +27,8 @@
 #include "bdd.h"
 
 /* 
- * TODO: (Maurice overleggen)
- * equiv() als Postgres op
- * bdd_compare() als C, dan _equal(), _sm(), _gr(), = , < , >
+ * TODO: 
+ * None
  */
 
 int cmpRva(rva* l, rva* r) {  

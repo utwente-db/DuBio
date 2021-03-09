@@ -296,22 +296,22 @@ static int test_trio() {
 //
 //
 
-#define N_LHS 1
+#define N_LHS 3
 static char *lhs_expr[N_LHS] = {
-"x=1"
-// "x=1|(!y=3)",
-// "(x=2&z=4)",
+"x=1",
+"x=1|(!y=3)",
+"(x=2&z=4)"
 // "x=3"
 };
 static bdd* lhs_bdd[N_LHS];
 
-#define N_RHS 2
+#define N_RHS 3
 static char *rhs_expr[N_RHS] = {
 "y=1",
-"y=1&z=2"
+"y=1&z=2",
 // "y=1",
 // "(y=2|x=1|x=2)",
-// "(y=3|z=4)"
+"(y=3|z=4)"
 };
 static bdd* rhs_bdd[N_RHS];
 
@@ -360,10 +360,10 @@ static int run_check_apply() {
 
     for (int i=0; i<N_LHS; i++) 
         if (!(lhs_bdd[i] = create_bdd(BDD_DEFAULT,lhs_expr[i],&_errmsg,0)))
-            pg_fatal("compare_apply_text: error: %s",_errmsg);
+            pg_fatal("compare_apply_text (%s): error: %s",lhs_expr[i],_errmsg);
     for (int i=0; i<N_RHS; i++) 
         if (!(rhs_bdd[i] = create_bdd(BDD_DEFAULT,rhs_expr[i],&_errmsg,0)))
-            pg_fatal("compare_apply_text: error: %s",_errmsg);
+            pg_fatal("compare_apply_text (%s): error: %s",rhs_expr[i],_errmsg);
     //
     for(int i=0; i<N_LHS; i++) {
         for(int j=0; j<N_RHS; j++) {
@@ -378,7 +378,7 @@ static int run_check_apply() {
 static void run_apply_test(op_mode m) {
     char* _errmsg = NULL;
 
-    int repeat = 100000;
+    int repeat = 30000;
     int count = 0;
     int msec;
     CLOCK_START();
@@ -387,11 +387,11 @@ static void run_apply_test(op_mode m) {
             for(int j=0; j<N_LHS; j++) {
                 bdd* res;
                 if (!(res=bdd_operator('&',m,lhs_bdd[i],rhs_bdd[j],&_errmsg)))
-                    pg_fatal("compare_apply_text: error: %s",_errmsg);
+                    pg_fatal("compare_apply_text [%d,%d]: error: %s",i,j,_errmsg);
                 FREE(res);
                 count++;
                 if (!(res=bdd_operator('|',m,lhs_bdd[i],rhs_bdd[j],&_errmsg)))
-                    pg_fatal("compare_apply_text: error: %s",_errmsg);
+                    pg_fatal("compare_apply_text [%d,%d]: error: %s",i,j,_errmsg);
                 FREE(res);
                 count++;
             }
@@ -408,7 +408,7 @@ static int compare_apply_text() {
 
     for (int i=0; i<N_LHS; i++) 
         if (!(lhs_bdd[i] = create_bdd(BDD_DEFAULT,lhs_expr[i],&_errmsg,0)))
-            pg_fatal("compare_apply_text: error: %s",_errmsg);
+            pg_fatal("compare_apply_text (%s): error: %s",lhs_expr[i],_errmsg);
     for (int i=0; i<N_RHS; i++) 
         if (!(rhs_bdd[i] = create_bdd(BDD_DEFAULT,rhs_expr[i],&_errmsg,0)))
             pg_fatal("compare_apply_text: error: %s",_errmsg);

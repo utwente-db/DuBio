@@ -23,7 +23,7 @@
 
 extern FILE* _debug_file;
 
-#define START_DP(F) _debug_file=fopen(F,"w")
+#define START_DP(F) if( !_debug_file ) _debug_file=fopen(F,"ab")
 
 void dp_print(const char *fmt,...) __attribute__ ((format (printf, 1, 2)));
 

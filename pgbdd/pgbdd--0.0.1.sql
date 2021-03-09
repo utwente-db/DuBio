@@ -161,6 +161,7 @@ CREATE TYPE dictionary (
     internallength = variable,
     alignment = double,
     storage = main
+    -- also try extended and external
 );
 comment on type dictionary is
 'A postgres implementation of a variable/probability dictionary used by Binary Decision Diagrams.';
@@ -208,6 +209,43 @@ function debug(dict dictionary) returns text
      language C immutable strict;
 comment on function debug(dictionary) is
 'create a serialised string representation of internal dictionary structure.';
+
+/*-----------------------------------
+ * Definition of DICTIONARY REF type.
+ *-----------------------------------
+ */ 
+
+create 
+function dictionary_ref_in(dummy cstring) returns dictionary_ref
+     as '$libdir/pgbdd', 'dictionary_ref_in'
+     language C immutable strict;
+comment on function dictionary_ref_in(cstring) is
+'A Noop';
+
+create 
+function dictionary_ref_out(dict_ref dictionary_ref) returns cstring
+     as '$libdir/pgbdd', 'dictionary_ref_out'
+     language C immutable strict;
+comment on function dictionary_ref_out(dictionary_ref) is
+'Return the dictionary ref as cstring.';
+
+CREATE TYPE dictionary_ref (
+    input = dictionary_ref_in,
+    output = dictionary_ref_out,
+    internallength = 16,
+    alignment = double,
+    storage = plain
+);
+
+create 
+function ref(dict dictionary) returns dictionary_ref
+     as '$libdir/pgbdd', 'dictionary_ref_create'
+     language C immutable strict COST 1000000;
+comment on function ref(dictionary) is
+'Create an in-memory dictionary dictionary for the rest of the transaction.';
+
+comment on type dictionary_ref is
+'An in-memory dictionary reference for the rest of the transaction.';
 
 --
 -- The operator and syntactic sugar section for bdd's
@@ -261,3 +299,10 @@ function prob(dict dictionary, bdd bdd) returns double precision
      language C immutable strict;
 comment on function prob(dictionary, bdd) is
 'return probability of bdd expression using rva/probabilities defined in dictionary.';
+
+create 
+function prob(dict_ref dictionary_ref, bdd bdd) returns double precision
+     as '$libdir/pgbdd', 'bdd_pg_prob_by_ref'
+     language C immutable strict;
+comment on function prob(dictionary_ref, bdd) is
+'return probability of bdd expression using rva/probabilities defined in dictionary reference.';

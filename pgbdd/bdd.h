@@ -93,7 +93,7 @@ int cmpRva_order(rva_order*,rva_order*);
 
 typedef struct rva_epos { // position of rva in expression
     locptr  pos;  // position of rva in bbase text
-    locptr  next; // next in chain of rva's, when emnpty -> LOC_EMPTY
+    locptr  next; // next in chain of rva's, when empty -> LOC_EMPTY
 } rva_epos;
 
 /*
