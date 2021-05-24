@@ -39,14 +39,6 @@ getJSON conn str = do
     let stringMap = map (run JSON.parseJSON) encoded
     return stringMap
 
-getJSON' :: String -> IO String
-getJSON' str = do
-    conn <- connect localPG
-    onlyJSON <- (query_ conn (stringToQuery str) :: IO [Only Data.Aeson.Value])
-    let json = map (\(Only x) -> x) onlyJSON
-    let encoded = map (show . encode) json
-    return $ encoded!!0
-
 isProb :: Connection -> [Table] -> IO [Bool]
 isProb conn tabs = do
     case tabs of
