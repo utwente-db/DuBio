@@ -1,17 +1,24 @@
 module Printer where
+{-
+Converts a parse tree to SQL code
+Author: Jochem Groot Roessink
+-}
 
 import Grammar
+import GrammarFunctions
 
---- Printing here means converting to a string
+{-
+Functions that print the parse tree
+-}
 
 -- Prints the program
 printProgram :: [Command] -> String
-printProgram cmds = printCommands cmds ++ "\n\n"
+printProgram cmds = printCommands cmds ++ "\n"
 
 -- Prints a list of the Command datatype
 printCommands :: [Command] -> String
 printCommands [Select cols refs] = "SELECT " ++ printCols cols ++ printRefs refs
-printCommands [None] = ""
+printCommands [Other strs] = removeWS $ concat strs
 printCommands (cmd:xs) = printCommands [cmd] ++ ";\n" ++ printCommands xs
 
 -- Prints a list of the Col(umn) datatype
@@ -31,6 +38,7 @@ printRefs [Where cond] = "\nWHERE " ++ printConds [cond] Zero
 printRefs [GroupBy name] = "\nGROUP BY " ++ printName name
 printRefs [OrderBy exp ord] = "\nORDER BY " ++ printExpr exp Zero ++ " " ++ printOrder ord
 printRefs [Limit num] = "\nLIMIT " ++ num
+printRefs [Into name] = "\nINTO " ++ printName name
 printRefs (ref:xs) = printRefs [ref] ++ printRefs xs
 
 -- Prints the Order datatype (Asc, Desc)
@@ -63,10 +71,10 @@ printTable (TableAs name str) = printName name ++ " AS " ++ printWords [str]
 
 -- Prints a list of the Value datatype
 printValues :: [Value] -> Operator -> String
+printValues [Type val typ] parentOp = printValues [val] parentOp ++ "::" ++ typ
 printValues [Text str] _ = "'" ++ str ++ "'"
 printValues [Exp expr] parentOp = printExpr expr parentOp
 printValues [Cond cond] parentOp = printConds [cond] parentOp
-printValues [Tuple [val]] parentOp = printValues [val] parentOp
 printValues [Tuple vals] _ = "(" ++ printValues vals Zero ++ ")"
 printValues [Case condVals elseVal] _ = "CASE" ++ print ++ printedElseVal ++ "\nEND" where
     print = foldl (++) "" printedCondVals
@@ -102,9 +110,25 @@ printConds [Compare val1 op val2] parentOp
         print = printValues [val1] op ++ printIcon op ++ printValues [val2] op
         level = getLevel op -- get the level of the operator
         parentLevel = getLevel parentOp -- get the level of the parent operator
-printConds [Between val1 val2 val3] parentOp = p val1 ++ " BETWEEN " ++ p val2 ++ " AND " ++ p val3 where
-    p val = printValues [val] parentOp
+printConds [Between ex1 ex2 ex3] parentOp = p ex1 ++ " BETWEEN " ++ p ex2 ++ " AND " ++ p ex3 where
+    p ex = printExpr ex parentOp
 printConds (cond:xs) op = printConds [cond] op ++ printIcon op ++ printConds xs op
+
+-- Prints the icon of an operator
+printIcon :: Operator -> String
+printIcon op
+    | level > 0 && level < 5 = " " ++ icon ++ " " -- surround with whitespace
+    | otherwise = icon where -- don't surround with whitespace
+        level = getLevel op
+        icon = getIcon op
+
+-- Prints the Name datatype
+printName :: Name -> String
+printName (Name wrds) = printWords wrds
+
+{-
+Helper functions for the printer
+-}
 
 -- Helper function for printExpr & printConds
 subVals :: Value -> [(Operator, Value)] -> Operator -> String
@@ -126,29 +150,23 @@ subVals (Cond cond) pairs parentOp
         op = (\(o,_) -> o) $ pairs!!0 -- get the operator
         parentLevel = getLevel parentOp -- get the level of the parent operator
 
--- Prints the Name datatype
-printName :: Name -> String
-printName (Name wrds) = printWords wrds
-
-forbidden :: String
-forbidden = " \t\n.,\"();*+-=<>!&|^%"
-
--- Helper function for printName
+-- Prints a list of strings, seperated by dots
+-- Either with or without double quotes
 printWords :: [String] -> String
 printWords [wrd]
     | containsOneOf wrd forbidden = "\"" ++ wrd ++ "\""
     | otherwise = wrd
 printWords (wrd:xs) = printWords [wrd] ++ "." ++ printWords xs
 
--- Helper function for printWords
+-- Checks if a string contains 1 character
 containsOneOf :: String -> String -> Bool
 containsOneOf text chars = foldl (||) False containsChar where
     containsChar = map (\c -> c `elem` text) chars
 
--- Prints the icon of an operator
-printIcon :: Operator -> String
-printIcon op
-    | level > 0 && level < 5 = " " ++ icon ++ " " -- surround with whitespace
-    | otherwise = icon where -- don't surround with whitespace
-        level = getLevel op
-        icon = getIcon op
+-- Removes whitespace at the end of a string
+removeWS :: String -> String
+removeWS xs
+    | last `elem` "\n\t " = removeWS rest
+    | otherwise = xs where
+        rest = reverse $ tail $ reverse xs
+        last = head $ reverse xs
