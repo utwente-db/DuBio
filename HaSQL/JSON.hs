@@ -1,4 +1,11 @@
 module JSON where
+{-
+Since a query is returned as json these functions
+oarse the encoded JSON string so that it can be printed
+as a table. Quite buggy and only a temporary solution since
+in the final product the result is not received as JSON,
+but does the trick for now.
+-}
 
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Language
