@@ -85,27 +85,30 @@ convCond cond _ = cond
 -- Converts the Refine list
 convRefs :: [Refine] -> Expr -> [Refine]
 convRefs refs prob
-    | containsWhere refs = map (flip convRef prob) refs
+    | prob == trueProb || containsWhere refs = map (flip convRef prob) refs
     | otherwise = sortBy refSorter (Where dictCond:map (flip convRef prob) refs) -- Add WHERE _dict.name = 'mydict'
 
 -- Converts a Refine datatype
 convRef :: Refine -> Expr -> Refine
 convRef (From tabConts) prob = From (convTabConts tabConts prob)
-convRef (Where cond) prob = Where $ convCond (convWhereCond cond) prob -- Add _dict.name = 'mydict' to WHERE
+convRef (Where cond) prob = Where $ convCond (convWhereCond cond (prob /= trueProb)) prob -- Add _dict.name = 'mydict' to WHERE
 convRef (OrderBy exp ord) prob = OrderBy (convExpr exp prob) ord
 convRef ref _ = ref
 
 -- Converts a Table Container
 convTabConts :: [TabCont] -> Expr -> [TabCont]
-convTabConts conts prob = newConts ++ [(Tabs (Table (Name [dictTableName])) [])] where
-    newConts = map func conts -- convert conditions in the table container
-    func = (\(Tabs t jtc) -> Tabs t (map func2 jtc))
-    func2 = (\(j,t,c) -> (j,t,convCond c prob))
+convTabConts conts prob
+    | prob == trueProb = newConts
+    | otherwise = newConts ++ [(Tabs (Table (Name [dictTableName])) [])] where
+        newConts = map func conts -- convert conditions in the table container
+        func = (\(Tabs t jtc) -> Tabs t (map func2 jtc))
+        func2 = (\(j,t,c) -> (j,t,convCond c prob))
 
 -- Adds the _dict.name = 'mydict' to WHERE
-convWhereCond :: Condition -> Condition
-convWhereCond (And cond xs) = And cond (xs ++ [dictCond])
-convWhereCond cond = And cond [dictCond]
+convWhereCond :: Condition -> Bool -> Condition
+convWhereCond (And cond xs) True = And cond (xs ++ [dictCond])
+convWhereCond cond True = And cond [dictCond]
+convWhereCond cond False = cond -- Don't add the condition if none of the tables is probabilistic
 
 {-
 Conversion that happens after the SQL is generated
@@ -131,12 +134,15 @@ postConvCol (ColAs val name) i = ColAs val (name ++ " (" ++ show (i+1) ++ ")")
 Helper functions for the conversion
 -}
 
+-- Probability of one
+trueProb :: Expr
+trueProb = Num "1"
+
 -- Gets the expression that calculates the probability
 getProb :: Command -> [Bool] -> Expr
 getProb (Select _ refs) bools
     | True `elem` bools = calcProb refs bools
-    | otherwise = Num "1" -- prob is 1 if no probabilistic tables
-getProb _ _ = Num "0"
+getProb _ _ = trueProb -- prob is 1 if no probabilistic tables
 
 -- Expression that calculates the probability
 calcProb :: [Refine] -> [Bool] -> Expr
