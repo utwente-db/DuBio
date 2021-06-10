@@ -28,7 +28,7 @@ main = do
 -- Ask for user input and call execOrQuit
 loop :: Connection -> IO ()
 loop conn = do
-    putStrLn ">>> Enter your pSQL commands (or \"q\" to quit):"
+    putStrLn ">>> Enter your inSQeLto commands (or \"q\" to quit):"
     inp <- getLines
     execOrQuit conn inp
 

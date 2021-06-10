@@ -14,9 +14,12 @@ import GrammarFunctions
 import Data.Char
 
 languageDef =
-    emptyDef { Token.identStart      = noneOf forbidden 
-             , Token.identLetter     = noneOf forbidden             
+    emptyDef { Token.identStart      = noneOf forbidden
+             , Token.identLetter     = noneOf forbidden       
              , Token.caseSensitive = False
+             , Token.commentLine = "--"
+             , Token.commentStart = "/*"
+             , Token.commentEnd = "*/"
              , Token.reservedOpNames = 
                 [ "=", "!=", "<>"
                 , "<=", ">=", ">", "<"

@@ -1,0 +1,13 @@
+Developer Guide for extending the Compiler
+
+1. Add a new datatype for a construct or add to an existing datatype in Grammar.hs
+2. Update functions that act on the datatype in GrammarFunctions.hs
+3. Update the Parser for the datatype in Parser.hs so that it can parse a string as the new construct
+4. If the resulting parse tree can contain an error you can throw one in ErrorScanner.hs
+5. Conversion of this parse tree to one that can be printed to SQL can be done in Converter.hs
+6. The converted parse tree can then be printed to SQL in Printer.hs
+
+Please note:
+If your construct does not throw an error or is converted but does contain a child datatype, you should still update ErrorScanner.hs and Converter.hs so that the child is still scanned/converted.
+Like this:
+convCond (Not cond) prob = Not (convCond cond prob)
