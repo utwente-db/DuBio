@@ -17,7 +17,8 @@ printProgram cmds = printCommands cmds ++ "\n"
 
 -- Prints a list of the Command datatype
 printCommands :: [Command] -> String
-printCommands [Select cols refs] = "SELECT " ++ printCols cols ++ printRefs refs
+printCommands [Select True cols refs] = "SELECT DISTINCT " ++ printCols cols ++ printRefs refs
+printCommands [Select False cols refs] = "SELECT " ++ printCols cols ++ printRefs refs
 printCommands [Other strs] = removeWS $ concat strs
 printCommands (cmd:xs) = printCommands [cmd] ++ ";\n" ++ printCommands xs
 
@@ -39,6 +40,7 @@ printRefs [GroupBy name] = "\nGROUP BY " ++ printName name
 printRefs [OrderBy exp ord] = "\nORDER BY " ++ printExpr exp Zero ++ " " ++ printOrder ord
 printRefs [Limit num] = "\nLIMIT " ++ num
 printRefs [Into name] = "\nINTO " ++ printName name
+printRefs [Having cond] = "\nHAVING " ++ printConds [cond] Zero
 printRefs (ref:xs) = printRefs [ref] ++ printRefs xs
 
 -- Prints the Order datatype (Asc, Desc)

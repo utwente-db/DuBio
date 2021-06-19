@@ -18,7 +18,7 @@ Scanners that scan the parse tree
 -- Scan the whole parse tree for errors
 scanProgram :: [Command] -> Bool
 scanProgram [] = True
-scanProgram [Select cols refs] = scanCols cols && scanRefs refs
+scanProgram [Select _ cols refs] = scanCols cols && scanRefs refs
 scanProgram [cmd] = True
 scanProgram (cmd:cmds) = scanProgram [cmd] && scanProgram cmds
 
@@ -48,6 +48,7 @@ scanRefs refs
 -- Scan a single Refine datatype
 scanRef :: Refine -> Bool
 scanRef (Where cond) = scanCond cond
+scanRef (Having cond) = scanCond cond
 scanRef _ = True
 
 -- Scan a condition

@@ -32,7 +32,7 @@ convProgram cmds bools = zipWith convCommand cmds $ zipWith getProb cmds bools
 
 -- Converts a command, 2nd arg is the probability
 convCommand :: Command -> Expr -> Command
-convCommand (Select cols refs) prob = Select (convCols newCols prob) (convRefs refs prob) where
+convCommand (Select d cols refs) prob = Select d (convCols newCols prob) (convRefs refs prob) where
         newCols = convAll cols names
         names = map tableToDisplay (getRefTables refs)
 convCommand (Other strs) _ = Other strs -- not converted
@@ -92,6 +92,7 @@ convRefs refs prob
 convRef :: Refine -> Expr -> Refine
 convRef (From tabConts) prob = From (convTabConts tabConts prob)
 convRef (Where cond) prob = Where $ convCond (convWhereCond cond (prob /= trueProb)) prob -- Add _dict.name = 'mydict' to WHERE
+convRef (Having cond) prob = Having $ convCond cond prob
 convRef (OrderBy exp ord) prob = OrderBy (convExpr exp prob) ord
 convRef ref _ = ref
 
@@ -118,7 +119,7 @@ so not needed in final product
 
 -- Add titles to unnamed columns in every command
 postConv :: Command -> Command
-postConv (Select cols refs) = Select newCols refs where
+postConv (Select d cols refs) = Select d newCols refs where
     newCols = [postConvCol col i | i <- [0..length cols-1], let col = cols!!i]
 postConv cmd = cmd
 
@@ -140,7 +141,7 @@ trueProb = Num "1"
 
 -- Gets the expression that calculates the probability
 getProb :: Command -> [Bool] -> Expr
-getProb (Select _ refs) bools
+getProb (Select _ _ refs) bools
     | True `elem` bools = calcProb refs bools
 getProb _ _ = trueProb -- prob is 1 if no probabilistic tables
 
@@ -181,7 +182,7 @@ refSorter a b
 
 -- Gets all tables in the FROM clause of a command
 getTables :: Command -> [Table]
-getTables (Select _ refs) = getRefTables refs
+getTables (Select _ _ refs) = getRefTables refs
 getTables _ = []
 
 -- Gets the display name probabilistic tables in the FROM clause
@@ -225,7 +226,7 @@ tableToDisplay (TableAs _ str) = Name [str]
 
 -- Get the names of a list of columns
 getColNames :: Command -> [String]
-getColNames (Select cols _) = map getColName cols
+getColNames (Select _ cols _) = map getColName cols
 getColNames cmd = []
 
 -- Get the name of a column
