@@ -6,7 +6,7 @@ Contains datatypes that are used to generate a parse tree
 
 -- Any command
 data Command
-    = Select [Col] [Refine] -- SELECT command
+    = Select Bool [Col] [Refine] -- SELECT command
     | Other [String] -- An unknown command, is not converted and executed as normal SQL
     deriving (Show, Eq)
 -- When adding to the Command datatype be sure to update
@@ -48,6 +48,7 @@ data Refine
     | OrderBy Expr Order -- ORDER BY column [ASC|DESC]
     | Limit String -- LIMIT 1
     | Into Name -- INTO table
+    | Having Condition -- HAVING count(id) > 5
     deriving (Show, Eq)
 -- When adding a new refine element also update
 -- the refMap function with the right order

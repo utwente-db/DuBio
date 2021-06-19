@@ -9,7 +9,7 @@ import Grammar
 
 -- Used to decide whether to call query or execute command
 isQuery :: Command -> Bool
-isQuery (Select _ refs) = not $ containsInto refs
+isQuery (Select _ _ refs) = not $ containsInto refs
 isQuery (Other _) = False
 
 -- Used to check the order of the list of refine elements
@@ -19,8 +19,9 @@ refMap (Into _) = 0
 refMap (From _) = 1
 refMap (Where _) = 2
 refMap (GroupBy _) = 3
-refMap (OrderBy _ _) = 4
-refMap (Limit _) = 5
+refMap (Having _) = 4
+refMap (OrderBy _ _) = 5
+refMap (Limit _) = 6
 
 -- Used to decide whether operation should be printed with parentheses
 -- and what symbol(s) to parse/print

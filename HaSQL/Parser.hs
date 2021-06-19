@@ -28,11 +28,12 @@ languageDef =
                 , "*", "/"
                 ]
              , Token.reservedNames =
-                [ "SELECT"
+                [ "SELECT", "DISTINCT"
                 , "AS", "ON", "BY"
                 , "FROM", "WHERE"
                 , "ORDER", "GROUP"
                 , "LIMIT", "INTO"
+                , "HAVING"
                 , "AND", "OR", "NOT"
                 , "TRUE", "FALSE"
                 , "DESC", "ASC"
@@ -62,8 +63,9 @@ parseProgram = sepBy1 (optional (lexeme whitespace) *> parseCommand) (symbol ";"
 
 -- Parses the Command data type
 parseCommand :: Parser Command
-parseCommand = select <|> other where
-    select = (Select <$ reserved "SELECT") <*> sepBy1 parseCol (symbol ",") <*> many parseRefine
+parseCommand = selectDist<|> select <|> other where
+    selectDist = try $ (Select <$ reserved "SELECT") <*> (True <$ reserved "DISTINCT") <*> sepBy1 parseCol (symbol ",") <*> many parseRefine
+    select = (Select <$ reserved "SELECT") <*> (False <$ optional (symbol "")) <*> sepBy1 parseCol (symbol ",") <*> many parseRefine
     other = Other <$> many (single <|> double <|> rest) where
         single = (\a b c -> [a] ++ b ++ [c]) <$> (char '\'') <*> (many $ noneOf "\'") <*> (char '\'') -- single quotes
         double = (\a b c -> [a] ++ b ++ [c]) <$> (char '\"') <*> (many $ noneOf "\"") <*> (char '\"') -- double quotes
@@ -106,9 +108,10 @@ parseAllOf = Name <$> sepBy1 (word <|> star) (symbol ".") where
 
 -- Parses the Refine data type
 parseRefine :: Parser Refine
-parseRefine = from <|> whr <|> group <|> limit <|> into <|> orderDesc <|> orderAsc where
+parseRefine = from <|> whr <|> having <|> group <|> limit <|> into <|> orderDesc <|> orderAsc where
     from = (From <$ reserved "FROM") <*> sepBy1 parseTabCont (symbol",")
     whr = (Where <$ reserved "WHERE") <*> parseOr
+    having = (Having <$ reserved "HAVING") <*> parseOr
     group = (GroupBy <$ reserved "GROUP") <*> (reserved "BY" *> lexeme parseName)
     limit = (Limit <$ reserved "LIMIT") <*> lexeme (many1 (oneOf "0123456789"))
     into = (Into <$ reserved "INTO") <*> lexeme parseName
@@ -117,8 +120,9 @@ parseRefine = from <|> whr <|> group <|> limit <|> into <|> orderDesc <|> orderA
 
 -- Parses a value with an optional typecast
 parseValue :: Bool -> Parser Value
-parseValue useFullCond = typecasted <|> parseInnerValue useFullCond where
-    typecasted = try $ Type <$> parseInnerValue useFullCond <*> (symbol "::" *> parseWord)
+parseValue useFullCond = {-typecasted <|>-} notcasted where
+    --typecasted = try $ Type <$> parseInnerValue useFullCond <*> (symbol "::" *> parseWord)
+    notcasted = parseInnerValue useFullCond
 
 -- Parses the Value data type
 parseInnerValue :: Bool -> Parser Value

@@ -9,6 +9,7 @@ import Database.PostgreSQL.Simple
 import Control.Exception
 import Text.Printf
 import Data.Char
+import Data.Time.Clock.POSIX
 
 import Grammar
 import GrammarFunctions
@@ -45,6 +46,7 @@ execOrQuit conn inp
 -- convert, and print
 exec :: Connection -> String -> IO ()
 exec conn inp = do
+    --startTime <- round . (1000 *) <$> getPOSIXTime
     parseRes <- try (evaluate (Parser.run parseProgram inp)) :: IO (Either SomeException [Command])
     case parseRes of
         Left msg -> putStrLn $ show msg
@@ -59,6 +61,8 @@ exec conn inp = do
                     let convTree = convProgram preConvTree isProbList
                     putStrLn ">>> Generated SQL Commands:"
                     putStrLn $ printProgram convTree
+                    --endTime <- round . (1000 *) <$> getPOSIXTime
+                    --putStrLn $ show $ endTime - startTime
                     -- Print the results per command
                     putStr "Execute the commands (Y/N)? "
                     answer <- getLine
