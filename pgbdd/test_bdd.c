@@ -151,7 +151,9 @@ char *bdd_expr[] = {
     "x=1",
     "(x=1|y=1)",
     "(x=1&y=1)|(z=5)",
+    "(c=0&!b=0)",
     "x=1|(y=1 & x=2)",
+    "(!(c=0|a=1)|!(b=2))",
     "(z=1)&!((x=1)&((y=1|y=2)&x=2))",
     "(x=8|x=2|x=4|x=3|x=9|(x=6|q=4&p=6)|x=7|x=1|x=5)",
     "(x=1&x=2|x=3&x=4|x=5&x=6|x=7&x=8|y=4)",
@@ -162,9 +164,11 @@ static int _regenerate_test(char* par_expr, char** _errmsg) {
     pbuff pbgen_struct, *pbgen=pbuff_init(&pbgen_struct);
     bdd *bdd1, *bdd2;
     char *bdd1_str, *bdd2_str;
+    int res_eq;
 
     int VERBOSE = 0;
 
+    if (VERBOSE) fprintf(stdout,"/----------\n");
     if (VERBOSE) fprintf(stdout,"TESTING: %s\n",par_expr);
     if ( !(bdd1 = create_bdd(BDD_DEFAULT,par_expr,_errmsg,0)) )
         return 0;
@@ -179,33 +183,40 @@ static int _regenerate_test(char* par_expr, char** _errmsg) {
     bdd2_str = pbuff_preserve_or_alloc(pbgen);
     if (VERBOSE) fprintf(stdout,"TESTING: bdd2 = [%s]\n",bdd2_str);
     //
-    if ( strcmp(bdd1_str,bdd2_str) != 0 ) {
-        int res_eq;
-        if (0) {
-           fprintf(stdout,"expr = [%s]\n",par_expr);
-           fprintf(stdout,"bdd1 = [%s]\n",bdd1_str);
-           fprintf(stdout,"bdd2 = [%s]\n",bdd2_str);
-           fprintf(stdout,"\n");
+    //
+    //
+    if (VERBOSE) fprintf(stdout,"TESTING EQUIVALENCE orginal - regenerated\n");
+    res_eq = bdd_test_equivalence(par_expr, bdd1_str,_errmsg);
+    if ( res_eq < 0 )
+        pg_fatal("regenerate_test:equivalence error: %s",*_errmsg);
+    if ( res_eq == 0 ) {
+        if (VERBOSE) fprintf(stdout,"TESTING: EQUIVALENCE FALSE\n");
+        if ( 1 ) {
+            fprintf(stdout,"/--------------------------------------------\n");
+            fprintf(stdout,"1> %s\n",par_expr);
+            fprintf(stdout,"/--------------------------------------------\n");
+            fprintf(stdout,"2> %s\n",bdd1_str);
+            fprintf(stdout,"/--------------------------------------------\n");
         }
-        if (VERBOSE) fprintf(stdout,"TESTING: NOT STRING EQUAL\n");
-        if (VERBOSE) fprintf(stdout,"TESTING: START EQUIV TEST\n");
-        res_eq = bdd_test_equivalence(bdd1_str,bdd2_str,_errmsg);
-        if (VERBOSE) fprintf(stdout,"TESTING: END EQUIV TEST\n");
-        if ( res_eq < 0 )
-            pg_fatal("regenerate_test:equivalence error: %s",*_errmsg);
-        if ( !res_eq ) {
-            if (VERBOSE) fprintf(stdout,"TESTING: EQUIVALENT FALSE\n");
-            if ( 1 ) {
-                fprintf(stdout,"/--------------------------------------------\n");
-                fprintf(stdout,"1> %s\n",bdd1_str);
-                fprintf(stdout,"/--------------------------------------------\n");
-                fprintf(stdout,"2> %s\n",bdd2_str);
-                fprintf(stdout,"/--------------------------------------------\n");
-            }
-            return pg_error(_errmsg,"regenerated string not equivalent to original: %s <<<>>> %s", bdd1_str,bdd2_str);
-        } else {
-            if (VERBOSE) fprintf(stdout,"TESTING: EQUIVALENT TRUE\n");
+        return pg_error(_errmsg,"regenerated string not equivalent to original: %s <<<>>> %s", par_expr, bdd1_str);
+    }
+    //
+    //
+    //
+    if (VERBOSE) fprintf(stdout,"TESTING EQUIVALENCE regenerated - regenerated-regenerated\n");
+    res_eq = bdd_test_equivalence(bdd1_str, bdd2_str,_errmsg);
+    if ( res_eq < 0 )
+        pg_fatal("regenerate_test:equivalence error: %s",*_errmsg);
+    if ( res_eq == 0 ) {
+        if (VERBOSE) fprintf(stdout,"TESTING: EQUIVALENCE FALSE\n");
+        if ( 1 ) {
+            fprintf(stdout,"/--------------------------------------------\n");
+            fprintf(stdout,"1> %s\n",bdd1_str);
+            fprintf(stdout,"/--------------------------------------------\n");
+            fprintf(stdout,"2> %s\n",bdd2_str);
+            fprintf(stdout,"/--------------------------------------------\n");
         }
+        return pg_error(_errmsg,"regenerated string not equivalent to original: %s <<<>>> %s", par_expr, bdd1_str);
     }
     FREE(bdd1);
     FREE(bdd2);
@@ -593,9 +604,10 @@ static double bdd_prob_test(char* expr, char* dict_vars, char* dotfile, int verb
 
     if ( !dict || !pbdd )
         return -1.0;
-    if ( verbose ) {
+#ifdef BDD_VERBOSE
+    if ( verbose )
         bdd_info(pbdd,pbuff); pbuff_flush(pbuff,stdout);
-    }
+#endif
     if ( dotfile && show_prob_in_dot ) {
         char* extra_str_base;
         int n = V_rva_node_size(&pbdd->tree);
@@ -611,13 +623,17 @@ static double bdd_prob_test(char* expr, char* dict_vars, char* dotfile, int verb
     if ( prob < 0.0 )
         return -1.0;
     else {
+#ifdef BDD_VERBOSE
         if ( verbose ) 
             fprintf(stdout,"+ P[%s]=%f\n",expr,prob);
+#endif
     }
     if ( dotfile ) {
         bdd_generate_dotfile(pbdd,dotfile,extra);
+#ifdef BDD_VERBOSE
         if ( verbose )
             fprintf(stdout,"bdd_prob_test: generated dot file %s in \"%s\".\n",(extra ? "with probabilities":""),dotfile);
+#endif
  
     }
     if ( extra )
@@ -634,16 +650,24 @@ static int test_bdd_probability() {
     char* _errmsg;
     if (
         bdd_prob_test(
-            // "(x=1|x=2)",
-            "( x=1 | y=1)",
-            // "(x=1&((y=1|y=2)&x=2))",
-            "x=1:0.4; x=2:0.6 ; y=1:0.2; y=2:0.8; ",
+            //  "a=0",
+            // "(a=0|a=1)",
+            // "(a=0|a=1|a=2)",
+            // "(a=0|b=0)",
+            // "(b=1|c=0)",
+            // "(!(a=1|c=0)|!(b=2))",
+            "(b=0|(b=1|c=0))",
+            // "(b=0|c=0)",
+            //
+            "a=0:0.6; a=1:0.3; a=2:0.1; "
+            "b=0:0.8; b=1:0.15; b=2:0.05; "
+            "c=0:0.985; c=1:0.01; c=2:0.005; ",
             "./DOT/test.dot", /* filename of dotfile or NULL */
             1 /* verbose */,
             1 /* show probabilities in dotfile */,
             &_errmsg
             ) < 0.0 ) {
-        fprintf(stderr,"test_bdd_probability: error: %s",_errmsg);
+        fprintf(stderr,"test_bdd_probability: error: %s\n",_errmsg);
         return 0;
     } else
         return 1;
@@ -925,7 +949,7 @@ void test_bdd() {
     //
     if (0) random_equiv_hunt(999);
     if (0) test_bdd_creation();
-    if (0) test_bdd_probability();
+    if (1) test_bdd_probability();
     if (0) test_create_time();
     if (0) compare_apply_text();
     if (0) test_static_bdd();
