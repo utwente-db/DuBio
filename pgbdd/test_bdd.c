@@ -605,8 +605,9 @@ static double bdd_prob_test(char* expr, char* dict_vars, char* dotfile, int verb
     if ( !dict || !pbdd )
         return -1.0;
 #ifdef BDD_VERBOSE
-    if ( verbose )
+    if ( verbose ) {
         bdd_info(pbdd,pbuff); pbuff_flush(pbuff,stdout);
+    }
 #endif
     if ( dotfile && show_prob_in_dot ) {
         char* extra_str_base;
