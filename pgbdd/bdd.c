@@ -1150,7 +1150,76 @@ void bdd2string(pbuff* pb, bdd* bdd, int encapsulate) {
  * BDD probability function
  */
 
-static double ORG_bdd_probability_node(bdd_dictionary* dict, bdd* bdd, nodei i,char* r, float p_rva_cum,char** extra,int verbose,char** _errmsg) {
+static double bdd_probability_node_V2(bdd_dictionary* dict, bdd* bdd, nodei T, char** extra,int verbose,char** _errmsg) {
+    nodei TT;
+    rva_node *n_T, *n_TT;
+    double m;
+    double p, P_n;
+
+    n_T = n_TT = BDD_NODE(bdd,T);
+    if ( IS_LEAF(n_T) ) {
+        p = P_n = LEAF_BOOLVALUE(n_T) ? 1.0 : 0.0;
+#ifdef BDD_VERBOSE
+        if ( verbose )
+            fprintf(stdout,"+NODE[#%d]:LEAF=%f)\n",T,p);
+#endif
+    } else {
+        P_n = lookup_probability(dict,&n_T->rva);
+        if ( P_n < 0.0 ) {
+            pg_error(_errmsg,"dictionary_lookup: rva[\'%s\'] not found.",n_T->rva.var);
+            return -1.0;
+        }
+        m = 1.0 - P_n;
+        p = bdd_probability_node_V2(dict,bdd,n_TT->high,extra,verbose,_errmsg) * P_n;
+#ifdef BDD_VERBOSE
+        if ( verbose )
+            fprintf(stdout,"+NODE[#%d]:START: %s=%d, m=%f, p=%f\n",T,n_T->rva.var,n_T->rva.val,m,p);
+#endif
+        if ( IS_SAMEVAR(BDD_RVA(bdd,n_TT->high),&n_T->rva) ) {
+            pg_error(_errmsg,"probabilty_alg:loop: unexpected var \'%s\' high branch",n_T->rva.var);
+            return -1.0;
+        }
+        while ( IS_SAMEVAR(BDD_RVA(bdd,n_TT->low),&n_T->rva) ) {
+            TT = n_TT->low;
+            n_TT = BDD_NODE(bdd,TT);
+            if ( IS_SAMEVAR(BDD_RVA(bdd,n_TT->high),&n_T->rva) ) {
+                pg_error(_errmsg,"probabilty_alg: unexpected var \'%s\' high branch",n_T->rva.var);
+                return -1.0;
+            }
+            P_n = lookup_probability(dict,&n_TT->rva);
+            if ( P_n < 0.0 ) {
+                pg_error(_errmsg,"dictionary_lookup: rva[\'%s\'] not found.",n_TT->rva.var);
+                return -1.0;
+            }
+            m = m - P_n;
+            p =  p + bdd_probability_node_V2(dict,bdd,n_TT->high,extra,verbose,_errmsg) * P_n;
+#ifdef BDD_VERBOSE
+            if ( verbose )
+                fprintf(stdout,"+NODE[#%d]:SAMEVAR-LOOP: %s=%d, P_n=%f, m=%f, p=%f\n",T,n_TT->rva.var, n_TT->rva.val, P_n, m, p);
+#endif
+        }
+        p =  p + bdd_probability_node_V2(dict,bdd,n_TT->low,extra,verbose,_errmsg) * m;
+#ifdef BDD_VERBOSE
+        if ( verbose )
+            fprintf(stdout,"+NODE[#%d]:END: p=%f\n",T, p);
+#endif
+   }
+   if ( extra )
+       sprintf(extra[T],"<i>(%.3f)<br/>%.3f<br/>%d</i>",lookup_probability(dict,BDD_RVA(bdd,T)),p,T);
+#ifdef BDD_VERBOSE
+        if ( verbose )
+            fprintf(stdout, "+**NODE[#%d]:result=%f\n",T,p);
+#endif
+   if ( p < 0.0 || p > 1.0 ) {
+       pg_error(_errmsg,"probability_check: value %f out of range.", p);
+       return -1.0;
+   }
+   return p;
+}
+
+#ifdef OLD_PROBABILITY_ALGORITHMS
+
+static double bdd_probability_node_V0(bdd_dictionary* dict, bdd* bdd, nodei i,char* r, float p_rva_cum,char** extra,int verbose,char** _errmsg) {
     rva *rva = BDD_RVA(bdd,i);
     rva_node *node;
     double p_root, p_root_base, res;
@@ -1180,7 +1249,7 @@ static double ORG_bdd_probability_node(bdd_dictionary* dict, bdd* bdd, nodei i,c
 #endif
             high = bdd_low(bdd,high);
         }
-        p_h = ORG_bdd_probability_node(dict,bdd,high,"dummy",0.0,extra,verbose,_errmsg);
+        p_h = bdd_probability_node_V0(dict,bdd,high,"dummy",0.0,extra,verbose,_errmsg);
         if ( p_h < 0.0 )
             return -1.0;
         if (p_rva_cum > 0.0) {
@@ -1193,7 +1262,7 @@ static double ORG_bdd_probability_node(bdd_dictionary* dict, bdd* bdd, nodei i,c
         }
 #endif
         if ( IS_SAMEVAR(rva,BDD_RVA(bdd,low)) ) {
-            p_l = ORG_bdd_probability_node(dict,bdd,low,"dummy",p_rva_cum+p_root_base,extra,verbose,_errmsg);
+            p_l = bdd_probability_node_V0(dict,bdd,low,"dummy",p_rva_cum+p_root_base,extra,verbose,_errmsg);
             if ( p_l < 0.0 )
                 return -1.0;
             res = (p_root * p_h) + p_l*(1 - (p_h*p_root));
@@ -1204,7 +1273,7 @@ static double ORG_bdd_probability_node(bdd_dictionary* dict, bdd* bdd, nodei i,c
             }
 #endif
         } else {
-            p_l = ORG_bdd_probability_node(dict,bdd,low,"dummy",0.0,extra,verbose,_errmsg);
+            p_l = bdd_probability_node_V0(dict,bdd,low,"dummy",0.0,extra,verbose,_errmsg);
             if ( p_l < 0.0 )
                 return -1.0;
             res = (p_root * p_h) + p_l - p_root*p_l;
@@ -1227,7 +1296,7 @@ static double ORG_bdd_probability_node(bdd_dictionary* dict, bdd* bdd, nodei i,c
    return res;
 }
 
-static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, nodei i,char* r, float m,char** extra,int verbose,char** _errmsg) {
+static double bdd_probability_node_V1(bdd_dictionary* dict, bdd* bdd, nodei i,char* r, float m,char** extra,int verbose,char** _errmsg) {
     double P_res = -1;
     rva_node *node = BDD_NODE(bdd,i);
 
@@ -1235,7 +1304,7 @@ static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, nodei i,char*
         P_res = LEAF_BOOLVALUE(node) ? m : 0.0;
 #ifdef BDD_VERBOSE
         if ( verbose )
-            fprintf(stdout,"+NODE[#%d]:LEAF=%f)\n",i,P_res);
+            fprintf(stdout,"+NODE[#%d]:LEAF=%f, m{%s}=%f)\n",i,P_res,r,m);
 #endif
     } else {
         nodei low = node->low, high = node->high;
@@ -1256,15 +1325,20 @@ static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, nodei i,char*
         }
         //
         if ( strcmp(r, rva->var) == 0 ) {
-            P_high = bdd_probability_node(dict,bdd,high,rva->var,  P_rva,extra,verbose,_errmsg);
-            P_low  = bdd_probability_node(dict,bdd,low ,rva->var,m-P_rva,extra,verbose,_errmsg);
+            // CASE A
+            P_high = bdd_probability_node_V1(dict,bdd,high,rva->var,  P_rva,extra,verbose,_errmsg);
+            P_low  = bdd_probability_node_V1(dict,bdd,low ,rva->var,m-P_rva,extra,verbose,_errmsg);
 #ifdef BDD_VERBOSE
-            if ( verbose )
+            if ( verbose ) {
                 fprintf(stdout,"+NODE[#%d]:case A r=r1(%s), P = P(high,r1,P_rva) + P(low,r1,m-P_rva)\n",i,r);
+                if ( m < P_rva ) 
+                    fprintf(stdout,"+NODE[#%d]:M-RVA_ERROR!!!!!!: P_rva=%f, m{%s}=%f)\n",i,P_rva,r,m);
+            }
 #endif
         } else {
-            P_high = bdd_probability_node(dict,bdd,high,rva->var,m*   P_rva, extra,verbose,_errmsg);
-            P_low  = bdd_probability_node(dict,bdd,low ,rva->var,m*(1-P_rva),extra,verbose,_errmsg);
+            // CASE B
+            P_high = bdd_probability_node_V1(dict,bdd,high,rva->var,m*   P_rva, extra,verbose,_errmsg);
+            P_low  = bdd_probability_node_V1(dict,bdd,low ,rva->var,m*(1-P_rva),extra,verbose,_errmsg);
 #ifdef BDD_VERBOSE
             if ( verbose )
                 fprintf(stdout,"+NODE[#%d]:case B r!=r1, P = P(high,r1,m*P_rva)) + P(low,r1,m*(1-P_rva))\n",i);
@@ -1275,7 +1349,7 @@ static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, nodei i,char*
         P_res = P_high + P_low;
 #ifdef BDD_VERBOSE
         if ( verbose ) {
-            fprintf(stdout,"+NODE[#%d]:P_rva=%f, m=%f)\n",i,P_rva,m);
+            fprintf(stdout,"+NODE[#%d]:P_rva=%f, m{%s}=%f)\n",i,P_rva,r,m);
             fprintf(stdout,"+NODE[#%d]:P_high=%f, P_low=%f\n",i,P_high,P_low);
         }
 #endif
@@ -1290,16 +1364,19 @@ static double bdd_probability_node(bdd_dictionary* dict, bdd* bdd, nodei i,char*
             sprintf(extra[i],"<i>(%.3f)<br/>%.3f<br/>%d</i>",lookup_probability(dict,BDD_RVA(bdd,i)),P_res,i);
     }
 #endif
+#ifdef BDD_VERBOSE
+   if ( P_res < 0.0 && verbose ) {
+       fprintf(stdout,"+P-ERROR(node=#%d]:P_res=%f, m=%f)\n",i,P_res,m);
+       P_res = 0.007;
+   }
+#endif
    return P_res;
 }
 
+#endif 
+
 double bdd_probability(bdd_dictionary* dict, bdd* bdd,char** extra, int verbose, char** _errmsg) {
-    double p_org = ORG_bdd_probability_node(dict,bdd,BDD_ROOT(bdd),"dummy",0.0,NULL,0,_errmsg);
-#ifdef BDD_VERBOSE
-    if ( verbose )
-        fprintf(stdout, "+ ORIGINAL PROBABILITY = %f\n",p_org);
-#endif
-    return bdd_probability_node(dict,bdd,BDD_ROOT(bdd),"dummy",1.0,extra,verbose,_errmsg);
+    return bdd_probability_node_V2(dict,bdd,BDD_ROOT(bdd),extra,verbose,_errmsg);
 }
 
 /* 
