@@ -28,7 +28,7 @@
 
 /* 
  * TODO: 
- * None
+ * + bdd2str may fail because of print buffer problems, should check
  */
 
 int cmpRva(rva* l, rva* r) {  
@@ -1500,3 +1500,31 @@ bdd* bdd_restrict(bdd* p_bdd, char* var, int val, int torf, int verbose, char** 
     //
     return res;
 }
+
+/* 
+ * BDD equal and equivalent function 
+ */
+
+int bdd_equal(bdd* lhs_bdd, bdd* rhs_bdd, char** _errmsg) {
+    if ( BDD_TREESIZE(lhs_bdd) != BDD_TREESIZE(rhs_bdd) )
+        return 0; 
+    for(nodei i=0; i<BDD_TREESIZE(lhs_bdd); i++) {
+        rva_node* l = BDD_NODE(lhs_bdd,i);
+        rva_node* r = BDD_NODE(rhs_bdd,i);
+        if ( (l->low!=r->low) || (l->high!=r->high) || (cmpRva(&l->rva,&r->rva)!=0) )
+            return 0;
+    }
+    return 1;
+}
+
+int bdd_equiv(bdd* lhs_bdd, bdd* rhs_bdd, char** _errmsg) {
+    int res = -1;
+    pbuff l_pbuff_struct, *l_pbuff=pbuff_init(&l_pbuff_struct);
+    pbuff r_pbuff_struct, *r_pbuff=pbuff_init(&r_pbuff_struct);
+    bdd2string(l_pbuff,lhs_bdd,0);
+    bdd2string(r_pbuff,rhs_bdd,0);
+    res = bdd_test_equivalence(l_pbuff->buffer,r_pbuff->buffer,_errmsg);
+    pbuff_free(l_pbuff);
+    return res;
+}
+

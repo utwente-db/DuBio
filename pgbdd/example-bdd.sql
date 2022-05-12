@@ -54,3 +54,25 @@ select( bdd('z=1') & ! (bdd('(x=1)') & bdd('(y=1|y=2)&x=2')) );
 select alg_bdd('base','(z=1)&!((x=1)&((y=1|y=2)&x=2))' );
 select bdd( '(z=1)&!((x=1)&((y=1|y=2)&x=2))' );
 
+
+
+-- equal en equiv examples
+select bdd_equal(bdd('0'),bdd('0'));
+select bdd_equal(bdd('0'),bdd('1'));
+select bdd_equal(bdd('x=1'),bdd('x=1'));
+select bdd_equal(bdd('x=1&x=1'),bdd('x=1'));
+select bdd_equal(bdd('x=1'),bdd('y=1'));
+select bdd_equiv(bdd('x=1&x=2'),bdd('0'));
+select bdd_equiv(bdd('x=1'),bdd('y=1'));
+select bdd_equiv(bdd('(!(a=1|c=0)|!(b=2))'),bdd('((a=1&!b=2)|(!a=1&(!b=2|!c=0)))'));
+
+-- examples of boolean ops one uses apply and second one text concat and
+-- reparse, because of Kaj algorithm the second one detects the conflict
+-- in the Bdd. Both expressions are equivalent but not equal when apply is 
+-- used
+select _op_bdd('&',bdd('x=1'),bdd('x=2')); -- uses apply
+select _op_bdd_by_text('&',bdd('x=1'),bdd('x=2'));
+
+select bdd_equal(bdd('x=1')&bdd('x=2'),bdd('0'));
+select bdd_equiv(bdd('x=1')&bdd('x=2'),bdd('0'));
+select bdd_equal(_op_bdd_by_text('&',bdd('x=1'),bdd('x=2')),bdd('0'));

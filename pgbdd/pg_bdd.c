@@ -79,6 +79,33 @@ bdd_pg_operator(PG_FUNCTION_ARGS)
     PG_RETURN_BDD(return_bdd);
 }
 
+PG_FUNCTION_INFO_V1(bdd_pg_operator_by_text);
+/**
+ * <code>bdd_in(expression cstring) returns bdd</code>
+ * Create an expression from argument string.
+ *
+ */
+Datum
+bdd_pg_operator_by_text(PG_FUNCTION_ARGS)
+{       
+    char *operator  = PG_GETARG_CSTRING(0);
+    bdd *lhs_bdd    = PG_GETARG_BDD(1);
+    bdd *rhs_bdd    = NULL;
+    
+    char *_errmsg    = NULL;
+    bdd  *return_bdd = NULL;
+
+    if ( *operator == '&' || *operator == '|' )
+        rhs_bdd    = PG_GETARG_BDD(2);
+    // if ( !(return_bdd = bdd_operator(*operator,BY_APPLY,lhs_bdd,rhs_bdd,&_errmsg)))
+    if ( !(return_bdd = bdd_operator(*operator,BY_TEXT,lhs_bdd,rhs_bdd,&_errmsg)))
+        ereport(ERROR,(errmsg("bdd_operator: error: %s ",(_errmsg ? _errmsg : "NULL"))));
+    SET_VARSIZE(return_bdd,return_bdd->bytesize);
+    PG_RETURN_BDD(return_bdd);
+}
+
+
+
 PG_FUNCTION_INFO_V1(alg_bdd);
 /**
  * <code>bdd_in(expression cstring) returns bdd</code>
@@ -268,5 +295,43 @@ bdd_has_property(PG_FUNCTION_ARGS)
 
     if ( (res = bdd_property_check(par_bdd,property,s,&_errmsg)) < 0 )
         ereport(ERROR,(errmsg("bdd_has_property: %d %s",property,(_errmsg ? _errmsg : "NULL"))));
+    PG_RETURN_BOOL(res);
+}
+
+PG_FUNCTION_INFO_V1(pg_bdd_equal);
+/**
+ * <code>bdd_equal(bdd lhs_bdd, bdd rhs_bdd) returns boolean</code>
+ * Return if 2 bdd's are exactly equal
+ *
+ */
+Datum
+pg_bdd_equal(PG_FUNCTION_ARGS)
+{       
+    bdd  *lhs_bdd     = PG_GETARG_BDD(0);
+    bdd  *rhs_bdd     = PG_GETARG_BDD(1);
+    int   res         = -1;
+    char *_errmsg     = NULL;
+
+    if ( (res = bdd_equal(lhs_bdd, rhs_bdd, &_errmsg)) < 0 )
+        ereport(ERROR,(errmsg("bdd_equal: %s",(_errmsg ? _errmsg : "NULL"))));
+    PG_RETURN_BOOL(res);
+}
+
+PG_FUNCTION_INFO_V1(pg_bdd_equiv);
+/**
+ * <code>bdd_equal(bdd lhs_bdd, bdd rhs_bdd) returns boolean</code>
+ * Return if 2 bdd's are equivalent
+ *
+ */
+Datum
+pg_bdd_equiv(PG_FUNCTION_ARGS)
+{       
+    bdd  *lhs_bdd     = PG_GETARG_BDD(0);
+    bdd  *rhs_bdd     = PG_GETARG_BDD(1);
+    int   res         = -1;
+    char *_errmsg     = NULL;
+
+    if ( (res = bdd_equiv(lhs_bdd, rhs_bdd, &_errmsg)) < 0 )
+        ereport(ERROR,(errmsg("bdd_uiv: %s",(_errmsg ? _errmsg : "NULL"))));
     PG_RETURN_BOOL(res);
 }

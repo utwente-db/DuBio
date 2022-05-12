@@ -217,6 +217,9 @@ typedef enum op_mode {BY_TEXT, BY_APPLY} op_mode;
 
 bdd*  bdd_operator(char,op_mode,bdd*,bdd*,char**);
 
+int bdd_equal(bdd* lhs_bdd, bdd* rhs_bdd, char** _errmsg);
+int bdd_equiv(bdd* lhs_bdd, bdd* rhs_bdd, char** _errmsg);
+
 void  bdd2string(pbuff*,bdd*,int);
 void  bdd_info(bdd*, pbuff*);
 void  bdd_generate_dot(bdd*,pbuff*,char**);

@@ -44,6 +44,11 @@ function _op_bdd(operator cstring,lhs_bdd bdd,rhs_bdd bdd) returns bdd
      language C immutable; -- not STRICT because rhs_bdd may be NULL
 
 create 
+function _op_bdd_by_text(operator cstring,lhs_bdd bdd,rhs_bdd bdd) returns bdd
+     as '$libdir/pgbdd', 'bdd_pg_operator_by_text'
+     language C immutable; -- not STRICT because rhs_bdd may be NULL
+
+create 
 function alg_bdd(alg cstring, expression cstring) returns bdd
      as '$libdir/pgbdd', 'alg_bdd'
      language C immutable strict;
@@ -135,6 +140,20 @@ create operator !  (procedure  = _not                    , rightarg = bdd);
 create operator &  (procedure  = _and     , leftarg = bdd, rightarg = bdd, commutator = &); 
 create operator |  (procedure  = _or      , leftarg = bdd, rightarg = bdd); 
 create operator -> (procedure  = _implies , leftarg = bdd, rightarg = bdd); 
+
+--
+-- The equality and equivalence function
+--
+
+create 
+function bdd_equal(lhs_bdd bdd,rhs_bdd bdd) returns BOOLEAN
+     as '$libdir/pgbdd', 'pg_bdd_equal'
+     language C immutable strict;
+
+create 
+function bdd_equiv(lhs_bdd bdd,rhs_bdd bdd) returns BOOLEAN
+     as '$libdir/pgbdd', 'pg_bdd_equiv'
+     language C immutable strict;
 
 /*------------------------------
  * Definition of DICTIONARY type.

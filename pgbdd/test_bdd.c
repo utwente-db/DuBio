@@ -549,7 +549,8 @@ static void test_bdd_creation(){
     // char* expr = "((x=1&y=1)|(x=2&y=2))&(z=1&y=2)"; // interesting cutout
     // char* expr = "((c=1&d=1)|(d=2)|!(!c=4|a=4|d=0)|(a=3&c=4&c=2))"; // DIFFICULT!
     // char* expr = "(  x=1 |((y=1) ) )";
-    char* expr = "(b=0&(!c=2&c=3)|!c=2)"; // look what happens
+    // char* expr = "(b=0&(!c=2&c=3)|!c=2)"; // look what happens
+    char* expr = "(a=1|b=1) & (a=1&b=1)";
 
     bdd*  test_bdd;
     char* _errmsg = NULL;
@@ -656,9 +657,11 @@ static int test_bdd_probability() {
             // "(a=0|a=1|a=2)",
             // "(a=0|b=0)",
             // "(b=1|c=0)",
-            // "(!(a=1|c=0)|!(b=2))",
-            "(b=0|(b=1|c=0))",
+            "(!(a=1|c=0)|!(b=2))",
+            // "(b=0|(b=1|c=0))",
             // "(b=0|c=0)",
+            // xxxxxxx
+            // "(a=1|(!(b=1)&(!(c=0)&!c=1)))",
             //
             "a=0:0.6; a=1:0.3; a=2:0.1; "
             "b=0:0.8; b=1:0.15; b=2:0.05; "
