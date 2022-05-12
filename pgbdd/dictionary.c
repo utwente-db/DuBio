@@ -249,6 +249,21 @@ double lookup_probability(bdd_dictionary* dict,rva* rva) {
     return -1.0;
 }
 
+int lookup_alternatives(bdd_dictionary* dict,char* var, pbuff* pbuff, char** _errmsg) {
+    dict_var* varp = bdd_dictionary_lookup_var(dict, var);
+    if ( !varp ) {
+        return pg_error(_errmsg,"lookup_alternatives: unknown var: %s", var);
+    } else {
+        for(dindex i=varp->offset; i<(varp->offset+varp->card); i++) {
+            dict_val* valp = V_dict_val_getp(dict->values,i);
+            if ( i > varp->offset )
+                bprintf(pbuff,",");
+            bprintf(pbuff,"%d",valp->value);
+        }
+    }
+    return 1;
+}
+
 /*
  * Dictionary modification functions
  *

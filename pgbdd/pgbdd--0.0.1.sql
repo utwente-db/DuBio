@@ -229,6 +229,11 @@ function debug(dict dictionary) returns text
 comment on function debug(dictionary) is
 'create a serialised string representation of internal dictionary structure.';
 
+create
+function alternatives(dict dictionary, var cstring) returns text
+     as '$libdir/pgbdd', 'dictionary_lookup_alternatives'
+     language C immutable strict;
+
 /*-----------------------------------
  * Definition of DICTIONARY REF type.
  *-----------------------------------

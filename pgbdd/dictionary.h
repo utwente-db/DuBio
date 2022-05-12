@@ -83,6 +83,7 @@ int modify_dictionary(bdd_dictionary*, int, char*, char**);
 typedef struct rva rva; /* forward */
 
 double lookup_probability(bdd_dictionary*,rva*);
+int lookup_alternatives(bdd_dictionary* dict,char* var, pbuff* pbuff, char** _errmsg);
 
 int test_dictionary(void);
 

@@ -229,3 +229,29 @@ dictionary_ref_out(PG_FUNCTION_ARGS)
     result = pbuff2cstring(pbuff,-1);
     PG_RETURN_CSTRING(result);
 }
+
+
+PG_FUNCTION_INFO_V1(dictionary_lookup_alternatives);
+/**
+ * <code>dictionary_alternatives(dictionary dictionary) returns text</code>
+ * Returns alternative values of a var in the dictionry
+ *
+ * @param fcinfo Params as described_below
+ * <br><code>mystr dictionary</code> A dictionary object
+ * <br><code>var cstring</code> The name of the variable
+ * @return <code>cstring</code> the comma separated string representation of all alternative values
+ */
+Datum
+dictionary_lookup_alternatives(PG_FUNCTION_ARGS)
+{
+    bdd_dictionary  *dict = PG_GETARG_DICTIONARY(0);
+    char*  var = PG_GETARG_CSTRING(1);
+    pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+    text* result;
+    char *_errmsg = NULL;
+
+    if ( ! lookup_alternatives(dict,var,pbuff,&_errmsg) )
+        ereport(ERROR,(errmsg("dictionary_alternatives: %s",(_errmsg ? _errmsg : "NULL"))));
+    result = pbuff2text(pbuff,-1);
+    PG_RETURN_TEXT_P(result);
+}

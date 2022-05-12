@@ -34,6 +34,9 @@ set dict=add(dict,'y=0:0.5;y=1:0.5; d=0:0.8;d=1:0.1;d=2:0.1;')
 where name='mydict';
 select print(dict) from Dict WHERE name = 'mydict';
 
+-- look at all alternatives for 'd'
+select alternatives(dict,'d') from Dict WHERE name = 'mydict';
+
 -- delete the d=0 variable/value and look what happens to the probabilities
 update Dict
 set dict=del(dict,'d=0;')
