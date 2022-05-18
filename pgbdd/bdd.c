@@ -1164,13 +1164,25 @@ static double bdd_probability_node_V2(bdd_dictionary* dict, bdd* bdd, nodei T, c
             fprintf(stdout,"+NODE[#%d]:LEAF=%f)\n",T,p);
 #endif
     } else {
+        double P_check = -1.0;
+
         P_n = lookup_probability(dict,&n_T->rva);
         if ( P_n < 0.0 ) {
-            pg_error(_errmsg,"dictionary_lookup: rva[\'%s\'] not found.",n_T->rva.var);
+            char *str_rep;
+
+            pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+            bdd2string(pbuff,bdd,0);
+            str_rep = MALLOC(pbuff->size+1);
+            memcpy(str_rep, pbuff->buffer, pbuff->size+1);
+            pbuff_free(pbuff);
+            pg_error(_errmsg,"dictionary_lookup: rva[\'%s\'] not found in %s.",n_T->rva.var, str_rep);
             return -1.0;
         }
         m = 1.0 - P_n;
-        p = bdd_probability_node_V2(dict,bdd,n_TT->high,extra,verbose,_errmsg) * P_n;
+        P_check = bdd_probability_node_V2(dict,bdd,n_TT->high,extra,verbose,_errmsg) * P_n;
+        if ( P_check < 0 )
+            return P_check;
+        p = P_check;
 #ifdef BDD_VERBOSE
         if ( verbose )
             fprintf(stdout,"+NODE[#%d]:START: %s=%d, m=%f, p=%f\n",T,n_T->rva.var,n_T->rva.val,m,p);
@@ -1192,7 +1204,10 @@ static double bdd_probability_node_V2(bdd_dictionary* dict, bdd* bdd, nodei T, c
                 return -1.0;
             }
             m = m - P_n;
-            p =  p + bdd_probability_node_V2(dict,bdd,n_TT->high,extra,verbose,_errmsg) * P_n;
+            P_check = bdd_probability_node_V2(dict,bdd,n_TT->high,extra,verbose,_errmsg);
+            if ( P_check < 0 )
+                return P_check;
+            p =  p + P_check * P_n;
 #ifdef BDD_VERBOSE
             if ( verbose )
                 fprintf(stdout,"+NODE[#%d]:SAMEVAR-LOOP: %s=%d, P_n=%f, m=%f, p=%f\n",T,n_TT->rva.var, n_TT->rva.val, P_n, m, p);
@@ -1211,7 +1226,14 @@ static double bdd_probability_node_V2(bdd_dictionary* dict, bdd* bdd, nodei T, c
             fprintf(stdout, "+**NODE[#%d]:result=%f\n",T,p);
 #endif
    if ( p < 0.0 || p > 1.0 ) {
-       pg_error(_errmsg,"probability_check: value %f out of range.", p);
+       char *str_rep;
+
+       pbuff pbuff_struct, *pbuff=pbuff_init(&pbuff_struct);
+       bdd2string(pbuff,bdd,0);
+       str_rep = MALLOC(pbuff->size+1);
+       memcpy(str_rep, pbuff->buffer, pbuff->size+1);
+       pbuff_free(pbuff);
+       pg_error(_errmsg,"probability_check: probvalue %f out of range: %s", p, str_rep);
        return -1.0;
    }
    return p;
