@@ -373,6 +373,8 @@ bdd_dictionary* merge_dictionary(bdd_dictionary* md, bdd_dictionary* ld, bdd_dic
     return md;
 }
 
+#define VALID_VAR_CHAR(C)   (isalnum(C) || (C)=='_')
+
 int modify_dictionary(bdd_dictionary* dict, int mode, char* dictionary_def, char** _errmsg) {
     dict_var* varp = NULL;
     char *p = dictionary_def;
@@ -386,11 +388,11 @@ int modify_dictionary(bdd_dictionary* dict, int mode, char* dictionary_def, char
         char   varname[MAX_RVA_NAME+1];
         int    vvi;
 
-        while ( *p && !isalnum(*p) )
+        while ( *p && !VALID_VAR_CHAR(*p) )
             p++;
-        if ( isalnum(*p) ) {
+        if ( VALID_VAR_CHAR(*p) ) {
             scan_var = p;
-            while ( isalnum(*p) )
+            while ( VALID_VAR_CHAR(*p) )
                 p++;
             scan_var_len = p - scan_var;
             while ( *p && *p != '=' )
@@ -442,7 +444,7 @@ int modify_dictionary(bdd_dictionary* dict, int mode, char* dictionary_def, char
             return pg_error(_errmsg,"modify_dictionary: varname too long, max(%d) : %s",MAX_RVA_NAME,scan_var);
         memcpy(varname,scan_var,scan_var_len);
         varname[scan_var_len] = 0;
-        // fprintf(stderr,"SCANNED: [%d] %s=%d : %f;\n",mode,varname,scan_val,scan_prob);
+        // fprintf(stdout,"SCANNED: [%d] %s=%d : %f;\n",mode,varname,scan_val,scan_prob);
         if ( varp && (strcmp(varp->name,varname) !=0) ) {
                 normalize_var(dict,varp); // start with a new var
                 varp = NULL;

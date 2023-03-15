@@ -146,7 +146,7 @@ static bdd* get_test_bdd(char* expr, int verbose, char** _errmsg) {
     return create_bdd(BDD_DEFAULT,expr,_errmsg,verbose);
 }
 
-char *bdd_expr[] = {
+char *BDD_EXPR[] = {
     "1",
     "x=1",
     "(x=1|y=1)",
@@ -229,8 +229,8 @@ static int _regenerate_test(char* par_expr, char** _errmsg) {
 static int test_regenerate() {
     char* _errmsg;
 
-    for (int i=0; bdd_expr[i]; i++) {
-        if ( !_regenerate_test(bdd_expr[i],&_errmsg) )
+    for (int i=0; BDD_EXPR[i]; i++) {
+        if ( !_regenerate_test(BDD_EXPR[i],&_errmsg) )
             pg_fatal("regenerate_test:error: %s",_errmsg);
     }
     return 1;
@@ -242,12 +242,12 @@ static void test_create_time(){
     int  TOTAL, count, msec;
 
     pbdd = NULL;
-    TOTAL = 1000000;
+    TOTAL = 10000000;
     CLOCK_START();
     count  = 0;
     while ( count < TOTAL ) {
-        for (int i=0; bdd_expr[i]; i++) {
-            if ( !(pbdd = get_test_bdd(bdd_expr[i],0/*verbose*/,&_errmsg)))
+        for (int i=0; BDD_EXPR[i]; i++) {
+            if ( !(pbdd = get_test_bdd(BDD_EXPR[i],0/*verbose*/,&_errmsg)))
                 pg_fatal("test_create: error creating bdd: %s",_errmsg);
             FREE(pbdd);
             if ( ++count >= TOTAL )
@@ -389,7 +389,7 @@ static int run_check_apply() {
 static void run_apply_test(op_mode m) {
     char* _errmsg = NULL;
 
-    int repeat = 30000;
+    int repeat = 300000;
     int count = 0;
     int msec;
     CLOCK_START();
@@ -953,7 +953,7 @@ void test_bdd() {
     //
     if (0) random_equiv_hunt(999);
     if (0) test_bdd_creation();
-    if (1) test_bdd_probability();
+    if (0) test_bdd_probability();
     if (0) test_create_time();
     if (0) compare_apply_text();
     if (0) test_static_bdd();

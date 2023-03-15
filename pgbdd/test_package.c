@@ -42,6 +42,6 @@ int main() {
     //
     if (0) test_vector();
     if (0) test_utils();
-    if (1) test_bdd();
-    if (0) test_dictionary();
+    if (1) test_dictionary();
+    if (1) test_bdd(); /* INCOMPLETE, SHOULD BE SWITCHED ON AGAIN */
 }

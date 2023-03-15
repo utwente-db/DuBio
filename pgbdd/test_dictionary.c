@@ -24,14 +24,18 @@ static int test_bdd_dictionary_v0() {
     bdd_dictionary dict_struct, *dict;
     char* errmsg;
 
-    char* input = "x=0 : 0.6; x=1 : 0.2; x=2 : 0.1; x=3 : 0.1; y=3 : 0.5; y=1 : 0.2; y=2 : 0.3; q=8 : 1.0; ";
+    char* input = "x=0 : 0.6; x=1 : 0.2; x=2 : 0.1; x=3 : 0.1; y=3 : 0.5; y=1 : 0.2; y=2 : 0.3; qq_1=8 : 1.0; ";
     if ( !(dict = bdd_dictionary_create(&dict_struct) ))
         return 0;;
     if (modify_dictionary(dict,DICT_ADD,input,&errmsg)) {
         bdd_dictionary *new_dict, *relocate_dict;
 
         bdd_dictionary_print(dict,0/*all*/,pbuff);
-        // pbuff_flush(pbuff,stdout);
+        if ( 0 ) {
+            fprintf(stdout,"*** Dictionary v0 contents ***\n");
+            pbuff_flush(pbuff,stdout);
+            fprintf(stdout,"******************************\n");
+        }
         new_dict = bdd_dictionary_serialize(dict);
         bdd_dictionary_free(dict);
         bdd_dictionary_sort(new_dict);
@@ -187,7 +191,7 @@ static int test_bdd_dictionary_v3() {
 }
 
 int test_dictionary() {
-    if (0) test_bdd_dictionary_v0();
+    if (1) test_bdd_dictionary_v0();
     if (0) test_bdd_dictionary_v1();
     if (0) test_bdd_dictionary_v2();
     if (0) test_bdd_dictionary_v3();
