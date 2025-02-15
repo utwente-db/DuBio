@@ -335,3 +335,22 @@ pg_bdd_equiv(PG_FUNCTION_ARGS)
         ereport(ERROR,(errmsg("bdd_uiv: %s",(_errmsg ? _errmsg : "NULL"))));
     PG_RETURN_BOOL(res);
 }
+
+PG_FUNCTION_INFO_V1(pg_bdd_fast_equiv);
+/**
+ * <code>bdd_equal(bdd lhs_bdd, bdd rhs_bdd) returns boolean</code>
+ * Return if 2 bdd's are equivalent
+ *
+ */
+Datum
+pg_bdd_fast_equiv(PG_FUNCTION_ARGS)
+{       
+    bdd  *lhs_bdd     = PG_GETARG_BDD(0);
+    bdd  *rhs_bdd     = PG_GETARG_BDD(1);
+    int   res         = -1;
+    char *_errmsg     = NULL;
+
+    if ( (res = bdd_fast_equiv(lhs_bdd, rhs_bdd, &_errmsg)) < 0 )
+        ereport(ERROR,(errmsg("bdd_uiv: %s",(_errmsg ? _errmsg : "NULL"))));
+    PG_RETURN_BOOL(res);
+}

@@ -219,6 +219,7 @@ bdd*  bdd_operator(char,op_mode,bdd*,bdd*,char**);
 
 int bdd_equal(bdd* lhs_bdd, bdd* rhs_bdd, char** _errmsg);
 int bdd_equiv(bdd* lhs_bdd, bdd* rhs_bdd, char** _errmsg);
+int bdd_fast_equiv(bdd* lhs_bdd, bdd* rhs_bdd, char** _errmsg);
 
 void  bdd2string(pbuff*,bdd*,int);
 void  bdd_info(bdd*, pbuff*);
@@ -239,6 +240,8 @@ int    bdd_contains(bdd*,char*,int,char**);
 bdd*   bdd_restrict(bdd*,char*,int,int,int,char**);
 
 int    bdd_test_equivalence(char* l_expr, char* r_expr, char** _errmsg);
+int    bdd_fast_quivalence(bdd* l_bdd, bdd* r_bdd, char** _errmsg);
+
 
 //
 //

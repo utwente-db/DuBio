@@ -614,6 +614,26 @@ static int _bdd_equiv(int l_depth, bdd_runtime* l_ctx, int r_depth, bdd_runtime*
     return 1;
 }
  
+// #define USE_FAST_EQUIV
+
+#ifdef USE_FAST_EQUIV
+
+int bdd_test_equivalence(char* l_expr, char* r_expr, char** _errmsg) {
+    bdd *l_bdd;
+    bdd *r_bdd;
+
+    if ( !(l_bdd = create_bdd(BDD_DEFAULT,l_expr,_errmsg,0)) )
+        return 0;
+    if ( !(r_bdd = create_bdd(BDD_DEFAULT,r_expr,_errmsg,0)) )
+        return 0;
+    int eqv = bdd_fast_quivalence(l_bdd, r_bdd, _errmsg);
+    FREE(l_bdd);
+    FREE(r_bdd);
+    //
+    return eqv;
+}
+
+#else
 
 /*
  * This function checks if two expressions result in two equivalent BDD trees.
@@ -636,6 +656,265 @@ int bdd_test_equivalence(char* l_expr, char* r_expr, char** _errmsg) {
     //
     return res;
 }
+
+#endif
+
+/*
+ *
+ * FAST equivalent experiment
+ *
+ *
+ */
+
+// #define EQV_DEBUG
+// #define EQV_ASSERT
+
+#define EQV_COLUMNS     6
+
+#define EQV_COL_FALSE   0
+#define EQV_COL_TRUE    1
+#define EQV_COL_VAR_I   2
+#define EQV_COL_VAR_V   3
+#define EQV_COL_PERM_V  4
+#define EQV_COL_PERM_NV 5
+
+#define EQV_EMPTY        -1
+#define EQV_LEAF_FALSE   -8
+#define EQV_LEAF_TRUE    -9
+
+typedef short (*EQV_TREE)[EQV_COLUMNS];
+
+DefVectorH(rva);
+DefVectorC(rva);
+
+#ifdef EQV_DEBUG
+
+static void _print_rva_vector(V_rva* rva_vector) {
+    fprintf(stdout,"  * rva Vector:\n");
+    fprintf(stdout,"  -------------\n");
+    for (int i=0; i<V_rva_size(rva_vector); i++) {
+        rva* v_rva = V_rva_getp(rva_vector, i);
+        fprintf(stdout, "  [%d] <%s=%d>\n", i, v_rva->var, v_rva->val);
+    }
+    fprintf(stdout,"\n");
+}
+
+#endif
+
+static int handle_new_rva(int eqv_tree_i, rva* new_rva, EQV_TREE eqv_tree, V_rva* rva_vector, int* p_n_var) {
+    int i = 0;
+    int vsz = V_rva_size(rva_vector);
+    
+    rva* last_rva = NULL;
+
+    int var_count = 0;
+
+#ifdef EQV_DEBUG
+    fprintf(stdout,"* handle_new_rva: <%s=%d>\n",new_rva->var, new_rva->val);
+#endif
+    while ( i < vsz ) {
+        rva* v_rva = V_rva_getp(rva_vector, i);
+
+        if ( IS_SAMEVAR(v_rva, new_rva) )
+            break;
+        else if ( !(last_rva && IS_SAMEVAR(v_rva, last_rva) ) ) 
+                var_count++;
+        last_rva = v_rva;
+        i++;
+    }
+    //
+    if ( i < vsz ) {
+        // found var
+        int val_count = 0;
+
+        while ( i < vsz ) {
+            rva* v_rva = V_rva_getp(rva_vector, i);
+
+            val_count++;
+            if ( ! IS_SAMEVAR(v_rva, new_rva) )
+                break;
+            else if (cmpRva(v_rva, new_rva) == 0) {
+                    eqv_tree[eqv_tree_i][EQV_COL_VAR_I] = var_count;
+                    eqv_tree[eqv_tree_i][EQV_COL_VAR_V] = val_count;
+#ifdef EQV_DEBUG
+                    fprintf(stdout,"  + MATCH var-val -> var_i=%d, var_pv=%d\n", var_count, val_count);
+                    _print_rva_vector(rva_vector);
+#endif
+                    return BDD_OK;
+            }
+            i++;
+        }
+        if ( V_rva_insert_at(rva_vector, i, new_rva) < 0 )
+            return -1;
+        //
+        val_count = eqv_tree[var_count][EQV_COL_PERM_NV] + 1;
+#ifdef EQV_ASSERT
+        if ( eqv_tree[var_count][EQV_COL_PERM_NV] != (val_count-1) ) {
+            pg_fatal("ASSERT 1");
+        }
+#endif
+        eqv_tree[var_count][EQV_COL_PERM_NV] = val_count;
+        eqv_tree[eqv_tree_i][EQV_COL_VAR_I] = var_count;
+        eqv_tree[eqv_tree_i][EQV_COL_VAR_V] = val_count;
+#ifdef EQV_DEBUG
+        fprintf(stdout,"  + inserted var/new_val -> vector_i=%d, var_i=%d, var_pv=%d\n", i-1, var_count, val_count);
+        _print_rva_vector(rva_vector);
+#endif
+        return BDD_OK;
+    } else {
+        // not found var
+#ifdef EQV_ASSERT
+        if ( *p_n_var != var_count )
+            pg_fatal("ASSERT 2");
+#endif
+        var_count = *p_n_var; // assert ???
+        *p_n_var = var_count + 1;
+
+        if ( V_rva_add(rva_vector, new_rva) < 0)
+            return -1;
+#ifdef EQV_DEBUG
+        fprintf(stdout,"  + appended new var -> var_i=%d, var_pv=%d\n", var_count, 1);
+#endif
+        //
+        eqv_tree[var_count][EQV_COL_PERM_V]  = EQV_EMPTY;
+        eqv_tree[var_count][EQV_COL_PERM_NV] = 1;
+        //
+        eqv_tree[eqv_tree_i][EQV_COL_VAR_I] = var_count;
+        eqv_tree[eqv_tree_i][EQV_COL_VAR_V] = 1;
+        //
+#ifdef EQV_DEBUG
+        _print_rva_vector(rva_vector);
+#endif
+    }
+    return BDD_OK;
+}
+
+static int bdd_eqv_gen(bdd* bdd, int offset, EQV_TREE eqv_tree, V_rva* rva_vector, int* p_n_var) {
+    int tree_sz = BDD_TREESIZE(bdd);
+    for(int i=0; i<tree_sz; i++) {
+        rva_node* bdd_node = BDD_NODE(bdd, i);
+
+        if ( bdd_node->rva.val < 0 ) {
+            eqv_tree[offset+i][EQV_COL_FALSE] = EQV_EMPTY;
+            eqv_tree[offset+i][EQV_COL_TRUE]  = EQV_EMPTY;
+            eqv_tree[offset+i][EQV_COL_VAR_I]  = EQV_EMPTY;
+            if (LEAF_BOOLVALUE(bdd_node))
+                eqv_tree[offset+i][EQV_COL_VAR_I]  = EQV_LEAF_TRUE;
+            else
+                eqv_tree[offset+i][EQV_COL_VAR_I]  = EQV_LEAF_FALSE;
+        } else {
+            if ( handle_new_rva(offset+i, &bdd_node->rva, eqv_tree, rva_vector, p_n_var) < 0)
+                return -1;
+            eqv_tree[offset+i][EQV_COL_FALSE] = bdd_node->low+offset;
+            eqv_tree[offset+i][EQV_COL_TRUE]  = bdd_node->high+offset;
+        }
+    }
+    return BDD_OK;
+}
+
+static int bdd_eqv_run_one_permutation(EQV_TREE eqv_tree, int tree_i) {
+    while( eqv_tree[tree_i][EQV_COL_VAR_I] >= 0 ) {
+        int state = eqv_tree[tree_i][EQV_COL_VAR_V] == eqv_tree[eqv_tree[tree_i][EQV_COL_VAR_I]][EQV_COL_PERM_V];
+#ifdef EQV_DEBUG
+        fprintf(stdout,"    @ [%d] F[%d] T[%d] V[%d] VV[%D]\n",
+                       tree_i,
+                       eqv_tree[tree_i][EQV_COL_FALSE],
+                       eqv_tree[tree_i][EQV_COL_TRUE],
+                       eqv_tree[tree_i][EQV_COL_VAR_I],
+                       eqv_tree[tree_i][EQV_COL_VAR_V]);
+        fprintf(stdout,"    > state = %d\n",state);
+#endif
+        tree_i = state ? eqv_tree[tree_i][EQV_COL_TRUE] :
+                         eqv_tree[tree_i][EQV_COL_FALSE];
+    }
+    int res = eqv_tree[tree_i][EQV_COL_VAR_I] == EQV_LEAF_TRUE;
+#ifdef EQV_DEBUG
+    fprintf(stdout,"    = res %d\n",res);
+#endif
+    return res;
+}
+
+static int bdd_eqv_run_permutations(EQV_TREE eqv_tree, int level, int max, int l_root, int r_root) {
+    if (level == max) {
+#ifdef EQV_DEBUG
+        fprintf(stdout, "+ running permutations : [");
+        for (int i=0; i<max; i++)
+            fprintf(stdout, "%d ", eqv_tree[i][EQV_COL_PERM_V]);
+        fprintf(stdout, "]\n");
+#endif
+        //
+        if ( ! ( bdd_eqv_run_one_permutation(eqv_tree, l_root) ==
+                 bdd_eqv_run_one_permutation(eqv_tree, r_root) ) )
+            return 0;
+    } else {
+        int count = eqv_tree[level][EQV_COL_PERM_NV];
+        for (int poss_val=0; poss_val < (count+1); poss_val++) {
+            eqv_tree[level][EQV_COL_PERM_V] = poss_val;
+            if ( bdd_eqv_run_permutations(eqv_tree, level+1, max, l_root, r_root) == 0)
+                return 0;
+        }
+    }
+    return 1;
+}
+
+#ifdef EQV_DEBUG
+static void _print_eqv_tree(EQV_TREE eqv_tree, int n_var, int tree_sz, int l_root, int r_root) {
+    fprintf(stdout, "* EQV_TREE n_var=%d:\n", n_var);
+    fprintf(stdout, "   i   F   T  Vi  Vv PVi PVn\n");
+    fprintf(stdout, " --- --- --- --- --- --- ---\n");
+    for(int i=0; i<tree_sz; i++) {
+        fprintf(stdout,"%c",(i==l_root || i==r_root)?'>':' ');
+        fprintf(stdout,"%3d %3d %3d %3d %3d",
+                       i,
+                       eqv_tree[i][EQV_COL_FALSE],
+                       eqv_tree[i][EQV_COL_TRUE],
+                       eqv_tree[i][EQV_COL_VAR_I],
+                       eqv_tree[i][EQV_COL_VAR_V]);
+        if ( i < n_var )
+            fprintf(stdout," %3d %3d",
+                       eqv_tree[i][EQV_COL_PERM_V],
+                       eqv_tree[i][EQV_COL_PERM_NV]);
+        fprintf(stdout,"\n");
+    }
+}
+#endif
+
+int bdd_fast_quivalence(bdd* l_bdd, bdd* r_bdd, char** _errmsg) {
+    int l_tree_sz = BDD_TREESIZE(l_bdd);
+    int r_tree_sz = BDD_TREESIZE(r_bdd);
+    int eqv_tree_sz = l_tree_sz + r_tree_sz;
+    int l_tree_root = BDD_ROOT(l_bdd);
+    int r_tree_root = BDD_ROOT(r_bdd) + l_tree_sz;
+
+    EQV_TREE eqv_tree = MALLOC(sizeof(short[EQV_COLUMNS])*eqv_tree_sz);
+    if (eqv_tree == NULL)
+        return -1;
+
+    V_rva rva_vector;
+    if ( !V_rva_init_estsz(&rva_vector, l_tree_sz+r_tree_sz))
+        return -1;
+
+    int n_var =  0; // number of vars to permute
+
+    if ( bdd_eqv_gen(l_bdd, 0, eqv_tree, &rva_vector, &n_var) < 0 ||
+         bdd_eqv_gen(r_bdd, l_tree_sz, eqv_tree, &rva_vector, &n_var) < 0)
+        return -1;
+    V_rva_free(&rva_vector); // only necessary during build
+#ifdef EQV_DEBUG
+    _print_eqv_tree(eqv_tree, n_var, eqv_tree_sz, l_tree_root, r_tree_root);
+#endif
+    int res = bdd_eqv_run_permutations(eqv_tree, 0, n_var, l_tree_root, r_tree_root);
+    FREE(eqv_tree);
+    return res;
+}
+
+/*
+ *
+ *
+ *
+ *
+ */
+
 
 static int bdd_start_build(bdd_alg* alg, bdd_runtime* bdd_rt, char** _errmsg) {
     nodei res;
@@ -1403,3 +1682,9 @@ int bdd_equiv(bdd* lhs_bdd, bdd* rhs_bdd, char** _errmsg) {
     return res;
 }
 
+int bdd_fast_equiv(bdd* lhs_bdd, bdd* rhs_bdd, char** _errmsg) {
+    int res = bdd_fast_quivalence(lhs_bdd,rhs_bdd,_errmsg);
+    if (res < 0)
+        pg_error(_errmsg,"bdd_fast_equiv: error during fast_equiv");
+    return res;
+}

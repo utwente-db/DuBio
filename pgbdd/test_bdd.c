@@ -764,6 +764,38 @@ static void expr_bdd2string(pbuff* pbuff, char* expr) {
     FREE(bdd);
 }
 
+static int test_fast_equivalence() {
+    char *_errmsg = NULL;
+
+    // char* l = "x=1|(y=1 & x=2)";
+    // char* r = "(x=1|(x=2&y=1))";
+
+    char* l = "(!(a=4)&b=0)";
+    char* r = "((a=1&b=0)|(!a=1&(!(a=4)&b=0)))";
+
+    bdd* l_bdd;
+    bdd* r_bdd;
+
+    if ( !(l_bdd = create_bdd(BDD_DEFAULT,l,&_errmsg,0)) )
+        return 0;
+    if ( !(r_bdd = create_bdd(BDD_DEFAULT,r,&_errmsg,0)) )
+        return 0;
+
+    int eqv = bdd_fast_quivalence(l_bdd, r_bdd, &_errmsg);
+
+    if ( eqv < 0 )
+        pg_fatal("test_equivalence: error during bdd_fast_quivalence");
+    else if ( eqv )
+        fprintf(stdout, "TRUE\n");
+    else
+        fprintf(stdout, "FALSE\n");
+    if (0)
+        bdd_generate_dotfile(l_bdd,"./DOT/test_l.dot",NULL);
+        bdd_generate_dotfile(r_bdd,"./DOT/test_r.dot",NULL);
+    //
+    return 1;
+}
+
 static void random_equiv_hunt(long seed) {
     pbuff pbuff_struct_1, *pb1=pbuff_init(&pbuff_struct_1);
     pbuff pbuff_struct_2, *pb2=pbuff_init(&pbuff_struct_2);
@@ -960,5 +992,6 @@ void test_bdd() {
     if (0) test_apply();
     if (0) test_restrict();
     if (0) run_check_apply();
+    if (0) test_fast_equivalence();
     if (0) workbench();
 }

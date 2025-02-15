@@ -155,6 +155,11 @@ function bdd_equiv(lhs_bdd bdd,rhs_bdd bdd) returns BOOLEAN
      as '$libdir/pgbdd', 'pg_bdd_equiv'
      language C immutable strict;
 
+create 
+function bdd_fast_equiv(lhs_bdd bdd,rhs_bdd bdd) returns BOOLEAN
+     as '$libdir/pgbdd', 'pg_bdd_fast_equiv'
+     language C immutable strict;
+
 /*------------------------------
  * Definition of DICTIONARY type.
  *-------------------------------
