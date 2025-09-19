@@ -31,7 +31,7 @@
 
 //
 
-#define DatumGetDictionary(x)        bdd_dictionary_relocate(((bdd_dictionary *) DatumGetPointer(x)))
+#define DatumGetDictionary(x)        bdd_dictionary_relocate(((bdd_dictionary *) x))
 
 #define PG_GETARG_DICTIONARY(x)      DatumGetDictionary(          \
                 PG_DETOAST_DATUM(PG_GETARG_DATUM(x)))
@@ -46,7 +46,7 @@
 
 //
 
-#define DatumGetBdd(x)        relocate_bdd(((bdd *) DatumGetPointer(x)))
+#define DatumGetBdd(x)        relocate_bdd(((bdd *) x))
 
 #define PG_GETARG_BDD(x)      DatumGetBdd(          \
                 PG_DETOAST_DATUM(PG_GETARG_DATUM(x)))
