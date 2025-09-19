@@ -17,6 +17,8 @@
 #ifndef BDD_H
 #define BDD_H
 
+#include <stdint.h>
+
 #define BDD_FAIL  0
 #define BDD_OK    1
 
@@ -102,8 +104,8 @@ typedef struct rva_epos { // position of rva in expression
 
 #define HASH_G(HM,L,R)  ((L*R)%hm->hash_sz)
 
-#define HBI_MAX        USHRT_MAX
-typedef short          hbi; // hash bucket index
+#define HBI_MAX        INT32_MAX
+typedef int32_t          hbi; // hash bucket index
 
 typedef struct hb { // hash bucket def, size = 8
     nodei l;
@@ -117,7 +119,7 @@ typedef struct hash_matrix {
     nodei sz_r;
     hbi   n_hb;
     hbi   max_hb;
-    nodei hash_sz;
+    int32_t hash_sz;
     hb*   v_hb;
     hbi   hash_tab[0];
 } hash_matrix;
