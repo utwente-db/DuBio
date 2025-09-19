@@ -1021,7 +1021,7 @@ bdd* relocate_bdd(bdd* tbr) {
 #define HASH_MATRIX_SZ(SZ_H,SZ_B)  (sizeof(hash_matrix)+SZ_H*sizeof(hbi)+SZ_B*sizeof(hb))
 
 static hash_matrix* create_G(nodei sz_l, nodei sz_r, char** _errmsg)  {
-    nodei hash_sz = (sz_l+sz_r+WORD_MODULO - 1)/WORD_MODULO*WORD_MODULO;
+    int32_t hash_sz = (sz_l+sz_r+WORD_MODULO - 1)/WORD_MODULO*WORD_MODULO;
     hash_matrix* res;
 
     if ( !(res = MALLOC(HASH_MATRIX_SZ(hash_sz,hash_sz))) ) {

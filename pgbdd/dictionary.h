@@ -17,13 +17,14 @@
 #ifndef DICTIONARY_H
 #define DICTIONARY_H
 
+#include <stdint.h>
 
 #define MAX_RVA_NAME_BUFF    12
 #define MAX_RVA_NAME         (MAX_RVA_NAME_BUFF-1)        
 #define MAX_RVA_LEN          24
 
-typedef unsigned short       dindex;
-#define MAX_DINDEX           USHRT_MAX
+typedef uint32_t       dindex;
+#define MAX_DINDEX     UINT32_MAX
 
 typedef struct dict_var {
     char    name[MAX_RVA_NAME_BUFF];
