@@ -21,6 +21,13 @@ function bdd_in(expression cstring) returns bdd
 comment on function bdd_in(cstring) is
 'Create a bdd expression from argument string.';
 
+create
+function bdd_bytea_in(expression bytea) returns bdd
+     as '$libdir/pgbdd', 'bdd_bytea_in'
+     language C immutable strict;
+comment on function bdd_bytea_in(bytea) is
+'Create a bdd expression from argument byte array.';
+
 create 
 function bdd_out(dict bdd) returns cstring
      as '$libdir/pgbdd', 'bdd_out'
@@ -37,6 +44,10 @@ CREATE TYPE bdd (
 );
 comment on type bdd is
 'A postgres implementation of a Binary Decision Diagrams.';
+
+create cast (bytea as bdd)
+with function bdd_bytea_in(bytea)
+as implicit;
 
 create 
 function _op_bdd(operator cstring,lhs_bdd bdd,rhs_bdd bdd) returns bdd

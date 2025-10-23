@@ -40,6 +40,21 @@ bdd_in(PG_FUNCTION_ARGS)
     PG_RETURN_BDD(return_bdd);
 }
 
+PG_FUNCTION_INFO_V1(bdd_bytea_in);
+/**
+ * <code>bdd_bytea_in(expression bytea) returns bdd</code>
+ * Create an expression from struct byte array.
+ *
+ */
+Datum
+bdd_bytea_in(PG_FUNCTION_ARGS)
+{
+    bytea *input_bytea = PG_GETARG_BYTEA_P(0);
+    bdd *return_bdd = (bdd*) VARDATA_ANY(input_bytea);
+    SET_VARSIZE(return_bdd,return_bdd->bytesize);
+    PG_RETURN_BDD(return_bdd);
+}
+
 PG_FUNCTION_INFO_V1(bdd_out);
 /**
  * <code>bdd_out(bdd bdd) returns text</code>
