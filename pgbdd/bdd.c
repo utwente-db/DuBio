@@ -813,6 +813,8 @@ static int bdd_eqv_gen(bdd* bdd, int offset, EQV_TREE eqv_tree, V_rva* rva_vecto
 }
 
 static int bdd_eqv_run_one_permutation(EQV_TREE eqv_tree, int tree_i) {
+    int res;
+
     while( eqv_tree[tree_i][EQV_COL_VAR_I] >= 0 ) {
         int state = eqv_tree[tree_i][EQV_COL_VAR_V] == eqv_tree[eqv_tree[tree_i][EQV_COL_VAR_I]][EQV_COL_PERM_V];
 #ifdef EQV_DEBUG
@@ -827,7 +829,7 @@ static int bdd_eqv_run_one_permutation(EQV_TREE eqv_tree, int tree_i) {
         tree_i = state ? eqv_tree[tree_i][EQV_COL_TRUE] :
                          eqv_tree[tree_i][EQV_COL_FALSE];
     }
-    int res = eqv_tree[tree_i][EQV_COL_VAR_I] == EQV_LEAF_TRUE;
+    res = eqv_tree[tree_i][EQV_COL_VAR_I] == EQV_LEAF_TRUE;
 #ifdef EQV_DEBUG
     fprintf(stdout,"    = res %d\n",res);
 #endif
@@ -885,16 +887,17 @@ int bdd_fast_quivalence(bdd* l_bdd, bdd* r_bdd, char** _errmsg) {
     int eqv_tree_sz = l_tree_sz + r_tree_sz;
     int l_tree_root = BDD_ROOT(l_bdd);
     int r_tree_root = BDD_ROOT(r_bdd) + l_tree_sz;
+    V_rva rva_vector;
+    int n_var =  0; // number of vars to permute
+    int res;
 
     EQV_TREE eqv_tree = MALLOC(sizeof(short[EQV_COLUMNS])*eqv_tree_sz);
     if (eqv_tree == NULL)
         return -1;
 
-    V_rva rva_vector;
     if ( !V_rva_init_estsz(&rva_vector, l_tree_sz+r_tree_sz))
         return -1;
 
-    int n_var =  0; // number of vars to permute
 
     if ( bdd_eqv_gen(l_bdd, 0, eqv_tree, &rva_vector, &n_var) < 0 ||
          bdd_eqv_gen(r_bdd, l_tree_sz, eqv_tree, &rva_vector, &n_var) < 0)
@@ -903,7 +906,7 @@ int bdd_fast_quivalence(bdd* l_bdd, bdd* r_bdd, char** _errmsg) {
 #ifdef EQV_DEBUG
     _print_eqv_tree(eqv_tree, n_var, eqv_tree_sz, l_tree_root, r_tree_root);
 #endif
-    int res = bdd_eqv_run_permutations(eqv_tree, 0, n_var, l_tree_root, r_tree_root);
+    res = bdd_eqv_run_permutations(eqv_tree, 0, n_var, l_tree_root, r_tree_root);
     FREE(eqv_tree);
     return res;
 }
@@ -1688,3 +1691,87 @@ int bdd_fast_equiv(bdd* lhs_bdd, bdd* rhs_bdd, char** _errmsg) {
         pg_error(_errmsg,"bdd_fast_equiv: error during fast_equiv");
     return res;
 }
+
+/*
+ * BDD optimizations and remove redundancies
+ */
+
+static int _remove_redundancies(bdd* bdd, nodei i) {
+    int res = 0;
+    rva_node *node = BDD_NODE(bdd,i);
+
+    if ( ! IS_LEAF(node ) ) {
+        if ( BOOL_NODE(node->high) )
+            res = _remove_redundancies(bdd, node->low);
+        else {
+            // Check if the high of the node var is the same var. Because 
+            // now the value of var is known in the high branch you can skip
+            // over this var.
+            if ( IS_SAMEVAR(BDD_RVA(bdd,i), BDD_RVA(bdd,node->high)) ) {
+                if ( BDD_RVA(bdd,i)->val == BDD_RVA(bdd,node->high)->val )   
+                    node->high = BDD_NODE(bdd,node->high)->high;
+                else
+                    node->high = BDD_NODE(bdd,node->high)->low;
+                res = 1;
+            }
+            res |= _remove_redundancies(bdd, node->low);
+            res |= _remove_redundancies(bdd, node->high);
+        }
+    }
+    return res;
+}
+
+#define MARK_UNUSED(NODE)   (NODE)->low = - ((NODE)->low + 1)
+#define MARK_USED(NODE)     (NODE)->low = -(NODE)->low - 1
+#define IS_USED(NODE)       ((NODE)->low >= 0)
+
+static void _mark_used_branches(bdd* bdd, nodei i) {
+    rva_node *node = BDD_NODE(bdd,i);
+
+    if ( (i >= 2) && !IS_USED(node) ) {
+        MARK_USED(node);
+        _mark_used_branches(bdd, node->low);
+        _mark_used_branches(bdd, node->high);
+    }
+}
+        
+static void _remove_unused_branches(bdd* bdd) {
+    nodei i, j;
+    rva_node *node;
+
+    for(i=2; i < BDD_TREESIZE(bdd); i++)
+        MARK_UNUSED(BDD_NODE(bdd, i));
+    _mark_used_branches(bdd, BDD_ROOT(bdd));
+    //
+    for(i=2; i < BDD_TREESIZE(bdd); i++) {
+        if ( ! IS_USED(BDD_NODE(bdd, i)) ) {
+            fprintf(stdout,"&&&&& removing node = %d\n", i);
+            for(j=2; j < BDD_TREESIZE(bdd); j++)
+                if ( i != j ) {
+                    node = BDD_NODE(bdd, j);
+                    if ( IS_USED(node) ) {  
+                        if ( node->low > i)
+                            node->low--;
+                        if ( node->high > i)
+                            node->high--;
+                    }
+                    
+            }
+            V_rva_node_delete(&(bdd)->tree,i); // better with define?
+            --i; // adjust for, new element at tree[i]
+        }
+    }
+}
+
+int remove_redundancies(bdd* bdd) {
+    int res;
+
+    res = _remove_redundancies(bdd, BDD_ROOT(bdd));
+    fprintf(stdout,"################################### res = %d\n", res);
+    if ( res )
+        _remove_unused_branches(bdd);
+    return res;
+}
+
+
+

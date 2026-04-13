@@ -238,6 +238,8 @@ bdd*   bdd_restrict(bdd*,char*,int,int,int,char**);
 int    bdd_test_equivalence(char* l_expr, char* r_expr, char** _errmsg);
 int    bdd_fast_quivalence(bdd* l_bdd, bdd* r_bdd, char** _errmsg);
 
+int    remove_redundancies(bdd* bdd);
+
 
 //
 //
