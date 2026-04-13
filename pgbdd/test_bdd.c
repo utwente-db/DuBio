@@ -766,6 +766,7 @@ static void expr_bdd2string(pbuff* pbuff, char* expr) {
 
 static int test_fast_equivalence() {
     char *_errmsg = NULL;
+    int  eqv;
 
     // char* l = "x=1|(y=1 & x=2)";
     // char* r = "(x=1|(x=2&y=1))";
@@ -781,7 +782,7 @@ static int test_fast_equivalence() {
     if ( !(r_bdd = create_bdd(BDD_DEFAULT,r,&_errmsg,0)) )
         return 0;
 
-    int eqv = bdd_fast_quivalence(l_bdd, r_bdd, &_errmsg);
+    eqv = bdd_fast_quivalence(l_bdd, r_bdd, &_errmsg);
 
     if ( eqv < 0 )
         pg_fatal("test_equivalence: error during bdd_fast_quivalence");

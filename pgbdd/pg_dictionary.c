@@ -181,12 +181,13 @@ dictionary_ref_create(PG_FUNCTION_ARGS)
     bdd_dictionary*     dict = PG_GETARG_DICTIONARY(0);
     bdd_dictionary_ref* bdr  = NULL;
     void*               persistent = NULL;
+    bdd_dictionary*     persistent_dict;
     char *_errmsg = NULL;
 
     if (!(persistent = MemoryContextAlloc(TopTransactionContext,dict->bytesize)))
         ereport(ERROR,(errmsg("dictionary_ref_create: MemoryContextAlloc() error")));
     memcpy(persistent,dict,dict->bytesize);
-    bdd_dictionary* persistent_dict = bdd_dictionary_relocate((bdd_dictionary*)persistent);
+    persistent_dict = bdd_dictionary_relocate((bdd_dictionary*)persistent);
     if (!(bdr=create_ref_from_dict(persistent_dict,&_errmsg)))
         ereport(ERROR,(errmsg("dictionary_ref_create: %s",(_errmsg ? _errmsg : "NULL"))));
     PG_RETURN_DICTIONARY_REF(bdr);
